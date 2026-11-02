@@ -4,7 +4,7 @@
  * All tables will be moved to domain-specific modules in lib/db/schema/
  */
 
-import { pgTable, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index, unique, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AguinaldoSnapshotCabecera, AguinaldoEmpleadoSnapshot } from "../services/aguinaldo-snapshot";
 
@@ -15,7 +15,8 @@ import { account, users, session, sessions, verifications, magicLinks, roleEnum 
 import { companies, branches } from './schema/core';
 import { branchComplianceServices } from './schema/equipment';
 import { purchaseTypeEnum, costCenters, serviceOrders } from './schema/service-orders';
-import { recurringContracts } from './schema/treasury';
+import { recurringContracts, paymentRunItems } from './schema/treasury';
+import { accountingJournals } from './schema/accounting';
 import { branchTerminals } from './schema/finance';
 
 // Re-export modular schema
@@ -3673,7 +3674,104 @@ export const operatingExpenses = pgTable("operating_expenses", {
     dueDate: date("due_date"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    /**
+     * FC-09 — clave compuesta para que un abono solo pueda apuntar a un gasto
+     * de su misma empresa. `(company_id, id)` ya es único por la PK; se declara
+     * explícitamente para habilitar la llave foránea compuesta del abono.
+     */
+    companyIdUnique: unique("operating_expenses_company_id_unique").on(table.companyId, table.id),
+}));
+
+/**
+ * FC-09 — estado de una aplicación de pago (abono) de un gasto operativo.
+ *
+ * `PENDING` es una partida programada en tesorería que todavía no salió del
+ * banco: no reduce el saldo ni genera póliza. `CONFIRMED` es el hecho de pago
+ * con evidencia; es el único que descuenta saldo y se contabiliza. `FAILED`
+ * conserva el intento rechazado sin salida definitiva.
+ */
+export const expensePaymentStatusEnum = pgEnum("expense_payment_status", ['PENDING', 'CONFIRMED', 'FAILED']);
+
+/** Origen de la aplicación: captura manual o partida de una corrida de pago. */
+export const expensePaymentSourceEnum = pgEnum("expense_payment_source", ['MANUAL', 'TREASURY']);
+
+/**
+ * Aplicaciones de pago de un gasto operativo, con importes parciales.
+ *
+ * Antes, marcar un gasto como pagado espejaba `PAID` sobre el documento
+ * completo y no quedaba rastro del abono ni de su importe. Este libro conserva
+ * cada aplicación: dos pagos de 10,000 y 5,000 contra un gasto de 34,800 no son
+ * dos gastos, son dos abonos que dejan 19,800 pendientes. El guard de la
+ * migración 0131 rechaza que la suma confirmada exceda el gasto y que una
+ * aplicación confirmada se edite o se borre.
+ *
+ * `accountingJournalId` es la póliza del pago. Puede quedar en `null` con
+ * `pendingReason` cuando falta regla, cuenta o fecha: el hecho operativo queda
+ * registrado y FC-10 lo reintenta. `paymentRunItemId` liga el abono con la
+ * partida de tesorería que lo originó, sin duplicar la partida.
+ */
+export const expensePayments = pgTable("expense_payments", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    expenseId: uuid("expense_id").notNull(),
+
+    amountCents: integer("amount_cents").notNull(),
+    paidAt: date("paid_at").notNull(),
+    paymentMethod: expensePaymentMethodEnum("payment_method"),
+
+    status: expensePaymentStatusEnum("status").default('PENDING').notNull(),
+    source: expensePaymentSourceEnum("source").notNull(),
+
+    /** Partida de tesorería que originó el abono (solo `TREASURY`). */
+    paymentRunItemId: uuid("payment_run_item_id").references(() => paymentRunItems.id),
+
+    /** Póliza del pago; `null` mientras el hecho contable está pendiente. */
+    accountingJournalId: uuid("accounting_journal_id"),
+    pendingReason: text("pending_reason"),
+
+    /** Folio/rastro del comprobante con que se confirmó el pago. */
+    reference: text("reference"),
+    /** Motivo del rechazo bancario; solo en `FAILED`. */
+    failureReason: text("failure_reason"),
+
+    createdBy: text("created_by").notNull().references(() => users.id),
+    confirmedBy: text("confirmed_by").references(() => users.id),
+    confirmedAt: timestamp("confirmed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    companyIdUnique: unique("expense_payments_company_id_unique").on(table.companyId, table.id),
+    expenseFk: foreignKey({ name: "expense_payments_expense_fk", columns: [table.companyId, table.expenseId],
+        foreignColumns: [operatingExpenses.companyId, operatingExpenses.id] }),
+    journalFk: foreignKey({ name: "expense_payments_journal_fk", columns: [table.companyId, table.accountingJournalId],
+        foreignColumns: [accountingJournals.companyId, accountingJournals.id] }),
+    /** Una partida de tesorería produce a lo sumo una aplicación. */
+    runItemUnique: uniqueIndex("expense_payments_run_item_unique").on(table.companyId, table.paymentRunItemId)
+        .where(sql`${table.paymentRunItemId} IS NOT NULL`),
+    expenseIdx: index("expense_payments_expense_idx").on(table.companyId, table.expenseId, table.status),
+    amountCheck: check("expense_payments_amount_check", sql`${table.amountCents} > 0 AND ${table.amountCents} <= 2147483647`),
+    statusCheck: check("expense_payments_status_check", sql`${table.status} IN ('PENDING','CONFIRMED','FAILED')`),
+    sourceCheck: check("expense_payments_source_check", sql`${table.source} IN ('MANUAL','TREASURY')`),
+    settlementCheck: check("expense_payments_settlement_check", sql`
+        (${table.status} = 'PENDING' AND ${table.confirmedBy} IS NULL AND ${table.confirmedAt} IS NULL
+          AND ${table.failureReason} IS NULL)
+        OR (${table.status} = 'CONFIRMED' AND ${table.confirmedBy} IS NOT NULL AND ${table.confirmedAt} IS NOT NULL
+          AND ${table.failureReason} IS NULL)
+        OR (${table.status} = 'FAILED' AND ${table.confirmedBy} IS NULL AND ${table.confirmedAt} IS NULL
+          AND ${table.failureReason} IS NOT NULL)`),
+    sourceLinkCheck: check("expense_payments_source_link_check", sql`
+        (${table.source} = 'TREASURY') = (${table.paymentRunItemId} IS NOT NULL)`),
+    referenceCheck: check("expense_payments_reference_check", sql`${table.reference} IS NULL OR
+        (${table.reference} = btrim(${table.reference}) AND length(${table.reference}) BETWEEN 1 AND 200)`),
+    pendingReasonCheck: check("expense_payments_pending_reason_check", sql`${table.pendingReason} IS NULL OR
+        (${table.pendingReason} = btrim(${table.pendingReason}) AND length(${table.pendingReason}) BETWEEN 1 AND 500)`),
+    failureReasonCheck: check("expense_payments_failure_reason_check", sql`${table.failureReason} IS NULL OR
+        (${table.failureReason} = btrim(${table.failureReason}) AND length(${table.failureReason}) BETWEEN 1 AND 500)`),
+    journalLinkCheck: check("expense_payments_journal_link_check", sql`
+        ${table.accountingJournalId} IS NULL OR ${table.status} = 'CONFIRMED'`),
+}));
 
 export const expenseAuthorizationRules = pgTable("expense_authorization_rules", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),

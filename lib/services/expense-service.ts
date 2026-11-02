@@ -35,6 +35,14 @@ import { getTenantOperatingConfig } from "./tenant-config-service";
 import { checkBudgetAvailability } from "./budget-service";
 import { emitDomainEvent } from "./domain-event-service";
 import { isPeriodClosed } from "./financial-period-service";
+import { setTenantContext } from "@/lib/db/tenant-context";
+import {
+  confirmedPaidCents,
+  ensureRecognitionIn,
+  insertPaymentIn,
+  isAccountingPostingEnabled,
+  settleExpenseIn,
+} from "./accounting/expense-adapter";
 
 /**
  * ¿Puede este alcance resolver un gasto de esta sucursal?
@@ -614,36 +622,48 @@ export async function approveOperatingExpense(
   // aprobaciones simultáneas la pasaban las dos — la segunda pisaba
   // `approved_by` y `approval_notes`, y la bitácora terminaba nombrando a quien
   // llegó tarde. Esta condición es la única guarda sin ventana.
-  const [updated] = await db
-    .update(operatingExpenses)
-    .set({
-      status: "APPROVED",
-      approvedBy: approverId,
-      approvalNotes: notes || "Aprobado",
-      overbudgetApprovedBy: expense.status === "PENDING_OVERBUDGET_APPROVAL" ? approverId : expense.overbudgetApprovedBy,
-      overbudgetApprovedAt: expense.status === "PENDING_OVERBUDGET_APPROVAL" ? new Date() : expense.overbudgetApprovedAt,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(operatingExpenses.id, expenseId),
-        eq(operatingExpenses.companyId, companyId),
-        inArray(operatingExpenses.status, ["PENDING_APPROVAL", "PENDING_OVERBUDGET_APPROVAL"]),
-        ...(scope.kind === "BRANCH"
-          ? [eq(operatingExpenses.branchId, scope.branchId)]
-          : [])
+  const persistApproval = async (tx: Pick<typeof db, "update">) => {
+    const [updated] = await tx
+      .update(operatingExpenses)
+      .set({
+        status: "APPROVED",
+        approvedBy: approverId,
+        approvalNotes: notes || "Aprobado",
+        overbudgetApprovedBy: expense.status === "PENDING_OVERBUDGET_APPROVAL" ? approverId : expense.overbudgetApprovedBy,
+        overbudgetApprovedAt: expense.status === "PENDING_OVERBUDGET_APPROVAL" ? new Date() : expense.overbudgetApprovedAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(operatingExpenses.id, expenseId),
+          eq(operatingExpenses.companyId, companyId),
+          inArray(operatingExpenses.status, ["PENDING_APPROVAL", "PENDING_OVERBUDGET_APPROVAL"]),
+          ...(scope.kind === "BRANCH"
+            ? [eq(operatingExpenses.branchId, scope.branchId)]
+            : [])
+        )
       )
-    )
-    .returning();
+      .returning();
 
-  if (!updated) {
-    // Perdió la carrera: alguien más lo resolvió entre el SELECT y el UPDATE.
-    throw ApiError.badRequest(
-      "Este gasto ya fue resuelto por alguien más. Recarga la lista para ver cómo quedó."
-    );
-  }
+    if (!updated) {
+      // Perdió la carrera: alguien más lo resolvió entre el SELECT y el UPDATE.
+      throw ApiError.badRequest(
+        "Este gasto ya fue resuelto por alguien más. Recarga la lista para ver cómo quedó."
+      );
+    }
+    return updated;
+  };
 
-  return updated;
+  if (!isAccountingPostingEnabled()) return persistApproval(db);
+  return db.transaction(async tx => {
+    await setTenantContext(tx, { companyId, actorId: approverId });
+    const updated = await persistApproval(tx);
+    // La aprobación y su obligación se confirman juntas. La falta de regla o
+    // datos explícitos conserva el gasto aprobado para la recuperación FC-10;
+    // un fallo de persistencia revierte ambas escrituras.
+    await ensureRecognitionIn(tx, companyId, approverId, updated);
+    return updated;
+  });
 }
 
 /**
@@ -803,6 +823,13 @@ export async function markPaidOperatingExpense(
     );
   }
 
+  // FC-09: con la contabilización habilitada, "pagado" deja de ser un espejo
+  // sobre el documento completo y se registra un abono confirmado por el saldo
+  // pendiente. Sin la bandera se conserva exactamente el comportamiento previo.
+  if (isAccountingPostingEnabled()) {
+    return markExpensePaidWithApplication({ expenseId, companyId, scope, actorId, paymentMethod, paidAt });
+  }
+
   const [updated] = await db
     .update(operatingExpenses)
     .set({
@@ -840,6 +867,101 @@ export async function markPaidOperatingExpense(
     .returning();
 
   return updated ?? expense;
+}
+
+function isoDay(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+/**
+ * FC-09 — pago manual completo del saldo pendiente, con su abono registrado.
+ *
+ * Se ejecuta en una transacción con contexto de empresa porque
+ * `expense_payments` tiene RLS. El cerrojo de fila serializa dos clics
+ * simultáneos: el segundo lee el gasto ya saldado y no crea otro abono.
+ */
+async function markExpensePaidWithApplication(input: {
+  expenseId: string;
+  companyId: string;
+  scope: BranchScope;
+  actorId: string;
+  paymentMethod: ExpensePaymentMethod | null;
+  paidAt?: Date;
+}) {
+  const { expenseId, companyId, scope, actorId, paymentMethod, paidAt } = input;
+  return db.transaction(async (tx) => {
+    await setTenantContext(tx, { companyId, actorId });
+    const [expense] = await tx.select().from(operatingExpenses).where(and(
+      eq(operatingExpenses.id, expenseId), eq(operatingExpenses.companyId, companyId),
+    )).limit(1).for("update");
+    if (!expense) throw ApiError.notFound("El gasto especificado no fue encontrado.");
+    assertScopeCoversBranch(scope, expense.branchId);
+    if (expense.status === "PAID") return expense;
+    if (expense.status !== "APPROVED") {
+      throw ApiError.badRequest(`Sólo se puede pagar un gasto aprobado. Este está en estado "${expense.status}".`);
+    }
+
+    const paid = await confirmedPaidCents(tx, companyId, expense.id);
+    const remaining = expense.amount - paid;
+    if (remaining > 0) {
+      await insertPaymentIn(tx, companyId, actorId, {
+        expenseId: expense.id,
+        amountCents: remaining,
+        paidAt: isoDay(paidAt ?? new Date()),
+        paymentMethod: paymentMethod ?? expense.paymentMethod ?? null,
+        source: "MANUAL",
+      });
+    } else {
+      await settleExpenseIn(tx, companyId, actorId, expense.id);
+    }
+    const [settled] = await tx.select().from(operatingExpenses).where(and(
+      eq(operatingExpenses.id, expense.id), eq(operatingExpenses.companyId, companyId),
+    )).limit(1);
+    return settled ?? expense;
+  });
+}
+
+/**
+ * FC-09 — registra un abono manual, total o parcial, contra un gasto aprobado.
+ *
+ * La confirmación es explícita: a diferencia de la partida de tesorería (que
+ * nace `PENDING`), un abono manual ya declara que el dinero salió, con fecha y
+ * actor. El saldo del gasto baja de inmediato y la póliza se genera si la
+ * configuración contable lo permite; si no, el abono queda con su motivo
+ * pendiente.
+ */
+export async function registerExpensePayment(input: {
+  /** UUID estable por abono; reutilizarlo en cada reintento. */
+  paymentId: string;
+  expenseId: string;
+  companyId: string;
+  scope: BranchScope;
+  actorId: string;
+  amountCents: number;
+  paidAt: string;
+  paymentMethod?: ExpensePaymentMethod | null;
+  reference?: string | null;
+}) {
+  const { paymentId, expenseId, companyId, scope, actorId, amountCents, paidAt, paymentMethod, reference } = input;
+  if (!isAccountingPostingEnabled()) {
+    throw new ApiError(
+      "La contabilización de gastos no está habilitada en este entorno.",
+      503
+    );
+  }
+  if (!paymentId) throw ApiError.badRequest("Falta la identidad estable del abono (paymentId).");
+  return db.transaction(async (tx) => {
+    await setTenantContext(tx, { companyId, actorId });
+    const [expense] = await tx.select({ branchId: operatingExpenses.branchId }).from(operatingExpenses)
+      .where(and(eq(operatingExpenses.id, expenseId), eq(operatingExpenses.companyId, companyId)))
+      .limit(1).for("update");
+    if (!expense) throw ApiError.notFound("El gasto especificado no fue encontrado.");
+    assertScopeCoversBranch(scope, expense.branchId);
+    return insertPaymentIn(tx, companyId, actorId, {
+      paymentId, expenseId, amountCents, paidAt, paymentMethod: paymentMethod ?? null,
+      source: "MANUAL", reference: reference ?? null,
+    });
+  });
 }
 
 /**

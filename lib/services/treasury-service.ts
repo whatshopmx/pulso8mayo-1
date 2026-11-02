@@ -19,7 +19,8 @@ import {
   payrollPayslips,
   pettyCashFunds,
   employeeProfiles,
-  users
+  users,
+  expensePayments,
 } from "@/lib/db/schema";
 import { eq, and, inArray, ne, sql, desc } from "drizzle-orm";
 import { createHash } from "node:crypto";
@@ -52,6 +53,13 @@ import {
   type TipoPartida,
 } from "@/lib/treasury/scheduling-policy";
 import type { Role } from "@/lib/permissions";
+import {
+  confirmPaymentIn,
+  failPaymentIn,
+  insertPaymentIn,
+  isAccountingPostingEnabled,
+  remainingExpenseCents,
+} from "./accounting/expense-adapter";
 
 type PaymentRunStatus = typeof paymentRunStatusEnum.enumValues[number];
 
@@ -279,8 +287,9 @@ type Transaccion = Parameters<Parameters<typeof db.transaction>[0]>[0];
  */
 async function saldarDocumentosDePartidas(
   tx: Transaccion,
-  partidas: Array<{ itemType: string; referenceId: string }>,
-  userId: string
+  partidas: Array<{ id: string; itemType: string; referenceId: string; amountCents: number; settledAt: Date | null }>,
+  userId: string,
+  companyId: string
 ): Promise<void> {
   const facturaIds = partidas
     .filter((p) => p.itemType === "INVOICE")
@@ -293,15 +302,49 @@ async function saldarDocumentosDePartidas(
       .where(inArray(invoices.id, facturaIds));
   }
 
-  const gastoIds = partidas
-    .filter((p) => p.itemType === "OPERATING_EXPENSE")
-    .map((p) => p.referenceId);
+  const gastos = partidas.filter((p) => p.itemType === "OPERATING_EXPENSE");
+  if (gastos.length === 0) return;
 
-  if (gastoIds.length > 0) {
+  // FC-09: con contabilización habilitada, el gasto no se espeja PAID en bloque.
+  // Cada partida confirmada crea/confirma su abono; el gasto se salda solo
+  // cuando la suma confirmada alcanza el importe. Sin la bandera, se conserva
+  // exactamente el comportamiento anterior.
+  if (!isAccountingPostingEnabled()) {
     await tx
       .update(operatingExpenses)
       .set({ status: "PAID", paidAt: new Date(), paidBy: userId })
-      .where(inArray(operatingExpenses.id, gastoIds));
+      .where(inArray(operatingExpenses.id, gastos.map((p) => p.referenceId)));
+    return;
+  }
+
+  await setTenantContext(tx, { companyId, actorId: userId });
+  for (const partida of gastos) {
+    const [application] = await tx.select().from(expensePayments).where(and(
+      eq(expensePayments.companyId, companyId),
+      eq(expensePayments.paymentRunItemId, partida.id),
+    )).limit(1);
+    const paidAt = (partida.settledAt ?? new Date()).toISOString().slice(0, 10);
+
+    if (!application) {
+      // Partida confirmada antes de FC-09 o sin aplicación previa: se registra
+      // el abono completo del renglón y se confirma con la fecha de liquidación.
+      const created = await insertPaymentIn(tx, companyId, userId, {
+        expenseId: partida.referenceId,
+        amountCents: partida.amountCents,
+        paidAt,
+        source: "TREASURY",
+        paymentRunItemId: partida.id,
+      });
+      await confirmPaymentIn(tx, companyId, userId, { paymentId: created.payment.id, paidAt });
+      continue;
+    }
+    if (application.status === "PENDING") {
+      await confirmPaymentIn(tx, companyId, userId, { paymentId: application.id, paidAt });
+    } else if (application.status === "FAILED") {
+      throw ApiError.conflict(
+        "La aplicación del gasto está rechazada y conserva ese historial. Registra una nueva partida de pago antes de confirmar otra salida."
+      );
+    }
   }
 }
 
@@ -748,6 +791,13 @@ export class TreasuryService {
       // hielo, plomero) no tiene a quién transferirle — igual que una factura
       // sin `supplierId` — así que se rechaza en vez de colarse como OTHER.
       case "OPERATING_EXPENSE": {
+        // FC-09: el saldo pendiente vive en `expense_payments`, con RLS. La
+        // lectura sin transacción se envuelve con contexto de empresa en vez de
+        // dejar el ajuste pegado a una conexión del pool.
+        if (isAccountingPostingEnabled() && !q) {
+          return withCompanyContext({ companyId }, (tx) => TreasuryService.assertCounterpartyPayable(input, tx));
+        }
+        if (isAccountingPostingEnabled() && q) await setTenantContext(q, { companyId });
         const expense = await executor.query.operatingExpenses.findFirst({
           where: and(eq(operatingExpenses.id, referenceId), eq(operatingExpenses.companyId, companyId)),
         });
@@ -788,6 +838,32 @@ export class TreasuryService {
           throw ApiError.badRequest(
             `La contraparte "${payeeNameResuelto}" no tiene una cuenta bancaria CLABE verificada. Se requiere validación previa contra fraude.`,
           );
+        }
+
+        // FC-09: una corrida puede pagar el saldo pendiente, completo o parcial.
+        // Sin la bandera se conserva el importe íntegro del documento.
+        const remaining = isAccountingPostingEnabled()
+          ? await remainingExpenseCents(executor, companyId, expense.id)
+          : null;
+        if (remaining !== null) {
+          if (remaining <= 0) {
+            throw ApiError.badRequest("Este gasto no tiene saldo pendiente: sus abonos confirmados ya lo cubren.");
+          }
+          const requested = input.amountCents ?? remaining;
+          if (requested <= 0) {
+            throw ApiError.badRequest("El monto del pago debe ser mayor a cero.");
+          }
+          if (requested > remaining) {
+            throw ApiError.badRequest(
+              `El pago excede el saldo pendiente del gasto ($${(remaining / 100).toFixed(2)} MXN).`
+            );
+          }
+          return {
+            amountCents: requested,
+            counterparty: payeeNameResuelto,
+            payeeBankAccountId: verifiedAccount.id,
+            clabeLast4: verifiedAccount.clabeLast4,
+          };
         }
 
         return {
@@ -836,7 +912,7 @@ export class TreasuryService {
 
     const run = await db.query.paymentRuns.findFirst({
       where: and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId)),
-      columns: { id: true, status: true },
+      columns: { id: true, status: true, runDate: true, preparedBy: true },
     });
 
     if (!run) throw ApiError.notFound("Corrida de pago no encontrada");
@@ -894,6 +970,23 @@ export class TreasuryService {
           updatedAt: new Date(),
         })
         .where(eq(paymentRuns.id, paymentRunId));
+
+      // FC-09: el renglón de tesorería nace como abono PENDING del gasto. No
+      // reduce saldo ni contabiliza hasta que se liquide con evidencia.
+      if (isAccountingPostingEnabled() && itemType === "OPERATING_EXPENSE") {
+        const actorId = run.preparedBy;
+        if (!actorId) {
+          throw ApiError.badRequest("La corrida no tiene preparador registrado para crear el abono del gasto.");
+        }
+        await setTenantContext(tx, { companyId, actorId });
+        await insertPaymentIn(tx, companyId, actorId, {
+          expenseId: referenceId,
+          amountCents,
+          paidAt: run.runDate.toISOString().slice(0, 10),
+          source: "TREASURY",
+          paymentRunItemId: item.id,
+        });
+      }
 
       return item;
     });
@@ -1264,7 +1357,8 @@ export class TreasuryService {
         await saldarDocumentosDePartidas(
           tx,
           items.filter((i) => i.settlementStatus === "CONFIRMED"),
-          userId
+          userId,
+          companyId
         );
       }
 
@@ -1317,15 +1411,6 @@ export class TreasuryService {
       throw ApiError.badRequest(motivoNoLiquidable(run.status));
     }
 
-    const item = await db.query.paymentRunItems.findFirst({
-      where: and(
-        eq(paymentRunItems.id, itemId),
-        eq(paymentRunItems.paymentRunId, paymentRunId)
-      ),
-    });
-
-    if (!item) throw ApiError.notFound("Partida de la corrida no encontrada");
-
     const evidencia = validarEvidenciaLiquidacion({
       settlement: settlementStatus,
       reference,
@@ -1335,22 +1420,29 @@ export class TreasuryService {
       throw ApiError.badRequest(evidencia.motivo);
     }
 
-    const decision = decidirLiquidacion(item.settlementStatus, settlementStatus);
-    if (!decision.ok) {
-      throw ApiError.badRequest(decision.motivo);
-    }
-
-    if (decision.accion === "SIN_CAMBIO") {
-      return { item, accion: "SIN_CAMBIO" as const };
-    }
-
     return db.transaction(async (tx) => {
-      const updateData: any = {
+      // Serializa liquidación y cambios de corrida; la decisión usa el estado
+      // actual bajo cerrojo, nunca la lectura anterior a la transacción.
+      const [currentRun] = await tx.select({ status: paymentRuns.status }).from(paymentRuns)
+        .where(and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId)))
+        .for("update").limit(1);
+      if (!currentRun) throw ApiError.notFound("Corrida de pago no encontrada");
+      if (!puedeLiquidarCorrida(currentRun.status)) {
+        throw ApiError.badRequest(motivoNoLiquidable(currentRun.status));
+      }
+      const [item] = await tx.select().from(paymentRunItems).where(and(
+        eq(paymentRunItems.id, itemId), eq(paymentRunItems.paymentRunId, paymentRunId)
+      )).for("update").limit(1);
+      if (!item) throw ApiError.notFound("Partida de la corrida no encontrada");
+      const decision = decidirLiquidacion(item.settlementStatus, settlementStatus);
+      if (!decision.ok) throw ApiError.badRequest(decision.motivo);
+      if (decision.accion === "SIN_CAMBIO") return { item, accion: "SIN_CAMBIO" as const };
+
+      const updateData: Partial<typeof paymentRunItems.$inferInsert> = {
         settlementStatus,
         settledAt: new Date(),
         settledBy: userId,
         settlementNotes: notes !== undefined ? notes : item.settlementNotes,
-        updatedAt: new Date(),
       };
 
       if (settlementStatus === "CONFIRMED") {
@@ -1369,9 +1461,26 @@ export class TreasuryService {
       if (settlementStatus === "CONFIRMED" && aplicaEspejoDocumento(item.itemType)) {
         await saldarDocumentosDePartidas(
           tx,
-          [{ itemType: item.itemType, referenceId: item.referenceId }],
-          userId
+          [{ ...item, settledAt: updateData.settledAt as Date }],
+          userId,
+          companyId
         );
+      }
+
+      // FC-09: un rechazo no deja salida definitiva. La aplicación pendiente se
+      // marca FAILED para que el gasto conserve su saldo y no se contabilice.
+      if (isAccountingPostingEnabled() && item.itemType === "OPERATING_EXPENSE" && settlementStatus === "FAILED") {
+        await setTenantContext(tx, { companyId, actorId: userId });
+        const [application] = await tx.select().from(expensePayments).where(and(
+          eq(expensePayments.companyId, companyId),
+          eq(expensePayments.paymentRunItemId, item.id),
+        )).limit(1);
+        if (application) {
+          await failPaymentIn(tx, companyId, userId, {
+            paymentId: application.id,
+            reason: failureReason ?? "Pago rechazado en tesorería.",
+          });
+        }
       }
 
       return { item: updatedItem, accion: decision.accion };
