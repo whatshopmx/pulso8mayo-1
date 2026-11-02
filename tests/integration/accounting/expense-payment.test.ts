@@ -8,22 +8,28 @@ import ws from "ws";
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import * as schema from "@/lib/db/schema";
 import { withCompanyContext } from "@/lib/db/tenant-context";
-import { createAccount } from "@/lib/services/accounting/account-service";
+import { createAccount, linkSource } from "@/lib/services/accounting/account-service";
 import { createRule } from "@/lib/services/accounting/mapping-service";
 import { recognizeExpense, recordExpensePayment, listExpensePayments,
   confirmPaymentIn, failPaymentIn, postPaymentIn } from "@/lib/services/accounting/expense-adapter";
 import { approveOperatingExpense, markPaidOperatingExpense, registerExpensePayment } from "@/lib/services/expense-service";
 import { TreasuryService } from "@/lib/services/treasury-service";
+import { encryptColumnWithDek } from "@/lib/security/column-cipher";
 
-const state = vi.hoisted(() => ({ db: null as unknown }));
+const state = vi.hoisted(() => ({ db: null as unknown, allowTreasuryConfiguration: false }));
 vi.mock("@/lib/db", () => ({ get db() { return state.db; } }));
 // External notifications/events are outside this circuit; all financial writes use Postgres.
 vi.mock("@/lib/services/notification-dispatcher", () => ({ NotificationDispatcher: {} }));
 vi.mock("@/lib/services/domain-event-service", () => ({ emitDomainEvent: vi.fn() }));
 vi.mock("@/lib/services/tenant-config-service", () => ({ getTenantOperatingConfig: vi.fn(() => {
+  if (state.allowTreasuryConfiguration) return { doubleApprovalThresholdCents: 1000000 };
   throw new Error("The fixture must resolve its explicit authorization rule.");
 }) }));
 vi.mock("@/lib/services/pnl-snapshot-service", () => ({ freezePnLPeriod: vi.fn() }));
+// Synthetic encryption key; never unwrap a real tenant key in this fixture.
+vi.mock("@/lib/security/dek", () => ({ ENC_PREFIX: "enc::", DekService: {
+  getDek: vi.fn(async () => Buffer.alloc(32, 9)),
+} }));
 neonConfig.webSocketConstructor = ws;
 const namespace = `fc09_${randomUUID().replaceAll("-", "")}`;
 const runtimeRole = `${namespace}_app`;
@@ -31,7 +37,7 @@ const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 4,
   options: `-c search_path=${namespace} -c timezone=UTC -c statement_timeout=15000` });
 const companyId = randomUUID(), foreignCompany = randomUUID(), actorId = randomUUID(), branchId = randomUUID();
 const ctx = { companyId, actorId, role: "OWNER" as const };
-let created = false, roleCreated = false;
+let created = false, roleCreated = false, treasuryBankId: string;
 
 beforeAll(async () => {
   const target = new URL(process.env.TEST_DATABASE_URL!);
@@ -49,7 +55,7 @@ beforeAll(async () => {
   await pool.query(`CREATE SCHEMA "${namespace}"`); created = true;
   await pool.query(`CREATE TYPE "${namespace}".expense_payment_method AS ENUM (${schema.expensePaymentMethodEnum.enumValues.map(value => `'${value}'`).join(",")})`);
   for (const table of ["companies", "users", "cost_centers", "company_bank_accounts", "branches", "financial_periods",
-    "operating_expenses", "expense_authorization_rules", "payment_runs", "payment_run_items"]) {
+    "operating_expenses", "expense_authorization_rules", "payment_runs", "payment_run_items", "payees", "payee_bank_accounts"]) {
     await pool.query(`CREATE TABLE "${namespace}".${table} (LIKE public.${table} INCLUDING DEFAULTS INCLUDING CONSTRAINTS)`);
     await pool.query(`ALTER TABLE "${namespace}".${table} ADD PRIMARY KEY (id)`);
   }
@@ -60,7 +66,8 @@ beforeAll(async () => {
   await pool.query(`CREATE ROLE "${runtimeRole}" NOLOGIN NOBYPASSRLS`); roleCreated = true;
   await pool.query(`GRANT "${runtimeRole}" TO CURRENT_USER`);
   for (const file of ["0124_fc05_tenant_keys", "0125_fc05_accounts", "0126_fc05_account_guards", "0127_fc06_journals",
-    "0128_fc06_journal_guards", "0129_fc07_review", "0130_fc08_rules", "0131_fc09_expense_payments"]) {
+    "0128_fc06_journal_guards", "0129_fc07_review", "0130_fc08_rules", "0131_fc09_expense_payments",
+    "0132_fc09_treasury_source"]) {
     const migration = readFileSync(`drizzle/${file}.sql`, "utf8").replaceAll('"public".', `"${namespace}".`)
       .replaceAll('SCHEMA "public"', `SCHEMA "${namespace}"`)
       // Exercise only privileges provisioned by migrations, on the isolated role.
@@ -84,6 +91,8 @@ beforeAll(async () => {
   ] as const) {
     await createRule(ctx, { code: eventType, name: eventType, eventType, effectiveFrom: "2026-01-01", entries: [...entries] });
   }
+  treasuryBankId = await ownBank();
+  await linkSource(ctx, { bankAccountId: treasuryBankId, accountId: bank });
 }, 60000);
 
 afterAll(async () => {
@@ -92,7 +101,7 @@ afterAll(async () => {
   }
   finally { await pool.end(); }
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); state.allowTreasuryConfiguration = false; });
 
 async function expense(amount = 10000, status = "APPROVED") {
   const id = randomUUID();
@@ -102,6 +111,36 @@ async function expense(amount = 10000, status = "APPROVED") {
   [id, companyId, branchId, amount, status, actorId]);
   return id;
 }
+
+async function ownBank(company = companyId, currency = "MXN", active = true) {
+  const id = randomUUID();
+  await pool.query(`INSERT INTO company_bank_accounts
+    (id,company_id,label,account_number,account_last_four,account_fingerprint,bank_code,bank_name,registered_by,currency,active)
+    VALUES ($1,$2,'Banco sintético',$3,'1234',$4,'012','Banco sintético',$5,$6,$7)`,
+  [id, company, encryptColumnWithDek("012345678901234", Buffer.alloc(32, 9)), randomUUID(), actorId, currency, active]);
+  return id;
+}
+
+it("freezes the treasury bank identity and rejects a source from another company in SQL", async () => {
+  const bank = await ownBank();
+  const run = randomUUID();
+  await pool.query(`INSERT INTO payment_runs
+    (id,company_id,title,run_date,prepared_by,source_bank_account_id,source_account)
+    VALUES ($1,$2,'Fuente congelada','2026-10-15',$3,$4,'012345678901234')`, [run, companyId, actorId, bank]);
+  expect((await pool.query("SELECT source_bank_account_id FROM payment_runs WHERE id=$1", [run])).rows)
+    .toEqual([{ source_bank_account_id: bank }]);
+  await expect(pool.query("UPDATE payment_runs SET source_bank_account_id=NULL WHERE id=$1", [run]))
+    .rejects.toMatchObject({ code: "23514" });
+  await expect(pool.query("UPDATE payment_runs SET source_account='999999' WHERE id=$1", [run]))
+    .rejects.toMatchObject({ code: "23514" });
+  await expect(pool.query("UPDATE payment_runs SET currency='USD' WHERE id=$1", [run]))
+    .rejects.toMatchObject({ code: "23514" });
+  const foreign = await ownBank(foreignCompany);
+  await expect(pool.query(`INSERT INTO payment_runs
+    (company_id,title,run_date,prepared_by,source_bank_account_id,source_account)
+    VALUES ($1,'Ajena','2026-10-15',$2,$3,'012345678901234')`, [companyId, actorId, foreign]))
+    .rejects.toMatchObject({ code: "23503" });
+});
 
 const manual = (expenseId: string, amountCents: number) => recordExpensePayment(ctx, {
   paymentId: randomUUID(), expenseId, amountCents, paidAt: "2026-10-15", source: "MANUAL", reference: "SYN-PAY",
@@ -275,10 +314,11 @@ it("rejects real approval in a closed period without an obligation", async () =>
   expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toEqual([]);
 });
 
-async function pending(expenseId: string, amountCents: number) {
+async function pending(expenseId: string, amountCents: number, sourceBankId: string | null = treasuryBankId) {
   const run = randomUUID(), item = randomUUID();
-  await pool.query(`INSERT INTO payment_runs (id,company_id,title,run_date,prepared_by)
-    VALUES ($1,$2,'Corrida sintética','2026-10-10',$3)`, [run, companyId, actorId]);
+  await pool.query(`INSERT INTO payment_runs (id,company_id,title,run_date,prepared_by,source_bank_account_id,source_account)
+    VALUES ($1,$2,'Corrida sintética','2026-10-10',$3,$4,$5)`,
+  [run, companyId, actorId, sourceBankId, sourceBankId ? "012345678901234" : null]);
   await pool.query(`INSERT INTO payment_run_items (id,payment_run_id,item_type,reference_id,amount_cents)
     VALUES ($1,$2,'OPERATING_EXPENSE',$3,$4)`, [item, run, expenseId, amountCents]);
   return recordExpensePayment(ctx, { expenseId, amountCents, paidAt: "2026-10-10", source: "TREASURY", paymentRunItemId: item });
@@ -472,6 +512,127 @@ async function treasuryItem() {
   await pool.query("UPDATE payment_runs SET status='APPROVED' WHERE id=$1", [paymentRunId]);
   return { id, payment: result.payment, params: { itemId, paymentRunId, companyId, userId: actorId, actorRole: "OWNER" as const } };
 }
+
+it("connects real treasury creation, approval, layout and settlement to its selected bank", async () => {
+  vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");
+  state.allowTreasuryConfiguration = true;
+  const id = await expense(10000, "PENDING_APPROVAL");
+  await approve(id);
+  const payee = randomUUID(), destination = randomUUID(), reviewer = randomUUID();
+  await pool.query("INSERT INTO payees (id,company_id,name) VALUES ($1,$2,'Contraparte sintética')", [payee, companyId]);
+  await pool.query(`INSERT INTO payee_bank_accounts
+    (id,company_id,payee_id,clabe,clabe_last4,clabe_fingerprint,bank_code,bank_name,account_holder_name,status,registered_by)
+    VALUES ($1,$2,$3,$4,'1234',$5,'012','Banco destino','Contraparte sintética','VERIFIED',$6)`,
+  [destination, companyId, payee, encryptColumnWithDek("012345678901231234", Buffer.alloc(32, 9)), randomUUID(), actorId]);
+  await pool.query("UPDATE operating_expenses SET payee_id=$1 WHERE id=$2", [payee, id]);
+  await pool.query(`INSERT INTO users (id,email,role,company_id,created_at,updated_at)
+    VALUES ($1,'reviewer@fixture.invalid','ADMIN',$2,now(),now())`, [reviewer, companyId]);
+  const run = await TreasuryService.createPaymentRun(companyId, "Recorrido bancario", new Date("2026-10-15T12:00:00Z"),
+    actorId, branchId, treasuryBankId);
+  expect(run).toMatchObject({ sourceBankAccountId: treasuryBankId, sourceAccount: "012345678901234" });
+  await pool.query("UPDATE payee_bank_accounts SET status='PENDING_VERIFICATION' WHERE id=$1", [destination]);
+  await expect(TreasuryService.addItemToRun({ paymentRunId: run.id, companyId,
+    itemType: "OPERATING_EXPENSE", referenceId: id, amountCents: 4000 })).rejects.toMatchObject({ statusCode: 400 });
+  expect((await pool.query("SELECT id FROM payment_run_items WHERE payment_run_id=$1", [run.id])).rows).toEqual([]);
+  expect((await listExpensePayments(ctx, id)).items).toEqual([]);
+  await pool.query("UPDATE payee_bank_accounts SET status='VERIFIED' WHERE id=$1", [destination]);
+  const item = await TreasuryService.addItemToRun({ paymentRunId: run.id, companyId,
+    itemType: "OPERATING_EXPENSE", referenceId: id, amountCents: 4000 });
+  expect(item.payeeBankAccountId).toBe(destination);
+  expect((await listExpensePayments(ctx, id))).toMatchObject({ remainingCents: 10000,
+    items: [expect.objectContaining({ status: "PENDING", amountCents: 4000, accountingJournalId: null })] });
+  await expect(TreasuryService.generateBankDisbursementLayout(run.id, companyId, "OWNER"))
+    .rejects.toMatchObject({ statusCode: 400 });
+  await TreasuryService.updatePaymentRunStatus(run.id, companyId, "PENDING_APPROVAL", actorId, "OWNER");
+  await expect(TreasuryService.updatePaymentRunStatus(run.id, companyId, "APPROVED", actorId, "OWNER"))
+    .rejects.toMatchObject({ statusCode: 403 });
+  await TreasuryService.updatePaymentRunStatus(run.id, companyId, "APPROVED", reviewer, "ADMIN");
+  await expect(TreasuryService.generateBankDisbursementLayout(run.id, companyId, "GERENTE"))
+    .rejects.toMatchObject({ statusCode: 403 });
+  const layout = await TreasuryService.generateBankDisbursementLayout(run.id, companyId, "OWNER");
+  expect(layout).toMatchObject({ recordCount: 1, totalPesos: "40.00", excludedCount: 0 });
+  expect(layout.content.split("\n")[1]).toContain('"012345678901234","012345678901231234",');
+  expect((await TreasuryService.generateBankDisbursementLayout(run.id, companyId, "OWNER")).content).toBe(layout.content);
+  await TreasuryService.updatePaymentRunStatus(run.id, companyId, "PROCESSING", reviewer, "ADMIN");
+  const settle = { paymentRunId: run.id, itemId: item.id, companyId, userId: reviewer, actorRole: "ADMIN" as const,
+    settlementStatus: "CONFIRMED" as const, reference: "BANK-CIRCUIT-SYN" };
+  await TreasuryService.settlePaymentRunItem(settle);
+  expect((await TreasuryService.settlePaymentRunItem(settle)).accion).toBe("SIN_CAMBIO");
+  const result = await listExpensePayments(ctx, id);
+  expect(result.remainingCents).toBe(6000);
+  expect(result.items[0]).toMatchObject({ status: "CONFIRMED", pendingReason: null });
+  const credit = await pool.query(`SELECT l.account_id FROM accounting_journal_lines l
+    JOIN accounting_source_links s ON s.account_id=l.account_id AND s.company_id=l.company_id
+    WHERE l.journal_id=$1 AND l.credit_cents=4000 AND s.bank_account_id=$2`,
+  [result.items[0].accountingJournalId, treasuryBankId]);
+  expect(credit.rows).toHaveLength(1);
+  await TreasuryService.updatePaymentRunStatus(run.id, companyId, "COMPLETED", reviewer, "ADMIN");
+  expect((await listExpensePayments(ctx, id)).items).toHaveLength(1);
+  expect((await listExpensePayments(ctx, id)).remainingCents).toBe(6000);
+}, 120000);
+
+it("validates treasury bank eligibility and detects a changed account number before emitting a layout", async () => {
+  const create = (bank: string) => TreasuryService.createPaymentRun(companyId, "Validación de origen", new Date("2026-10-15T12:00:00Z"),
+    actorId, branchId, bank);
+  for (const bank of [await ownBank(foreignCompany), await ownBank(companyId, "MXN", false), await ownBank(companyId, "USD")]) {
+    await expect(create(bank)).rejects.toMatchObject({ statusCode: 400 });
+    expect((await pool.query("SELECT id FROM payment_runs WHERE source_bank_account_id=$1", [bank])).rows).toEqual([]);
+  }
+  // Purpose is intentionally overridable in the existing product.
+  const bank = await ownBank();
+  await pool.query("UPDATE company_bank_accounts SET purpose='RECEPCION' WHERE id=$1", [bank]);
+  const run = await create(bank);
+  expect(run.sourceBankAccountId).toBe(bank);
+  await pool.query("UPDATE payment_runs SET status='APPROVED' WHERE id=$1", [run.id]);
+  await pool.query("UPDATE company_bank_accounts SET active=false WHERE id=$1", [bank]);
+  await expect(TreasuryService.generateBankDisbursementLayout(run.id, companyId, "OWNER"))
+    .rejects.toMatchObject({ statusCode: 400 });
+  await pool.query("UPDATE company_bank_accounts SET active=true,account_number=$1 WHERE id=$2",
+    [encryptColumnWithDek("999999999999999", Buffer.alloc(32, 9)), bank]);
+  await expect(TreasuryService.generateBankDisbursementLayout(run.id, companyId, "OWNER"))
+    .rejects.toMatchObject({ statusCode: 409 });
+  await expect(TreasuryService.generateBankDisbursementLayout(run.id, foreignCompany, "OWNER"))
+    .rejects.toMatchObject({ statusCode: 404 });
+});
+
+it("keeps an unlinked or mismatched treasury bank pending and recovers with a compatible explicit link", async () => {
+  const bank = await ownBank(), id = await expense();
+  const application = await pending(id, 4000, bank);
+  await pool.query("UPDATE payment_run_items SET settlement_status='CONFIRMED' WHERE id=$1", [application.payment.paymentRunItemId]);
+  const result = await withCompanyContext(ctx, tx => confirmPaymentIn(tx, companyId, actorId, {
+    paymentId: application.payment.id, paidAt: "2026-10-20",
+  }));
+  expect(result.journal).toBeNull();
+  expect(result.pendingReason).toContain("bancaria");
+  const other = await createAccount(ctx, { code: "OTHER_BANK", name: "Otro banco", kind: "ASSET", normalBalance: "DEBIT", validFrom: "2026-01-01" });
+  await linkSource(ctx, { bankAccountId: bank, accountId: other.id });
+  const recover = () => runtimeService(() => withCompanyContext(ctx, async tx => {
+    const [payment] = await tx.select().from(schema.expensePayments).where(eq(schema.expensePayments.id, application.payment.id));
+    return postPaymentIn(tx, companyId, actorId, payment);
+  }));
+  expect((await recover()).journal).toBeNull();
+  const { rows } = await pool.query("SELECT id FROM accounting_accounts WHERE company_id=$1 AND code='BANK'", [companyId]);
+  await linkSource(ctx, { bankAccountId: bank, accountId: rows[0].id });
+  const recovered = await recover();
+  expect(recovered.journal?.status).toBe("POSTED");
+  expect((await recover()).journal?.id).toBe(recovered.journal?.id);
+  expect((await listExpensePayments(ctx, id)).remainingCents).toBe(6000);
+});
+
+it("keeps legacy treasury sources and inactive banks pending instead of using a generic bank account", async () => {
+  for (const source of [null, await ownBank()]) {
+    const id = await expense(), application = await pending(id, 4000, source);
+    if (source) await pool.query("UPDATE company_bank_accounts SET active=false WHERE id=$1", [source]);
+    await pool.query("UPDATE payment_run_items SET settlement_status='CONFIRMED' WHERE id=$1", [application.payment.paymentRunItemId]);
+    const result = await withCompanyContext(ctx, tx => confirmPaymentIn(tx, companyId, actorId, {
+      paymentId: application.payment.id, paidAt: "2026-10-20",
+    }));
+    expect(result.journal).toBeNull();
+    expect(result.pendingReason).toContain("bancaria");
+    expect((await listExpensePayments(ctx, id))).toMatchObject({ remainingCents: 6000,
+      items: [expect.objectContaining({ status: "CONFIRMED", accountingJournalId: null })] });
+  }
+});
 
 it("treasury real confirmation posts a partial payment once with its settlement date", async () => {
   vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");

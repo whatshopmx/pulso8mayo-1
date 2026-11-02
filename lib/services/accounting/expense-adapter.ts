@@ -6,9 +6,13 @@ import { resolveBranchScope, type BranchScope } from "@/lib/branch-scope";
 import {
   accountingJournals,
   accountingJournalLines,
+  accountingSourceLinks,
+  companyBankAccounts,
   expensePayments,
   financialPeriods,
   operatingExpenses,
+  paymentRunItems,
+  paymentRuns,
   users,
 } from "@/lib/db/schema";
 import { withCompanyContext } from "@/lib/db/tenant-context";
@@ -279,6 +283,31 @@ export async function postPaymentIn(tx: Tx, companyId: string, actorId: string, 
 
   const debit = entryOf(preview.entries, PAYMENT_ROLES.debit)!;
   const credit = entryOf(preview.entries, PAYMENT_ROLES.credit)!;
+  if (payment.source === "TREASURY") {
+    // Source-link/account guards use this same company lock. Keep the link
+    // stable from resolution through posting, including recovery of old facts.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId}, 505))`);
+    // Identity comes from the signed run. Never match sensitive account numbers
+    // or silently use the generic PAYMENT_SOURCE account for an unknown bank.
+    const [source] = await tx.select({ bankAccountId: paymentRuns.sourceBankAccountId,
+      active: companyBankAccounts.active, currency: companyBankAccounts.currency,
+      accountId: accountingSourceLinks.accountId,
+    }).from(paymentRunItems).innerJoin(paymentRuns, and(
+      eq(paymentRuns.id, paymentRunItems.paymentRunId), eq(paymentRuns.companyId, companyId),
+    )).leftJoin(companyBankAccounts, and(
+      eq(companyBankAccounts.companyId, companyId), eq(companyBankAccounts.id, paymentRuns.sourceBankAccountId),
+    )).leftJoin(accountingSourceLinks, and(
+      eq(accountingSourceLinks.companyId, companyId), eq(accountingSourceLinks.bankAccountId, companyBankAccounts.id),
+    )).where(eq(paymentRunItems.id, payment.paymentRunItemId!)).limit(1);
+    if (!source?.bankAccountId) return { journal: null,
+      reason: "La corrida no identifica una cuenta bancaria de origen del catálogo; no se infiere por su número." };
+    if (!source.active || source.currency !== "MXN") return { journal: null,
+      reason: "La cuenta bancaria de origen no está activa en MXN. Revisa el catálogo antes de contabilizar." };
+    if (!source.accountId) return { journal: null,
+      reason: "La cuenta bancaria de origen no tiene vínculo contable. Configúralo antes de contabilizar." };
+    if (source.accountId !== credit.accountId) return { journal: null,
+      reason: "La regla PAYMENT_SOURCE no coincide con el vínculo de la cuenta bancaria de origen. Revisa la configuración antes de contabilizar." };
+  }
   // Settle the liability actually posted, rather than re-resolving the
   // recognition rule at payment time (its account may have changed).
   const obligations = await tx.select({

@@ -437,6 +437,20 @@ async function referenciasProgramadas(companyId: string, itemType: PaymentRunIte
   return new Set(items.map((item) => item.referenceId));
 }
 
+/** Resolve only the selected own account; purpose is a UI default, not a restriction. */
+async function treasurySourceNumber(companyId: string, bankAccountId: string) {
+  const [account] = await db.select({ accountNumber: companyBankAccounts.accountNumber,
+    currency: companyBankAccounts.currency }).from(companyBankAccounts).where(and(
+    eq(companyBankAccounts.id, bankAccountId), eq(companyBankAccounts.companyId, companyId),
+    eq(companyBankAccounts.active, true),
+  )).limit(1);
+  if (!account) throw ApiError.badRequest("La cuenta de origen no existe en el catálogo de esta empresa o está dada de baja.");
+  if (account.currency !== "MXN") throw ApiError.badRequest("La cuenta de origen debe operar en MXN para este layout.");
+  const number = decryptColumnWithDek(account.accountNumber, await DekService.getDek(companyId));
+  if (!number) throw ApiError.badRequest("La cuenta de origen no tiene número descifrable.");
+  return number;
+}
+
 export class TreasuryService {
   /**
    * Genera un nuevo borrador de corrida de pago.
@@ -457,29 +471,7 @@ export class TreasuryService {
      */
     sourceBankAccountId?: string | null
   ) {
-    let sourceAccount: string | undefined;
-    if (sourceBankAccountId) {
-      const dek = await DekService.getDek(companyId);
-      const [account] = await db
-        .select()
-        .from(companyBankAccounts)
-        .where(
-          and(
-            eq(companyBankAccounts.id, sourceBankAccountId),
-            eq(companyBankAccounts.companyId, companyId),
-            eq(companyBankAccounts.active, true)
-          )
-        )
-        .limit(1);
-      if (!account) {
-        throw ApiError.badRequest(
-          "La cuenta de origen no existe en el catálogo de esta empresa o está dada de baja."
-        );
-      }
-      const number = decryptColumnWithDek(account.accountNumber, dek);
-      if (!number) throw ApiError.badRequest("La cuenta de origen no tiene número descifrable.");
-      sourceAccount = number;
-    }
+    const sourceAccount = sourceBankAccountId ? await treasurySourceNumber(companyId, sourceBankAccountId) : undefined;
 
     const [run] = await db.insert(paymentRuns)
       .values({
@@ -490,6 +482,7 @@ export class TreasuryService {
         preparedBy: userId,
         status: "DRAFT",
         ...(sourceAccount ? { sourceAccount } : {}),
+        ...(sourceBankAccountId ? { sourceBankAccountId } : {}),
       })
       .returning();
       
@@ -1548,6 +1541,14 @@ export class TreasuryService {
       (i) => motivoExclusionPorLiquidacion(i) === null
     );
 
+    if (run.sourceBankAccountId) {
+      const currentNumber = await treasurySourceNumber(companyId, run.sourceBankAccountId);
+      if (currentNumber !== run.sourceAccount) {
+        throw ApiError.conflict("El número de la cuenta de origen cambió después de preparar la corrida. Prepara una nueva corrida antes de dispersar.");
+      }
+    } else if (isAccountingPostingEnabled() && items.some(item => item.itemType === "OPERATING_EXPENSE")) {
+      throw ApiError.badRequest("La corrida no identifica una cuenta bancaria de origen del catálogo. Prepara una nueva con su cuenta antes de dispersar gastos.");
+    }
     const sourceAcc = sanearTexto(run.sourceAccount || "", 20) || "SIN_CUENTA_ORIGEN";
 
     const renglones: RenglonDispersion[] = [];

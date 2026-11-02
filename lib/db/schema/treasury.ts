@@ -75,13 +75,18 @@ export const paymentRuns = pgTable("payment_runs", {
   
   // Fuente de los fondos
   sourceAccount: text("source_account"), 
+  /** Own bank identity selected at creation; never inferred from its account number. */
+  sourceBankAccountId: uuid("source_bank_account_id"),
   
   preparedBy: text("prepared_by").references(() => users.id),
   approvedBy: text("approved_by").references(() => users.id),
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, table => [
+  foreignKey({ name: "payment_runs_source_bank_company_fk", columns: [table.companyId, table.sourceBankAccountId],
+    foreignColumns: [companyBankAccounts.companyId, companyBankAccounts.id] }),
+]);
 
 export const paymentRunItemTypeEnum = pgEnum("payment_run_item_type", [
   'INVOICE',
