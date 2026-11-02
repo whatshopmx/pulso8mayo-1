@@ -130,7 +130,8 @@ BEGIN
     RAISE EXCEPTION 'Only an approved expense can be paid' USING ERRCODE = '23514';
   END IF;
   IF NEW.source = 'TREASURY' THEN
-    SELECT i.* INTO item
+    SELECT i.id, i.payment_run_id, i.item_type, i.reference_id, i.amount_cents, i.settlement_status
+      INTO item.id, item.payment_run_id, item.item_type, item.reference_id, item.amount_cents, item.settlement_status
       FROM "public"."payment_run_items" i
       WHERE i.id = NEW.payment_run_item_id;
     SELECT r.company_id INTO run_company FROM "public"."payment_runs" r WHERE r.id = item.payment_run_id;
@@ -190,8 +191,12 @@ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."expense_pa
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pulso_app') THEN
     GRANT SELECT, INSERT, UPDATE ON "public"."expense_payments" TO pulso_app;
-    GRANT SELECT (id, company_id, branch_id, amount, status, paid_at, approved_by) ON "public"."operating_expenses" TO pulso_app;
-    GRANT SELECT (id, payment_run_id, item_type, reference_id, amount_cents) ON "public"."payment_run_items" TO pulso_app;
+    -- The adapter reads the expense row and locks it before checking the balance.
+    -- Only settlement fields may be changed; no INSERT/DELETE or amount edits.
+    GRANT SELECT ON "public"."operating_expenses" TO pulso_app;
+    GRANT UPDATE (status, paid_at, paid_by, payment_method, updated_at) ON "public"."operating_expenses" TO pulso_app;
+    GRANT SELECT (id) ON "public"."financial_periods" TO pulso_app;
+    GRANT SELECT (id, payment_run_id, item_type, reference_id, amount_cents, settlement_status) ON "public"."payment_run_items" TO pulso_app;
     GRANT SELECT (id, company_id, status) ON "public"."payment_runs" TO pulso_app;
   END IF;
 END $$;

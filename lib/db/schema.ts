@@ -4,7 +4,7 @@
  * All tables will be moved to domain-specific modules in lib/db/schema/
  */
 
-import { pgTable, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index, unique, check } from "drizzle-orm/pg-core";
+import { pgTable, pgPolicy, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index, unique, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AguinaldoSnapshotCabecera, AguinaldoEmpleadoSnapshot } from "../services/aguinaldo-snapshot";
 
@@ -3771,7 +3771,10 @@ export const expensePayments = pgTable("expense_payments", {
         (${table.failureReason} = btrim(${table.failureReason}) AND length(${table.failureReason}) BETWEEN 1 AND 500)`),
     journalLinkCheck: check("expense_payments_journal_link_check", sql`
         ${table.accountingJournalId} IS NULL OR ${table.status} = 'CONFIRMED'`),
-}));
+    tenantPolicy: pgPolicy("expense_payments_tenant", { for: "all", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+        withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+})).enableRLS();
 
 export const expenseAuthorizationRules = pgTable("expense_authorization_rules", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),

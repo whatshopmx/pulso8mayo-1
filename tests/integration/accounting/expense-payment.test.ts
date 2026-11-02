@@ -26,11 +26,12 @@ vi.mock("@/lib/services/tenant-config-service", () => ({ getTenantOperatingConfi
 vi.mock("@/lib/services/pnl-snapshot-service", () => ({ freezePnLPeriod: vi.fn() }));
 neonConfig.webSocketConstructor = ws;
 const namespace = `fc09_${randomUUID().replaceAll("-", "")}`;
+const runtimeRole = `${namespace}_app`;
 const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 4, allowExitOnIdle: true, connectionTimeoutMillis: 5000,
   options: `-c search_path=${namespace} -c timezone=UTC -c statement_timeout=15000` });
 const companyId = randomUUID(), foreignCompany = randomUUID(), actorId = randomUUID(), branchId = randomUUID();
 const ctx = { companyId, actorId, role: "OWNER" as const };
-let created = false;
+let created = false, roleCreated = false;
 
 beforeAll(async () => {
   const target = new URL(process.env.TEST_DATABASE_URL!);
@@ -56,12 +57,15 @@ beforeAll(async () => {
   await pool.query(`INSERT INTO users (id,email,role,company_id,created_at,updated_at)
     VALUES ($1,'expense@fixture.invalid','OWNER',$2,now(),now())`, [actorId, companyId]);
   await pool.query("INSERT INTO branches (id,company_id,name,code) VALUES ($1,$2,'Sucursal sintética','SYN')", [branchId, companyId]);
+  await pool.query(`CREATE ROLE "${runtimeRole}" NOLOGIN NOBYPASSRLS`); roleCreated = true;
+  await pool.query(`GRANT "${runtimeRole}" TO CURRENT_USER`);
   for (const file of ["0124_fc05_tenant_keys", "0125_fc05_accounts", "0126_fc05_account_guards", "0127_fc06_journals",
     "0128_fc06_journal_guards", "0129_fc07_review", "0130_fc08_rules", "0131_fc09_expense_payments"]) {
     const migration = readFileSync(`drizzle/${file}.sql`, "utf8").replaceAll('"public".', `"${namespace}".`)
       .replaceAll('SCHEMA "public"', `SCHEMA "${namespace}"`)
-      // Do not grant fixture-table privileges to a real runtime role.
-      .replaceAll("rolname = 'pulso_app'", "rolname = 'fc09_nonexistent_fixture_role'");
+      // Exercise only privileges provisioned by migrations, on the isolated role.
+      .replaceAll("rolname = 'pulso_app'", `rolname = '${runtimeRole}'`)
+      .replaceAll("TO pulso_app", `TO "${runtimeRole}"`);
     for (const statement of migration.split("--> statement-breakpoint")) if (statement.trim()) await pool.query(statement);
   }
   state.db = drizzle(pool, { schema });
@@ -83,7 +87,9 @@ beforeAll(async () => {
 }, 60000);
 
 afterAll(async () => {
-  try { if (created) await pool.query(`DROP SCHEMA "${namespace}" CASCADE`); }
+  try { if (created) await pool.query(`DROP SCHEMA "${namespace}" CASCADE`);
+    if (roleCreated) await pool.query(`DROP ROLE "${runtimeRole}"`);
+  }
   finally { await pool.end(); }
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -99,6 +105,76 @@ async function expense(amount = 10000, status = "APPROVED") {
 
 const manual = (expenseId: string, amountCents: number) => recordExpensePayment(ctx, {
   paymentId: randomUUID(), expenseId, amountCents, paidAt: "2026-10-15", source: "MANUAL", reference: "SYN-PAY",
+});
+
+async function runtimeService<T>(operation: () => Promise<T>) {
+  const client = await pool.connect(), previous = state.db;
+  try {
+    await client.query(`SET ROLE "${runtimeRole}"`);
+    state.db = drizzle(client, { schema });
+    return await operation();
+  } finally { state.db = previous; await client.query("RESET ROLE"); client.release(); }
+}
+
+it("posts recognition and partial/full manual payments using only runtime migration privileges", async () => {
+  const id = await expense();
+  await runtimeService(async () => {
+    expect((await recognizeExpense(ctx, id)).status).toBe("POSTED");
+    expect((await manual(id, 4000)).journal?.status).toBe("POSTED");
+    expect((await listExpensePayments(ctx, id)).remainingCents).toBe(6000);
+    expect((await manual(id, 6000)).journal?.status).toBe("POSTED");
+    expect((await listExpensePayments(ctx, id)).remainingCents).toBe(0);
+  });
+  expect((await pool.query("SELECT status FROM operating_expenses WHERE id=$1", [id])).rows[0].status).toBe("PAID");
+});
+
+it("settles and rejects treasury applications using only runtime migration privileges", async () => {
+  const id = await expense();
+  const first = await runtimeService(() => pending(id, 4000));
+  await pool.query("UPDATE payment_run_items SET settlement_status='CONFIRMED' WHERE id=$1", [first.payment.paymentRunItemId]);
+  await runtimeService(async () => {
+    const result = await withCompanyContext(ctx, tx => confirmPaymentIn(tx, companyId, actorId, {
+      paymentId: first.payment.id, paidAt: "2026-10-20", reference: "RUNTIME-CONFIRMED",
+    }));
+    expect(result.journal?.status).toBe("POSTED");
+  });
+  const second = await runtimeService(() => pending(id, 3000));
+  await runtimeService(async () => {
+    expect((await withCompanyContext(ctx, tx => failPaymentIn(tx, companyId, actorId, {
+      paymentId: second.payment.id, reason: "Rechazo sintético runtime",
+    }))).status).toBe("FAILED");
+    expect((await listExpensePayments(ctx, id)).remainingCents).toBe(6000);
+  });
+});
+
+it("enforces runtime payment RLS without context and across companies, with no delete privilege", async () => {
+  const id = await expense();
+  const payment = await manual(id, 1000);
+  const scoped = async (company: string | null, query: string, values: unknown[] = []) => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL ROLE "${runtimeRole}"`);
+      await client.query("SELECT set_config('app.current_company_id',$1,true)", [company ?? ""]);
+      const result = await client.query(query, values);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+  };
+  for (const company of [null, foreignCompany]) {
+    expect((await scoped(company, "SELECT id FROM expense_payments WHERE id=$1", [payment.payment.id])).rows).toEqual([]);
+    expect((await scoped(company, "UPDATE expense_payments SET pending_reason='Ajeno' WHERE id=$1 RETURNING id",
+      [payment.payment.id])).rows).toEqual([]);
+    await expect(scoped(company, `INSERT INTO expense_payments
+      (company_id,branch_id,expense_id,amount_cents,paid_at,source,created_by)
+      VALUES ($1,$2,$3,100,'2026-10-15','MANUAL',$4)`, [companyId, branchId, id, actorId]))
+      .rejects.toMatchObject({ code: "42501" });
+  }
+  expect((await scoped(companyId, "SELECT id FROM expense_payments WHERE id=$1", [payment.payment.id])).rows)
+    .toEqual([{ id: payment.payment.id }]);
+  await expect(scoped(companyId, "DELETE FROM expense_payments WHERE id=$1", [payment.payment.id]))
+    .rejects.toMatchObject({ code: "42501" });
 });
 
 const allBranches = { kind: "ALL" } as const;

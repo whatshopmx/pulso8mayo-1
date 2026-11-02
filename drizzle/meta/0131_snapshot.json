@@ -4178,7 +4178,18 @@
           ]
         }
       },
-      "policies": {},
+      "policies": {
+        "expense_payments_tenant": {
+          "name": "expense_payments_tenant",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"expense_payments\".\"company_id\" = nullif(current_setting('app.current_company_id', true),'')::uuid",
+          "withCheck": "\"expense_payments\".\"company_id\" = nullif(current_setting('app.current_company_id', true),'')::uuid"
+        }
+      },
       "checkConstraints": {
         "expense_payments_amount_check": {
           "name": "expense_payments_amount_check",
@@ -4217,7 +4228,7 @@
           "value": "\n        \"expense_payments\".\"accounting_journal_id\" IS NULL OR \"expense_payments\".\"status\" = 'CONFIRMED'"
         }
       },
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.financial_periods": {
       "name": "financial_periods",
