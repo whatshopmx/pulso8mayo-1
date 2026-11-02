@@ -1,0 +1,291 @@
+{
+  "verifiedAt": "2026-11-02T23:12:33.821Z",
+  "codeReference": "37d2050",
+  "source": ".env DATABASE_URL",
+  "appliedAtomically": true,
+  "rehearsalRolledBack": true,
+  "applied": true,
+  "rehearsed": false,
+  "rolledBack": false,
+  "target": {
+    "host": "ep-dawn-scene-ayy93r15-pooler.c-5.us-east-2.aws.neon.tech",
+    "database": "neondb"
+  },
+  "migrations": [
+    {
+      "tag": "0124_fc05_tenant_keys",
+      "hash": "4130b2e28af98c517ce41537ea98b42a8460d4709db45a06ef33fac4aac7f232",
+      "when": 1793466216517
+    },
+    {
+      "tag": "0125_fc05_accounts",
+      "hash": "a2483b83a7197137e3113414e5e62e20ca8345cd736a7f08f3b472d60f1b1969",
+      "when": 1793466315973
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "hash": "a4f2f7a6e6209a1dbcd3fdc8fbc9ffbb9dcbcf1635b2f7fa4e2d55154e536ff0",
+      "when": 1793466562289
+    },
+    {
+      "tag": "0127_fc06_journals",
+      "hash": "2ed3d408da9a35a4ae65f9e262855de7fb164ba7f8910a33567c949a14c3e27a",
+      "when": 1793471209750
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "hash": "37983200833ab4485ef524407036aad03b4dbc64e270c1dd4ca3689c5feac8dc",
+      "when": 1793471244163
+    },
+    {
+      "tag": "0129_fc07_review",
+      "hash": "57c66282aa905faa6e851c73347858d4298ef46a577043ef6b9d4ffaa069c884",
+      "when": 1793526223271
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "hash": "9395daf7ba887fb0b5ce8cd99c6edf055b9cb2a956b02e34f9f276fb2962c44f",
+      "when": 1793553175259
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "hash": "5c5dc151c9027ef360d57499ca8f7e69a86815210f0145955f2ad3731f9a457c",
+      "when": 1793557977992
+    },
+    {
+      "tag": "0132_fc09_treasury_source",
+      "hash": "f67a8b8b85f01332632cb67b0f0042baa1b34725747bf2000ad144b44607ce94",
+      "when": 1793658585339
+    }
+  ],
+  "existingDataUnchanged": true,
+  "legacyHistoryUnchanged": true,
+  "existingRows": {
+    "cost_centers": {
+      "rows": 5,
+      "digest": "3bc96b034adc593342e090e221f43c70"
+    },
+    "company_bank_accounts": {
+      "rows": 1,
+      "digest": "f492c1dbe6650e3c6499cff5181cbdcd"
+    },
+    "operating_expenses": {
+      "rows": 3,
+      "digest": "c1d8b44e7ba1060a8486e725543b6bcb"
+    },
+    "payment_runs": {
+      "rows": 1,
+      "digest": "7895439bab0e14083c33868b5eaa08ae"
+    }
+  },
+  "treasury": {
+    "rows": 1,
+    "assigned": 0
+  },
+  "security": [
+    {
+      "relname": "accounting_accounts",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_journal_lines",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_journals",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_opening_documents",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_openings",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_rule_entries",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_rules",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_source_links",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "expense_payments",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    }
+  ],
+  "flagsActivated": false,
+  "runtimeRoleCreated": false,
+  "postVerification": {
+    "missingColumns": [],
+    "missingIndexes": [],
+    "counts": {
+      "HASH_MISMATCH": 9,
+      "APPLIED": 98,
+      "LINE_ENDINGS_DIFFER": 25
+    },
+    "legacyHistoryRequiresReview": true,
+    "legacyDifferences": [
+      {
+        "tag": "0000_mixed_arclight",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0001_solid_blonde_phantom",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0002_melodic_silverclaw",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0003_sudden_mister_fear",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0004_secret_vance_astro",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0005_cuddly_unus",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0006_faithful_sumo",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0007_add_manager_invite_token",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0008_simple_wolf_cub",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0032_arqueo-cierre-turno",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0035_gaps-avanzados",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0037_lush_malice",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0038_builder-settings-arrays",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0039_objetivos-financieros-tenant",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0041_supplier-bank-accounts",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0043_workflow-review-fields",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0050_step-definition-freeze",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0051_merma-decimal-quantities",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0052_supuestos-flujo-efectivo",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0054_produccion-cantidades-decimales",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0055_idempotencia-extractores",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0056_cfdi-nomina-timbrados",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0069_freezing_mathemanic",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0070_faulty_joystick",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0071_busy_felicia_hardy",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0072_nosy_bloodstrike",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0073_solid_blizzard",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0079_remarkable_la_nuit",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0080_naive_siren",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0082_factura-contrato-recurrente",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0084_marvelous_agent_brand",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0085_natural_wrecking_crew",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0086_plain_arclight",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0087_volatile_blue_blade",
+        "status": "LINE_ENDINGS_DIFFER"
+      }
+    ],
+    "duplicateTimestamps": 13,
+    "unknownLegacyEntries": 1,
+    "roles": [
+      {
+        "rolname": "neondb_owner",
+        "rolsuper": false,
+        "rolbypassrls": true
+      }
+    ]
+  }
+}
