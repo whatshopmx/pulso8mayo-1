@@ -955,3 +955,56 @@ it("keeps payments pending when a revised rule no longer settles the original ob
   [[original.id, recovered.journal!.id], accountId("PAY")]);
   expect(balance.rows[0].balance).toBe(6000);
 });
+
+it("posts the guided minimum rules using only payable plus the existing cost-center and treasury-bank links", async () => {
+  const date = "2036-01-15", centerId = randomUUID(), bankId = await ownBank();
+  const expenseAccount = await createAccount(ctx, { code: "MINIMAL_MAINT", name: "Mantenimiento desde partida",
+    kind: "EXPENSE", normalBalance: "DEBIT", validFrom: "2036-01-01" });
+  const bankAccount = await createAccount(ctx, { code: "MINIMAL_BANK", name: "Banco desde corrida",
+    kind: "ASSET", normalBalance: "DEBIT", validFrom: "2036-01-01" });
+  await pool.query(`INSERT INTO cost_centers (id,company_id,code,name)
+    VALUES ($1,$2,'MINIMAL_MAINT','Mantenimiento existente')`, [centerId, companyId]);
+  await linkSource(ctx, { costCenterId: centerId, accountId: expenseAccount.id });
+  await linkSource(ctx, { bankAccountId: bankId, accountId: bankAccount.id });
+  const payable = (await pool.query("SELECT id FROM accounting_accounts WHERE company_id=$1 AND code='PAY'", [companyId])).rows[0].id as string;
+  const latest = await pool.query(`SELECT DISTINCT ON (event_type) id,code,event_type FROM accounting_rules
+    WHERE company_id=$1 AND event_type IN ('EXPENSE_RECOGNIZED','EXPENSE_PAYMENT')
+    ORDER BY event_type,effective_from DESC,version DESC`, [companyId]);
+  for (const previous of latest.rows) {
+    const created = await createRule(ctx, { code: previous.code, name: "Configuración mínima guiada",
+      eventType: previous.event_type, effectiveFrom: "2036-01-01", supersedesId: previous.id,
+      entries: [{ role: "PAYABLE", accountId: payable }] });
+    expect(created.entries.map(entry => entry.role)).toEqual(["PAYABLE"]);
+  }
+  const id = await expense(5000, "PENDING_APPROVAL");
+  await pool.query("UPDATE operating_expenses SET cost_center_id=$1,business_date=$2 WHERE id=$3", [centerId, date, id]);
+  vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");
+  await approve(id);
+  const recognition = await runtimeService(() => recognizeExpense(ctx, id));
+  expect(recognition).toMatchObject({ status: "POSTED", accountingDate: date });
+  const runId = randomUUID(), itemId = randomUUID();
+  await pool.query(`INSERT INTO payment_runs (id,company_id,title,run_date,prepared_by,source_bank_account_id,source_account)
+    VALUES ($1,$2,'Corrida guiada mínima',$3,$4,$5,'012345678901234')`, [runId, companyId, date, actorId, bankId]);
+  await pool.query(`INSERT INTO payment_run_items (id,payment_run_id,item_type,reference_id,amount_cents)
+    VALUES ($1,$2,'OPERATING_EXPENSE',$3,5000)`, [itemId, runId, id]);
+  const application = await recordExpensePayment(ctx, { expenseId: id, amountCents: 5000, paidAt: date,
+    source: "TREASURY", paymentRunItemId: itemId });
+  await pool.query("UPDATE payment_run_items SET settlement_status='CONFIRMED' WHERE id=$1", [application.payment.paymentRunItemId]);
+  const payment = await runtimeService(() => withCompanyContext(ctx, tx => confirmPaymentIn(tx, companyId, actorId, {
+    paymentId: application.payment.id, paidAt: date,
+  })));
+  expect(payment).toMatchObject({ pendingReason: null, journal: { status: "POSTED", accountingDate: date } });
+  const lines = await pool.query(`SELECT journal_id,account_id,cost_center_id,debit_cents::int AS debit,credit_cents::int AS credit
+    FROM accounting_journal_lines WHERE journal_id=ANY($1)`, [[recognition.id, payment.journal!.id]]);
+  expect(lines.rows).toHaveLength(4);
+  expect(lines.rows).toEqual(expect.arrayContaining([
+    { journal_id: recognition.id, account_id: expenseAccount.id, cost_center_id: centerId, debit: 5000, credit: 0 },
+    { journal_id: recognition.id, account_id: payable, cost_center_id: null, debit: 0, credit: 5000 },
+    { journal_id: payment.journal!.id, account_id: payable, cost_center_id: null, debit: 5000, credit: 0 },
+    { journal_id: payment.journal!.id, account_id: bankAccount.id, cost_center_id: null, debit: 0, credit: 5000 },
+  ]));
+  expect(lines.rows.reduce((sum, line) => sum + line.debit, 0)).toBe(10000);
+  expect(lines.rows.reduce((sum, line) => sum + line.credit, 0)).toBe(10000);
+  expect((await listExpensePayments(ctx, id)).remainingCents).toBe(0);
+  expect((await pool.query("SELECT status FROM operating_expenses WHERE id=$1", [id])).rows[0].status).toBe("PAID");
+});
