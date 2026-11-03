@@ -5,9 +5,12 @@ import { hasPermission } from "@/lib/permissions";
 import { resolveBranchScope, type BranchScope } from "@/lib/branch-scope";
 import {
   accountingJournals,
+  accountingAccounts,
+  accountingOpenings,
   accountingJournalLines,
   accountingSourceLinks,
   companyBankAccounts,
+  costCenters,
   expensePayments,
   financialPeriods,
   operatingExpenses,
@@ -173,8 +176,10 @@ function entryOf(entries: RuleEntry[], role: string) {
 /** Roles faltantes de la regla resuelta, con un mensaje accionable. */
 function missingRoles(entries: RuleEntry[], roles: readonly string[]) {
   const missing = roles.filter(role => !entryOf(entries, role));
+  const labels: Record<string, string> = { EXPENSE: "gastos sin partida", PAYABLE: "obligaciones por pagar",
+    PAYMENT_SOURCE: "salida de pagos manuales", RECOVERABLE_TAX: "impuesto documentado del gasto" };
   return missing.length === 0 ? null
-    : `La regla de reconocimiento no mapea ${missing.join(", ")}. Configura esos roles antes de contabilizar.`;
+    : `Faltan cuentas para ${missing.map(role => labels[role] ?? "un componente de la operación").join(", ")}. Revisa Cuentas para cada operación en Preparar contabilidad.`;
 }
 
 async function existingJournal(tx: Tx, companyId: string, sourceType: string, sourceId: string, eventType: string) {
@@ -193,7 +198,8 @@ async function postFresh(tx: Tx, companyId: string, actorId: string, journal: Jo
     companyId, accountingDate: journal.accountingDate, businessDate: journal.businessDate,
     description: journal.description, currency: "MXN", branchId: journal.branchId,
     sourceType: journal.sourceType, sourceId: journal.sourceId, sourceVersion: 1,
-    eventType: journal.eventType, createdBy: actorId, updatedBy: actorId,
+    eventType: journal.eventType, ruleId: journal.ruleId, ruleVersion: journal.ruleVersion,
+    createdBy: actorId, updatedBy: actorId,
   }).returning();
   if (!draft) throw ApiError.internal("No se pudo crear la póliza del hecho.");
   await insertJournalLines(tx, companyId, draft.id, journal.lines);
@@ -203,6 +209,7 @@ async function postFresh(tx: Tx, companyId: string, actorId: string, journal: Jo
 interface JournalDraft {
   accountingDate: string; businessDate: string | null; description: string;
   branchId: string | null; sourceType: string; sourceId: string; eventType: string;
+  ruleId: string; ruleVersion: number;
   lines: { accountId: string; costCenterId: string | null; debitCents: number;
     creditCents: number; memo: string | null }[];
   reason: string;
@@ -226,36 +233,102 @@ async function recognizeIn(tx: Tx, companyId: string, actorId: string, expense: 
   const existing = await existingJournal(tx, companyId, "OPERATING_EXPENSE", expense.id, EXPENSE_RECOGNIZED);
   if (existing) return { journal: existing, reason: null as string | null };
 
-  const date = expenseAccountingDate(expense);
-  const blocked = expenseBlocker(expense, date);
-  if (blocked || !date) return { journal: null, reason: blocked ?? "Falta la fecha de negocio del gasto." };
-
-  const preview = await resolveRuleIn(tx, companyId, EXPENSE_RECOGNIZED, date);
-  const ruleReason = ruleBlockerMessage(preview);
-  const rolesReason = missingRoles(preview.entries, [EXPENSE_ROLES.debit, EXPENSE_ROLES.credit,
-    ...(expense.taxAmount! > 0 ? ["RECOVERABLE_TAX"] : [])]);
-  const reason = ruleReason ?? rolesReason ?? (await isPeriodClosed(tx, companyId, date)
-    ? `El periodo de ${date.slice(0, 7)} está cerrado; el gasto no se puede reconocer en esa fecha.` : null);
-  if (reason) return { journal: null, reason };
-
-  const debit = entryOf(preview.entries, EXPENSE_ROLES.debit)!;
-  const credit = entryOf(preview.entries, EXPENSE_ROLES.credit)!;
+  const plan = await expenseRecognitionPlanIn(tx, companyId, expense);
+  if (plan.reason || !plan.date || !plan.preview.rule || !plan.debit || !plan.credit) {
+    return { journal: null, reason: plan.reason ?? "La configuración del gasto está incompleta." };
+  }
+  const { date, preview, debit, credit } = plan;
   const memo = text(`Gasto ${expense.category}: ${expense.description}`, 200);
   const journal = await postFresh(tx, companyId, actorId, {
     accountingDate: date, businessDate: date, description: text(`Gasto reconocido: ${expense.description}`, 500),
     branchId: expense.branchId, sourceType: "OPERATING_EXPENSE", sourceId: expense.id,
-    eventType: EXPENSE_RECOGNIZED, reason: "Reconocimiento automático del gasto aprobado.",
-    lines: [
+    eventType: EXPENSE_RECOGNIZED, ruleId: preview.rule!.id, ruleVersion: preview.rule!.version,
+    reason: "Reconocimiento automático del gasto aprobado.",
+    lines: recognitionLines(expense, preview.entries, debit, credit, memo),
+  });
+  return { journal, reason: null as string | null };
+}
+
+/** Shared by read-only preparation and posting, under the configuration lock. */
+async function expenseRecognitionPlanIn(tx: Tx, companyId: string, expense: ExpenseRow) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId}, 505))`);
+  const date = expenseAccountingDate(expense);
+  const preview = await resolveRuleIn(tx, companyId, EXPENSE_RECOGNIZED, date ?? "0001-01-01");
+  let debit = entryOf(preview.entries, EXPENSE_ROLES.debit);
+  const credit = entryOf(preview.entries, EXPENSE_ROLES.credit);
+  const blocked = expenseBlocker(expense, date);
+  if (blocked || !date) return { date, preview, debit, credit, reason: blocked ?? "Falta la fecha de negocio del gasto." };
+  if (expense.costCenterId) {
+    const [link] = await tx.select({ id: accountingSourceLinks.id, accountId: accountingAccounts.id, accountCode: accountingAccounts.code,
+      accountName: accountingAccounts.name, accountActive: accountingAccounts.active,
+      accountPostable: accountingAccounts.postable, accountValidFrom: accountingAccounts.validFrom,
+      accountValidTo: accountingAccounts.validTo, kind: accountingAccounts.kind,
+      centerActive: costCenters.active,
+    }).from(accountingSourceLinks).innerJoin(accountingAccounts, and(
+      eq(accountingAccounts.companyId, companyId), eq(accountingAccounts.id, accountingSourceLinks.accountId),
+    )).innerJoin(costCenters, and(eq(costCenters.companyId, companyId), eq(costCenters.id, accountingSourceLinks.costCenterId)))
+      .where(and(eq(accountingSourceLinks.companyId, companyId), eq(accountingSourceLinks.costCenterId, expense.costCenterId))).limit(1);
+    if (!link) return { date, preview, debit, credit, reason: "La partida del gasto no tiene una cuenta contable vinculada. Revisa Partidas en Preparar contabilidad." };
+    if (!link.centerActive || !link.accountActive || !link.accountPostable || !["EXPENSE", "ASSET"].includes(link.kind)
+      || link.accountValidFrom > date || (link.accountValidTo !== null && link.accountValidTo < date)) {
+      return { date, preview, debit, credit, reason: "La cuenta vinculada a la partida debe ser de gasto o activo, de movimiento, activa y vigente en la fecha del gasto; la partida debe estar activa." };
+    }
+    debit = { ...link, role: EXPENSE_ROLES.debit, required: true, costCenterId: expense.costCenterId };
+  }
+  const ruleReason = preview.rule ? ruleBlockerMessage(preview) : `No hay configuración contable vigente para reconocer gastos el ${date}.`;
+  const rolesReason = missingRoles(preview.entries, [...(expense.costCenterId ? [] : [EXPENSE_ROLES.debit]), EXPENSE_ROLES.credit,
+    ...(expense.taxAmount! > 0 ? ["RECOVERABLE_TAX"] : [])]);
+  const reason = ruleReason ?? rolesReason ?? (await isPeriodClosed(tx, companyId, date)
+    ? `El periodo de ${date.slice(0, 7)} está cerrado; el gasto no se puede reconocer en esa fecha.` : null);
+  if (reason) return { date, preview, debit, credit, reason };
+  const used = [debit, credit, ...(expense.taxAmount! > 0 ? [entryOf(preview.entries, "RECOVERABLE_TAX")] : [])];
+  const invalid = used.some(entry => !entry || !entry.accountActive || !entry.accountPostable
+    || entry.accountValidFrom > date || (entry.accountValidTo !== null && entry.accountValidTo < date));
+  if (invalid) return { date, preview, debit, credit,
+    reason: "Una cuenta utilizada por el gasto no está activa, no es de movimiento o no está vigente en su fecha. Revisa las cuentas de esta operación." };
+  const [opening] = await tx.select({ date: accountingOpenings.openingDate }).from(accountingOpenings)
+    .where(eq(accountingOpenings.companyId, companyId)).limit(1);
+  return { date, preview, debit, credit, reason: opening && date <= opening.date
+    ? `La fecha del gasto debe ser posterior a la apertura del ${opening.date}.` : null };
+}
+
+function recognitionLines(expense: ExpenseRow, entries: RuleEntry[], debit: RuleEntry, credit: RuleEntry, memo: string) {
+  return [
       { accountId: debit.accountId, costCenterId: expense.costCenterId ?? debit.costCenterId ?? null,
         debitCents: expense.amount - expense.taxAmount!, creditCents: 0, memo },
-      ...(expense.taxAmount! > 0 ? [{ accountId: entryOf(preview.entries, "RECOVERABLE_TAX")!.accountId,
-        costCenterId: entryOf(preview.entries, "RECOVERABLE_TAX")!.costCenterId ?? null,
+      ...(expense.taxAmount! > 0 ? [{ accountId: entryOf(entries, "RECOVERABLE_TAX")!.accountId,
+        costCenterId: entryOf(entries, "RECOVERABLE_TAX")!.costCenterId ?? null,
         debitCents: expense.taxAmount!, creditCents: 0, memo }] : []),
       { accountId: credit.accountId, costCenterId: credit.costCenterId ?? null,
         debitCents: 0, creditCents: expense.amount, memo },
-    ],
+    ];
+}
+
+/** Resolves the actual expense without creating events, drafts or journal lines. */
+export function previewExpenseRecognition(ctx: ExpenseAccountingContext, expenseId: string) {
+  return run(ctx, "read", async (tx, companyId, _actorId, scope) => {
+    if (scope.kind !== "ALL") throw ApiError.forbidden("La preparación requiere alcance de empresa.");
+    const [expense] = await tx.select().from(operatingExpenses).where(and(
+      eq(operatingExpenses.companyId, companyId), eq(operatingExpenses.id, uuid.parse(expenseId)),
+    )).limit(1);
+    if (!expense) throw ApiError.notFound("El gasto no existe en esta empresa.");
+    const existing = await existingJournal(tx, companyId, "OPERATING_EXPENSE", expense.id, EXPENSE_RECOGNIZED);
+    if (existing?.status === "POSTED") {
+      const lines = await tx.select({ accountId: accountingAccounts.id, accountCode: accountingAccounts.code,
+        accountName: accountingAccounts.name, debitCents: accountingJournalLines.debitCents, creditCents: accountingJournalLines.creditCents,
+      }).from(accountingJournalLines).innerJoin(accountingAccounts, and(eq(accountingAccounts.companyId, companyId),
+        eq(accountingAccounts.id, accountingJournalLines.accountId)))
+        .where(and(eq(accountingJournalLines.companyId, companyId), eq(accountingJournalLines.journalId, existing.id)));
+      return { description: expense.description, date: existing.accountingDate, published: true, reason: null, lines };
+    }
+    const plan = await expenseRecognitionPlanIn(tx, companyId, expense);
+    const lines = !plan.reason && plan.debit && plan.credit
+      ? recognitionLines(expense, plan.preview.entries, plan.debit, plan.credit, "Vista previa").map(line => {
+        const account = [plan.debit!, ...plan.preview.entries].find(entry => entry.accountId === line.accountId)!;
+        return { ...line, accountCode: account.accountCode, accountName: account.accountName };
+      }) : [];
+    return { description: expense.description, date: plan.date, published: false, reason: plan.reason, lines };
   });
-  return { journal, reason: null as string | null };
 }
 
 /**
@@ -293,15 +366,18 @@ async function postConfirmedPaymentIn(tx: Tx, companyId: string, actorId: string
   }
 
   const date = payment.paidAt;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId}, 505))`);
   const preview = await resolveRuleIn(tx, companyId, EXPENSE_PAYMENT, date);
   const ruleReason = ruleBlockerMessage(preview);
-  const rolesReason = missingRoles(preview.entries, [PAYMENT_ROLES.debit, PAYMENT_ROLES.credit]);
+  const rolesReason = missingRoles(preview.entries, [PAYMENT_ROLES.debit,
+    ...(payment.source === "TREASURY" ? [] : [PAYMENT_ROLES.credit])]);
   const reason = ruleReason ?? rolesReason ?? (await isPeriodClosed(tx, companyId, date)
     ? `El periodo de ${date.slice(0, 7)} está cerrado; el pago no se puede contabilizar en esa fecha.` : null);
   if (reason) return { journal: null, reason };
 
   const debit = entryOf(preview.entries, PAYMENT_ROLES.debit)!;
-  const credit = entryOf(preview.entries, PAYMENT_ROLES.credit)!;
+  let creditAccountId = entryOf(preview.entries, PAYMENT_ROLES.credit)?.accountId;
+  let creditCostCenterId = entryOf(preview.entries, PAYMENT_ROLES.credit)?.costCenterId ?? null;
   if (payment.source === "TREASURY") {
     // Source-link/account guards use this same company lock. Keep the link
     // stable from resolution through posting, including recovery of old facts.
@@ -324,8 +400,14 @@ async function postConfirmedPaymentIn(tx: Tx, companyId: string, actorId: string
       reason: "La cuenta bancaria de origen no está activa en MXN. Revisa el catálogo antes de contabilizar." };
     if (!source.accountId) return { journal: null,
       reason: "La cuenta bancaria de origen no tiene vínculo contable. Configúralo antes de contabilizar." };
-    if (source.accountId !== credit.accountId) return { journal: null,
-      reason: "La regla PAYMENT_SOURCE no coincide con el vínculo de la cuenta bancaria de origen. Revisa la configuración antes de contabilizar." };
+    const [account] = await tx.select().from(accountingAccounts).where(and(
+      eq(accountingAccounts.companyId, companyId), eq(accountingAccounts.id, source.accountId),
+    )).limit(1);
+    if (!account || account.kind !== "ASSET" || !account.active || !account.postable || account.validFrom > date
+      || (account.validTo !== null && account.validTo < date)) return { journal: null,
+      reason: "La cuenta contable del banco debe ser un activo de movimiento, activo y vigente en la fecha del pago." };
+    creditAccountId = source.accountId;
+    creditCostCenterId = null;
   }
   // Settle the liability actually posted, rather than re-resolving the
   // recognition rule at payment time (its account may have changed).
@@ -347,11 +429,12 @@ async function postConfirmedPaymentIn(tx: Tx, companyId: string, actorId: string
   const journal = await postFresh(tx, companyId, actorId, {
     accountingDate: date, businessDate: date, description: text(`Pago de gasto: ${expense.description}`, 500),
     branchId: payment.branchId, sourceType: "EXPENSE_PAYMENT", sourceId: payment.id,
-    eventType: EXPENSE_PAYMENT, reason: "Contabilización automática del pago confirmado.",
+    eventType: EXPENSE_PAYMENT, ruleId: preview.rule!.id, ruleVersion: preview.rule!.version,
+    reason: "Contabilización automática del pago confirmado.",
     lines: [
       { accountId: obligation.accountId, costCenterId: obligation.costCenterId,
         debitCents: payment.amountCents, creditCents: 0, memo },
-      { accountId: credit.accountId, costCenterId: credit.costCenterId ?? null,
+      { accountId: creditAccountId!, costCenterId: creditCostCenterId,
         debitCents: 0, creditCents: payment.amountCents, memo },
     ],
   });

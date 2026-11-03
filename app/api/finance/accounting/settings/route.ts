@@ -4,7 +4,7 @@ import { journalError, journalJson, journalPrincipal, journalResponse } from "@/
 import { createRule, getRule, listRules, previewRule } from "@/lib/services/accounting/mapping-service";
 
 /** FC-08 — recognition rules and their effective-date preview. Private, no-store. */
-const query = (req: NextRequest) => Object.fromEntries(req.nextUrl.searchParams);
+const query = (req: NextRequest) => Object.fromEntries([...req.nextUrl.searchParams].filter(([key]) => key !== "view"));
 const rulePageSchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   eventType: z.string().trim().min(1).max(40).optional(),
@@ -13,7 +13,7 @@ const rulePageSchema = z.object({
 export async function GET(req: NextRequest) {
   try {
     const ctx = await journalPrincipal(req, "read");
-    const view = req.nextUrl.searchParams.get("view") ?? "rules";
+    const view = z.enum(["rules", "preview", "rule"]).parse(req.nextUrl.searchParams.get("view") ?? "rules");
     if (view === "preview") {
       const input = z.object({ eventType: z.string().trim().min(1).max(40), date: z.iso.date() }).strict().parse(query(req));
       return journalResponse(await previewRule(ctx, input));

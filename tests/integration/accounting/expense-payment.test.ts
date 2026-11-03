@@ -8,10 +8,10 @@ import ws from "ws";
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import * as schema from "@/lib/db/schema";
 import { withCompanyContext } from "@/lib/db/tenant-context";
-import { createAccount, linkSource } from "@/lib/services/accounting/account-service";
+import { createAccount, linkSource, readAccountingPreparation } from "@/lib/services/accounting/account-service";
 import { createRule } from "@/lib/services/accounting/mapping-service";
 import { recognizeExpense, recordExpensePayment, listExpensePayments,
-  confirmPaymentIn, failPaymentIn, postPaymentIn } from "@/lib/services/accounting/expense-adapter";
+  confirmPaymentIn, failPaymentIn, postPaymentIn, previewExpenseRecognition } from "@/lib/services/accounting/expense-adapter";
 import { approveOperatingExpense, markPaidOperatingExpense, registerExpensePayment } from "@/lib/services/expense-service";
 import { TreasuryService } from "@/lib/services/treasury-service";
 import { processAccountingEvent, listPendingAccountingEvents, retryAccountingEvent,
@@ -69,7 +69,7 @@ beforeAll(async () => {
   await pool.query(`GRANT "${runtimeRole}" TO CURRENT_USER`);
   for (const file of ["0124_fc05_tenant_keys", "0125_fc05_accounts", "0126_fc05_account_guards", "0127_fc06_journals",
     "0128_fc06_journal_guards", "0129_fc07_review", "0130_fc08_rules", "0131_fc09_expense_payments",
-    "0132_fc09_treasury_source", "0133_fc10_accounting_events", "0134_fc11_sales"]) {
+    "0132_fc09_treasury_source", "0133_fc10_accounting_events", "0134_fc11_sales", "0135_fc_preparation_permissions"]) {
     const migration = readFileSync(`drizzle/${file}.sql`, "utf8").replaceAll('"public".', `"${namespace}".`)
       .replaceAll('SCHEMA "public"', `SCHEMA "${namespace}"`)
       // Exercise only privileges provisioned by migrations, on the isolated role.
@@ -446,6 +446,103 @@ async function pending(expenseId: string, amountCents: number, sourceBankId: str
   return recordExpensePayment(ctx, { expenseId, amountCents, paidAt: "2026-10-10", source: "TREASURY", paymentRunItemId: item });
 }
 
+it("guided classification posts each existing cost center to its linked account and preserves retry identity", async () => {
+  for (const [code, kind, amount] of [["GUIDED_MAINT", "EXPENSE", 5000], ["GUIDED_CAPEX", "ASSET", 7000]] as const) {
+    const centerId = randomUUID();
+    await pool.query(`INSERT INTO cost_centers (id,company_id,code,name,accounting_line)
+      VALUES ($1,$2,$3,$3,$3)`, [centerId, companyId, code]);
+    const account = await createAccount(ctx, { code, name: code, kind,
+      normalBalance: "DEBIT", validFrom: "2026-01-01" });
+    await linkSource(ctx, { costCenterId: centerId, accountId: account.id });
+    const id = await expense(amount);
+    await pool.query("UPDATE operating_expenses SET cost_center_id=$1 WHERE id=$2", [centerId, id]);
+
+    const journal = await runtimeService(() => recognizeExpense(ctx, id));
+    const revisedAccount = await createAccount(ctx, { code: `${code}_NEXT`, name: `${code} revisada`, kind,
+      normalBalance: "DEBIT", validFrom: "2026-01-01" });
+    await linkSource(ctx, { costCenterId: centerId, accountId: revisedAccount.id });
+    expect((await runtimeService(() => recognizeExpense(ctx, id))).id).toBe(journal.id);
+    const lines = await pool.query(`SELECT account_id,cost_center_id,debit_cents::int AS debit_cents,credit_cents::int AS credit_cents
+      FROM accounting_journal_lines WHERE journal_id=$1 AND debit_cents>0`, [journal.id]);
+    expect(lines.rows).toEqual([{ account_id: account.id, cost_center_id: centerId,
+      debit_cents: amount, credit_cents: 0 }]);
+    expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toHaveLength(1);
+  }
+});
+
+it("guided classification keeps an expense with an unlinked existing cost center pending", async () => {
+  const centerId = randomUUID();
+  await pool.query(`INSERT INTO cost_centers (id,company_id,code,name)
+    VALUES ($1,$2,'GUIDED_UNLINKED','Partida sin vínculo')`, [centerId, companyId]);
+  const id = await expense(10000, "PENDING_APPROVAL");
+  await pool.query("UPDATE operating_expenses SET cost_center_id=$1 WHERE id=$2", [centerId, id]);
+  vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");
+  await approve(id);
+  expect((await pool.query("SELECT status FROM operating_expenses WHERE id=$1", [id])).rows[0].status).toBe("APPROVED");
+  await expect(runtimeService(() => recognizeExpense(ctx, id))).rejects.toMatchObject({ statusCode: 409 });
+  expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toEqual([]);
+  expect((await pool.query("SELECT status,last_error FROM accounting_events WHERE source_id=$1", [id])).rows)
+    .toEqual([expect.objectContaining({ status: "PENDING", last_error: expect.any(String) })]);
+});
+
+it("guided treasury posts a second selected bank to its own linked account instead of the generic source", async () => {
+  const bank = await ownBank();
+  const account = await createAccount(ctx, { code: "GUIDED_SECOND_BANK", name: "Banco de otra corrida", kind: "ASSET",
+    normalBalance: "DEBIT", validFrom: "2026-01-01" });
+  await linkSource(ctx, { bankAccountId: bank, accountId: account.id });
+  const id = await expense(), application = await pending(id, 4000, bank);
+  await pool.query("UPDATE payment_run_items SET settlement_status='CONFIRMED' WHERE id=$1", [application.payment.paymentRunItemId]);
+  const posted = await runtimeService(() => withCompanyContext(ctx, tx => confirmPaymentIn(tx, companyId, actorId, {
+    paymentId: application.payment.id, paidAt: "2026-10-20",
+  })));
+  expect(posted.journal?.status).toBe("POSTED");
+  const lines = await pool.query(`SELECT account_id,credit_cents::int AS credit_cents FROM accounting_journal_lines
+    WHERE journal_id=$1 AND credit_cents>0`, [posted.journal!.id]);
+  expect(lines.rows).toEqual([{ account_id: account.id, credit_cents: 4000 }]);
+  expect((await listExpensePayments(ctx, id)).remainingCents).toBe(6000);
+});
+
+it("guided preview explains an existing expense without creating accounting events or journals", async () => {
+  const centerId = randomUUID();
+  await pool.query(`INSERT INTO cost_centers (id,company_id,code,name)
+    VALUES ($1,$2,'GUIDED_PREVIEW','Partida para vista previa')`, [centerId, companyId]);
+  const account = await createAccount(ctx, { code: "GUIDED_PREVIEW", name: "Mantenimiento revisado", kind: "EXPENSE",
+    normalBalance: "DEBIT", validFrom: "2026-01-01" });
+  await linkSource(ctx, { costCenterId: centerId, accountId: account.id });
+  const id = await expense(5000);
+  await pool.query("UPDATE operating_expenses SET cost_center_id=$1 WHERE id=$2", [centerId, id]);
+  const preview = await runtimeService(() => previewExpenseRecognition(ctx, id));
+  expect(preview).toMatchObject({ published: false, reason: null, date: "2026-10-01" });
+  expect(preview.lines).toEqual(expect.arrayContaining([
+    expect.objectContaining({ accountId: account.id, accountName: "Mantenimiento revisado", debitCents: 5000, creditCents: 0 }),
+  ]));
+  expect((await pool.query("SELECT id FROM accounting_events WHERE source_id=$1", [id])).rows).toEqual([]);
+  expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toEqual([]);
+});
+
+it("guided preparation reads only its existing operational catalogs with runtime grants and no sensitive bank data", async () => {
+  const centerId = randomUUID(), foreignCenter = randomUUID(), bankId = await ownBank(), foreignBank = await ownBank(foreignCompany);
+  await pool.query(`INSERT INTO cost_centers (id,company_id,code,name,accounting_line) VALUES
+    ($1,$2,'GUIDED_CATALOG','Partida propia','OPEX-MANT'),($3,$4,'GUIDED_FOREIGN','Partida ajena','AJENA')`,
+  [centerId, companyId, foreignCenter, foreignCompany]);
+  const foreignExpense = randomUUID(), foreignBranch = randomUUID();
+  await pool.query("INSERT INTO branches (id,company_id,name,code) VALUES ($1,$2,'Sucursal ajena','FOREIGN')", [foreignBranch, foreignCompany]);
+  await pool.query(`INSERT INTO operating_expenses
+    (id,company_id,branch_id,category,amount,description,status,requested_by,approved_by,business_date,tax_amount)
+    VALUES ($1,$2,$3,'OTROS',3000,'Gasto ajeno','APPROVED',$4,$4,'2026-10-01',0)`, [foreignExpense, foreignCompany, foreignBranch, actorId]);
+  const preparation = await runtimeService(() => readAccountingPreparation(ctx));
+  await expect(runtimeService(() => previewExpenseRecognition(ctx, foreignExpense))).rejects.toMatchObject({ statusCode: 404 });
+  expect(preparation.centers).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: centerId, name: "Partida propia", accountingLine: "OPEX-MANT" }),
+  ]));
+  expect(preparation.centers.some(center => center.id === foreignCenter)).toBe(false);
+  expect(preparation.banks.some(bank => bank.id === foreignBank)).toBe(false);
+  expect(preparation.expenses.some(expense => expense.id === foreignExpense)).toBe(false);
+  expect(preparation.banks.find(bank => bank.id === bankId)).toEqual({ id: bankId, label: "Banco sintético",
+    lastFour: "1234", purpose: expect.any(String), currency: "MXN" });
+  for (const bank of preparation.banks) expect(Object.keys(bank).sort()).toEqual(["currency", "id", "label", "lastFour", "purpose"]);
+});
+
 it("recognizes once under retries and concurrency, then posts two partial payments without repeating expense", async () => {
   const id = await expense();
   const journals = await Promise.all([recognizeExpense(ctx, id), recognizeExpense(ctx, id)]);
@@ -717,7 +814,7 @@ it("validates treasury bank eligibility and detects a changed account number bef
     .rejects.toMatchObject({ statusCode: 404 });
 });
 
-it("keeps an unlinked or mismatched treasury bank pending and recovers with a compatible explicit link", async () => {
+it("keeps an unlinked treasury bank pending and recovers to its explicit account even when different from the generic source", async () => {
   const bank = await ownBank(), id = await expense();
   const application = await pending(id, 4000, bank);
   await pool.query("UPDATE payment_run_items SET settlement_status='CONFIRMED' WHERE id=$1", [application.payment.paymentRunItemId]);
@@ -732,11 +829,10 @@ it("keeps an unlinked or mismatched treasury bank pending and recovers with a co
     const [payment] = await tx.select().from(schema.expensePayments).where(eq(schema.expensePayments.id, application.payment.id));
     return postPaymentIn(tx, companyId, actorId, payment);
   }));
-  expect((await recover()).journal).toBeNull();
-  const { rows } = await pool.query("SELECT id FROM accounting_accounts WHERE company_id=$1 AND code='BANK'", [companyId]);
-  await linkSource(ctx, { bankAccountId: bank, accountId: rows[0].id });
   const recovered = await recover();
   expect(recovered.journal?.status).toBe("POSTED");
+  expect((await pool.query(`SELECT account_id FROM accounting_journal_lines
+    WHERE journal_id=$1 AND credit_cents=4000`, [recovered.journal!.id])).rows).toEqual([{ account_id: other.id }]);
   expect((await recover()).journal?.id).toBe(recovered.journal?.id);
   expect((await listExpensePayments(ctx, id)).remainingCents).toBe(6000);
 });

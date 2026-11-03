@@ -1,9 +1,10 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import { ApiError, isApiError } from "@/lib/api/error";
-import { accountingAccounts, accountingSourceLinks, users } from "@/lib/db/schema";
+import { accountingAccounts, accountingSourceLinks, companyBankAccounts, costCenters, operatingExpenses, users } from "@/lib/db/schema";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { hasPermission, type Role } from "@/lib/permissions";
+import { getRoleScope } from "@/lib/rbac/resource-scope";
 
 /** Internal principal supplied by an authenticated server boundary; no public endpoint in FC-05. */
 export interface AccountingContext { companyId: string; actorId: string; role: Role }
@@ -39,6 +40,7 @@ function databaseCode(error: unknown) {
 async function run<T>(ctx: AccountingContext, operation: (tx: Tx, companyId: string, actorId: string) => Promise<T>) {
   try {
     if (!hasPermission(ctx.role, "settings", "update")) throw ApiError.forbidden("No puedes administrar el catálogo contable.");
+    if (getRoleScope(ctx.role) !== "COMPANY") throw ApiError.forbidden("Preparar la contabilidad requiere alcance de empresa.");
     const principal = z.object({ companyId: z.uuid(), actorId: z.string().trim().min(1).max(160) })
       .parse({ companyId: ctx.companyId, actorId: ctx.actorId });
     return await withCompanyContext(principal, async tx => {
@@ -111,5 +113,35 @@ export function listSourceLinks(ctx: AccountingContext, options: z.input<typeof 
     const rows = await tx.select().from(accountingSourceLinks).where(eq(accountingSourceLinks.companyId, companyId))
       .orderBy(asc(accountingSourceLinks.id)).limit(pageSize + 1).offset((page - 1) * pageSize);
     return { items: rows.slice(0, pageSize), page, pageSize, hasMore: rows.length > pageSize };
+  });
+}
+
+/** Existing operational catalogs, with no account numbers, balances or secrets. */
+export function readAccountingPreparation(ctx: AccountingContext) {
+  return run(ctx, async (tx, companyId) => {
+    const accounts = await tx.select({ id: accountingAccounts.id, code: accountingAccounts.code,
+      name: accountingAccounts.name, kind: accountingAccounts.kind, active: accountingAccounts.active,
+      postable: accountingAccounts.postable, validFrom: accountingAccounts.validFrom, validTo: accountingAccounts.validTo,
+    }).from(accountingAccounts).where(eq(accountingAccounts.companyId, companyId)).orderBy(asc(accountingAccounts.code)).limit(1001);
+    const centers = await tx.select({ id: costCenters.id, code: costCenters.code, name: costCenters.name,
+      accountingLine: costCenters.accountingLine,
+    }).from(costCenters).where(and(eq(costCenters.companyId, companyId), eq(costCenters.active, true)))
+      .orderBy(asc(costCenters.code)).limit(1001);
+    const banks = await tx.select({ id: companyBankAccounts.id, label: companyBankAccounts.label,
+      lastFour: companyBankAccounts.accountLastFour, purpose: companyBankAccounts.purpose,
+      currency: companyBankAccounts.currency,
+    }).from(companyBankAccounts).where(and(eq(companyBankAccounts.companyId, companyId), eq(companyBankAccounts.active, true)))
+      .orderBy(asc(companyBankAccounts.label)).limit(1001);
+    const links = await tx.select({ accountId: accountingSourceLinks.accountId, costCenterId: accountingSourceLinks.costCenterId,
+      bankAccountId: accountingSourceLinks.bankAccountId,
+    }).from(accountingSourceLinks).where(eq(accountingSourceLinks.companyId, companyId)).limit(2001);
+    const expenses = await tx.select({ id: operatingExpenses.id, description: operatingExpenses.description,
+      amountCents: operatingExpenses.amount, status: operatingExpenses.status, businessDate: operatingExpenses.businessDate,
+    }).from(operatingExpenses).where(eq(operatingExpenses.companyId, companyId))
+      .orderBy(desc(operatingExpenses.createdAt), asc(operatingExpenses.id)).limit(30);
+    return { accounts: accounts.slice(0, 1000), centers: centers.slice(0, 1000), banks: banks.slice(0, 1000),
+      links: links.slice(0, 2000), expenses,
+      truncated: accounts.length > 1000 || centers.length > 1000 || banks.length > 1000 || links.length > 2000,
+      postingEnabled: process.env.ACCOUNTING_POSTING_ENABLED === "1", canPublishOpening: hasPermission(ctx.role, "accounting", "publish") };
   });
 }

@@ -939,6 +939,13 @@
       "when": 1793708868569,
       "tag": "0134_fc11_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1793710000000,
+      "tag": "0135_fc_preparation_permissions",
+      "breakpoints": true
     }
   ]
 }
