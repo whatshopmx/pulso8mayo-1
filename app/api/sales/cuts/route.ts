@@ -10,6 +10,7 @@ import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-aler
 import { isPeriodClosed } from "@/lib/services/financial-period-service";
 import { localDateString } from "@/lib/workflows/today";
 import { count } from "drizzle-orm";
+import { persistSalesCutInScope } from "@/lib/services/accounting/sales-cut-capture";
 
 /**
  * Ventas se lee y se captura con los mismos roles que Finanzas: aquí están el
@@ -270,54 +271,58 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
     // simultáneos —un doble clic basta— lo pasaban los dos, y el segundo chocaba
     // contra `daily_sales_cut_unique` como un 500 crudo de Postgres. El índice
     // es la guarda real; el pre-SELECT sólo da un mensaje más temprano.
-    const [inserted] = await db
-      .insert(dailySalesCuts)
-      .values({
-        companyId: auth.tenantId,
-        branchId: data.branchId,
-        businessDate: data.businessDate,
-        shift: data.shift,
-        channel: data.channel,
-        totalSales: data.totalSales,
-        // `??` y no `||` (AD-A7): en JavaScript `0 || null` es `null`, así que
-        // un cero **capturado a propósito** se guardaba como "no se capturó".
-        // Zod ya distingue `undefined` de `0`; el `||` era lo único que borraba
-        // la diferencia. No es cosmético: `computeCashVariance` devuelve `null`
-        // si falta cualquiera de los dos lados, así que un turno que declaró $0
-        // de efectivo y contó dinero en el cajón —una venta que nadie
-        // registró— desaparecía del banner de diferencias en vez de saltar
-        // como sobrante.
-        cashSales: data.cashSales ?? null,
-        cardSales: data.cardSales ?? null,
-        otherPayments: data.otherPayments ?? null,
-        cashCountedCents: data.cashCountedCents ?? null,
-        depositedCents: data.depositedCents ?? null,
-        aggregatorSales: data.aggregatorSales ?? null,
-        // `??` por la misma razón que arriba (AD-A7): una comisión capturada en
-        // cero —una terminal sin costo por transacción— no es lo mismo que una
-        // comisión sin capturar, y `||` borraba la diferencia.
-        commissionCents: data.commissionCents ?? null,
-        tpvDepositCents: data.tpvDepositCents ?? null,
-        ticketCount: data.ticketCount ?? null,
-        avgTicket:
-          data.ticketCount && data.ticketCount > 0
-            ? Math.round(data.totalSales / data.ticketCount)
-            : null,
-        source: "MANUAL_FORM",
-        status,
-        validationNotes,
-        receivedBy: auth.user.id,
-      })
-      .onConflictDoNothing({
-        target: [
-          dailySalesCuts.companyId,
-          dailySalesCuts.branchId,
-          dailySalesCuts.businessDate,
-          dailySalesCuts.shift,
-          dailySalesCuts.channel,
-        ],
-      })
-      .returning();
+    const inserted = await persistSalesCutInScope({ companyId: auth.tenantId, branchId: data.branchId,
+      actorId: auth.user.id, businessDate: data.businessDate }, async writer => {
+      const [row] = await writer
+        .insert(dailySalesCuts)
+        .values({
+          companyId: auth.tenantId,
+          branchId: data.branchId,
+          businessDate: data.businessDate,
+          shift: data.shift,
+          channel: data.channel,
+          totalSales: data.totalSales,
+          // `??` y no `||` (AD-A7): en JavaScript `0 || null` es `null`, así que
+          // un cero **capturado a propósito** se guardaba como "no se capturó".
+          // Zod ya distingue `undefined` de `0`; el `||` era lo único que borraba
+          // la diferencia. No es cosmético: `computeCashVariance` devuelve `null`
+          // si falta cualquiera de los dos lados, así que un turno que declaró $0
+          // de efectivo y contó dinero en el cajón —una venta que nadie
+          // registró— desaparecía del banner de diferencias en vez de saltar
+          // como sobrante.
+          cashSales: data.cashSales ?? null,
+          cardSales: data.cardSales ?? null,
+          otherPayments: data.otherPayments ?? null,
+          cashCountedCents: data.cashCountedCents ?? null,
+          depositedCents: data.depositedCents ?? null,
+          aggregatorSales: data.aggregatorSales ?? null,
+          // `??` por la misma razón que arriba (AD-A7): una comisión capturada en
+          // cero —una terminal sin costo por transacción— no es lo mismo que una
+          // comisión sin capturar, y `||` borraba la diferencia.
+          commissionCents: data.commissionCents ?? null,
+          tpvDepositCents: data.tpvDepositCents ?? null,
+          ticketCount: data.ticketCount ?? null,
+          avgTicket:
+            data.ticketCount && data.ticketCount > 0
+              ? Math.round(data.totalSales / data.ticketCount)
+              : null,
+          source: "MANUAL_FORM",
+          status,
+          validationNotes,
+          receivedBy: auth.user.id,
+        })
+        .onConflictDoNothing({
+          target: [
+            dailySalesCuts.companyId,
+            dailySalesCuts.branchId,
+            dailySalesCuts.businessDate,
+            dailySalesCuts.shift,
+            dailySalesCuts.channel,
+          ],
+        })
+        .returning();
+      return row;
+    });
 
     if (!inserted) {
       // Perdió la carrera: el otro envío ya lo escribió. Se responde el mismo

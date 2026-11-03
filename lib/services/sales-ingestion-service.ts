@@ -4,7 +4,7 @@
 
 import ExcelJS from "exceljs";
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { persistSalesCutInScope } from "./accounting/sales-cut-capture";
 import { dailySalesCuts } from "@/lib/db/schema";
 import {
   CANONICAL_FIELDS,
@@ -936,67 +936,78 @@ export async function ingestSalesCut(params: {
     );
   }
 
-  // Duplicate rejection: one cut per (branch, date, shift, channel).
-  const channels = built.cuts.map((c) => c.channel);
-  const existing = await db
-    .select({ channel: dailySalesCuts.channel })
-    .from(dailySalesCuts)
-    .where(
-      and(
-        eq(dailySalesCuts.companyId, params.companyId),
-        eq(dailySalesCuts.branchId, params.branchId),
-        eq(dailySalesCuts.businessDate, built.businessDate),
-        eq(dailySalesCuts.shift, params.shift),
-        inArray(dailySalesCuts.channel, channels)
-      )
-    );
-  if (existing.length > 0) {
-    throw new SalesIngestionError(
-      "DUPLICATE_CUT",
-      `Ya existe un corte (${existing.map((e) => e.channel).join(", ")}) para esta sucursal el ${built.businessDate} en turno ${params.shift}. Si necesitas corregirlo, elimina el corte existente primero.`
-    );
-  }
-
   const status: SalesCutStatus = built.issues.length === 0 ? "VALIDATED" : "PENDING_REVIEW";
   const validationNotes = built.issues.length > 0 ? built.issues.join("\n") : null;
+  const inserted = await persistSalesCutInScope({ companyId: params.companyId, branchId: params.branchId,
+    actorId: params.receivedBy, businessDate: built.businessDate }, async writer => {
+    // Duplicate rejection: one cut per (branch, date, shift, channel).
+    const channels = built.cuts.map((c) => c.channel);
+    const existing = await writer
+      .select({ channel: dailySalesCuts.channel })
+      .from(dailySalesCuts)
+      .where(
+        and(
+          eq(dailySalesCuts.companyId, params.companyId),
+          eq(dailySalesCuts.branchId, params.branchId),
+          eq(dailySalesCuts.businessDate, built.businessDate),
+          eq(dailySalesCuts.shift, params.shift),
+          inArray(dailySalesCuts.channel, channels)
+        )
+      );
+    if (existing.length > 0) {
+      throw new SalesIngestionError(
+        "DUPLICATE_CUT",
+        `Ya existe un corte (${existing.map((e) => e.channel).join(", ")}) para esta sucursal el ${built.businessDate} en turno ${params.shift}. Una venta contabilizada se corrige con un documento vinculado.`
+      );
+    }
 
-  const inserted = await db
-    .insert(dailySalesCuts)
-    .values(
-      built.cuts.map((cut) => ({
-        companyId: params.companyId,
-        branchId: params.branchId,
-        businessDate: built.businessDate!,
-        shift: params.shift,
-        channel: cut.channel,
-        totalSales: cut.data.totalSales!,
-        cashSales: cut.data.cashSales,
-        cardSales: cut.data.cardSales,
-        otherPayments: cut.data.otherPayments,
-        aggregatorSales: cut.data.aggregatorSales ?? null,
-        // A3.1 — el IVA ya se leía del archivo y se acumulaba; sólo faltaba
-        // guardarlo. `null` cuando el POS no exportó la columna, que es distinto
-        // de un cero: es lo que decide si los porcentajes del módulo se calculan
-        // sobre venta neta medida o sobre una base declarada.
-        taxAmount: cut.data.taxAmount ?? null,
-        ticketCount: cut.data.ticketCount,
-        avgTicket:
-          cut.data.ticketCount && cut.data.ticketCount > 0
-            ? Math.round(cut.data.totalSales! / cut.data.ticketCount)
-            : null,
-        source: params.source,
-        rawFileUrl: params.rawFileUrl ?? null,
-        status,
-        validationNotes,
-        receivedBy: params.receivedBy ?? null,
-      }))
-    )
-    .returning({
-      id: dailySalesCuts.id,
-      channel: dailySalesCuts.channel,
-      status: dailySalesCuts.status,
-      totalSales: dailySalesCuts.totalSales,
-    });
+    return writer
+      .insert(dailySalesCuts)
+      .values(
+        built.cuts.map((cut) => ({
+          companyId: params.companyId,
+          branchId: params.branchId,
+          businessDate: built.businessDate!,
+          shift: params.shift,
+          channel: cut.channel,
+          totalSales: cut.data.totalSales!,
+          cashSales: cut.data.cashSales,
+          cardSales: cut.data.cardSales,
+          otherPayments: cut.data.otherPayments,
+          aggregatorSales: cut.data.aggregatorSales ?? null,
+          // A3.1 — el IVA ya se leía del archivo y se acumulaba; sólo faltaba
+          // guardarlo. `null` cuando el POS no exportó la columna, que es distinto
+          // de un cero: es lo que decide si los porcentajes del módulo se calculan
+          // sobre venta neta medida o sobre una base declarada.
+          taxAmount: cut.data.taxAmount ?? null,
+          ticketCount: cut.data.ticketCount,
+          avgTicket:
+            cut.data.ticketCount && cut.data.ticketCount > 0
+              ? Math.round(cut.data.totalSales! / cut.data.ticketCount)
+              : null,
+          source: params.source,
+          rawFileUrl: params.rawFileUrl ?? null,
+          status,
+          validationNotes,
+          receivedBy: params.receivedBy ?? null,
+        }))
+      )
+      .returning({
+        id: dailySalesCuts.id,
+        channel: dailySalesCuts.channel,
+        status: dailySalesCuts.status,
+        totalSales: dailySalesCuts.totalSales,
+      });
+  }).catch(error => {
+    let cause: unknown = error;
+    for (let depth = 0; depth < 8 && cause && typeof cause === "object"; depth++) {
+      if ("code" in cause && cause.code === "23505") {
+        throw new SalesIngestionError("DUPLICATE_CUT", "Ya existe un corte para esa sucursal, fecha, turno y canal.");
+      }
+      cause = "cause" in cause ? cause.cause : null;
+    }
+    throw error;
+  });
 
   return {
     ...built,
