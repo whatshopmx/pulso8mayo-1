@@ -19,6 +19,7 @@ import { withCompanyContext } from "@/lib/db/tenant-context";
 import { MAX_CENTS } from "./amounts";
 import { insertJournalLines, postInTransaction } from "./journal-service";
 import { resolveRuleIn, ruleBlockerMessage } from "./mapping-service";
+import { recordAccountingEventIn, finishAccountingEventIn } from "./event-store";
 
 /**
  * FC-09 — gasto reconocido y pagos parciales.
@@ -212,6 +213,15 @@ interface JournalDraft {
  * creada, o el motivo por el que el hecho queda pendiente.
  */
 export async function ensureRecognitionIn(tx: Tx, companyId: string, actorId: string, expense: ExpenseRow) {
+  const fact = { companyId, actorId, branchId: expense.branchId, sourceId: expense.id,
+    sourceType: "OPERATING_EXPENSE", eventType: EXPENSE_RECOGNIZED, accountingDate: expenseAccountingDate(expense) };
+  await recordAccountingEventIn(tx, fact);
+  const result = await recognizeIn(tx, companyId, actorId, expense);
+  await finishAccountingEventIn(tx, fact, result);
+  return result;
+}
+
+async function recognizeIn(tx: Tx, companyId: string, actorId: string, expense: ExpenseRow) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${companyId}:expense:${expense.id}`}, 510))`);
   const existing = await existingJournal(tx, companyId, "OPERATING_EXPENSE", expense.id, EXPENSE_RECOGNIZED);
   if (existing) return { journal: existing, reason: null as string | null };
@@ -254,6 +264,15 @@ export async function ensureRecognitionIn(tx: Tx, companyId: string, actorId: st
  */
 export async function postPaymentIn(tx: Tx, companyId: string, actorId: string, payment: PaymentRow) {
   if (payment.status !== "CONFIRMED") return { journal: null, reason: "Solo un pago confirmado se contabiliza." };
+  const fact = { companyId, actorId, branchId: payment.branchId, sourceId: payment.id,
+    sourceType: "EXPENSE_PAYMENT", eventType: EXPENSE_PAYMENT, accountingDate: payment.paidAt };
+  await recordAccountingEventIn(tx, fact);
+  const result = await postConfirmedPaymentIn(tx, companyId, actorId, payment);
+  await finishAccountingEventIn(tx, fact, result);
+  return result;
+}
+
+async function postConfirmedPaymentIn(tx: Tx, companyId: string, actorId: string, payment: PaymentRow) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${companyId}:expense-payment:${payment.id}`}, 510))`);
   const existing = await existingJournal(tx, companyId, "EXPENSE_PAYMENT", payment.id, EXPENSE_PAYMENT);
   if (existing) return { journal: existing, reason: null as string | null };

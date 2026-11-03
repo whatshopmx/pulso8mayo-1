@@ -14,6 +14,8 @@ import { recognizeExpense, recordExpensePayment, listExpensePayments,
   confirmPaymentIn, failPaymentIn, postPaymentIn } from "@/lib/services/accounting/expense-adapter";
 import { approveOperatingExpense, markPaidOperatingExpense, registerExpensePayment } from "@/lib/services/expense-service";
 import { TreasuryService } from "@/lib/services/treasury-service";
+import { processAccountingEvent, listPendingAccountingEvents, retryAccountingEvent,
+  recoverMissingAccountingEvents, dueAccountingEvents } from "@/lib/services/accounting/event-service";
 import { encryptColumnWithDek } from "@/lib/security/column-cipher";
 
 const state = vi.hoisted(() => ({ db: null as unknown, allowTreasuryConfiguration: false }));
@@ -67,7 +69,7 @@ beforeAll(async () => {
   await pool.query(`GRANT "${runtimeRole}" TO CURRENT_USER`);
   for (const file of ["0124_fc05_tenant_keys", "0125_fc05_accounts", "0126_fc05_account_guards", "0127_fc06_journals",
     "0128_fc06_journal_guards", "0129_fc07_review", "0130_fc08_rules", "0131_fc09_expense_payments",
-    "0132_fc09_treasury_source"]) {
+    "0132_fc09_treasury_source", "0133_fc10_accounting_events"]) {
     const migration = readFileSync(`drizzle/${file}.sql`, "utf8").replaceAll('"public".', `"${namespace}".`)
       .replaceAll('SCHEMA "public"', `SCHEMA "${namespace}"`)
       // Exercise only privileges provisioned by migrations, on the isolated role.
@@ -144,6 +146,29 @@ it("freezes the treasury bank identity and rejects a source from another company
 
 const manual = (expenseId: string, amountCents: number) => recordExpensePayment(ctx, {
   paymentId: randomUUID(), expenseId, amountCents, paidAt: "2026-10-15", source: "MANUAL", reference: "SYN-PAY",
+});
+
+it("persists a tenant-scoped immutable accounting fact with a unique source version", async () => {
+  const id = await expense();
+  const values = [companyId, branchId, id, actorId];
+  const insert = `INSERT INTO accounting_events
+    (company_id,branch_id,source_type,source_id,event_type,actor_id,accounting_date)
+    VALUES ($1,$2,'OPERATING_EXPENSE',$3,'EXPENSE_RECOGNIZED',$4,'2026-10-01') RETURNING id`;
+  const event = (await pool.query(insert, values)).rows[0];
+  await expect(pool.query(insert, values)).rejects.toMatchObject({ code: "23505" });
+  await expect(pool.query("UPDATE accounting_events SET source_id=$1 WHERE id=$2", [randomUUID(), event.id]))
+    .rejects.toMatchObject({ code: "23514" });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SET LOCAL ROLE "${runtimeRole}"`);
+    await client.query("SELECT set_config('app.current_company_id',$1,true)", [foreignCompany]);
+    expect((await client.query("SELECT id FROM accounting_events WHERE id=$1", [event.id])).rows).toEqual([]);
+    await client.query("SELECT set_config('app.current_company_id',$1,true)", [companyId]);
+    expect((await client.query("SELECT id FROM accounting_events WHERE id=$1", [event.id])).rows).toHaveLength(1);
+    await expect(client.query("DELETE FROM accounting_events WHERE id=$1", [event.id]))
+      .rejects.toMatchObject({ code: "42501" });
+  } finally { await client.query("ROLLBACK"); client.release(); }
 });
 
 async function runtimeService<T>(operation: () => Promise<T>) {
@@ -243,6 +268,7 @@ it("rolls back approval when journal persistence fails", async () => {
     await expect(approve(id)).rejects.toBeDefined();
     expect((await pool.query("SELECT status FROM operating_expenses WHERE id=$1", [id])).rows[0].status).toBe("PENDING_APPROVAL");
     expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toEqual([]);
+    expect((await pool.query("SELECT id FROM accounting_events WHERE source_id=$1", [id])).rows).toEqual([]);
   } finally {
     await pool.query("DROP TRIGGER reject_fixture_journal ON accounting_journals");
     await pool.query("DROP FUNCTION reject_fixture_journal()");
@@ -273,6 +299,101 @@ it("preserves operative approval when the accounting rule is absent", async () =
   await pool.query("UPDATE operating_expenses SET business_date='2025-10-01' WHERE id=$1", [id]);
   expect((await approve(id)).status).toBe("APPROVED");
   expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toEqual([]);
+  expect((await pool.query("SELECT status,last_error FROM accounting_events WHERE source_id=$1", [id])).rows)
+    .toEqual([{ status: "PENDING", last_error: expect.any(String) }]);
+});
+
+it("recovers a committed fact after a worker failure and two concurrent restarts without duplicating the journal", async () => {
+  vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");
+  const id = await expense(10000, "PENDING_APPROVAL");
+  await pool.query("UPDATE operating_expenses SET tax_amount=NULL WHERE id=$1", [id]);
+  await approve(id);
+  const event = (await pool.query("SELECT * FROM accounting_events WHERE source_id=$1", [id])).rows[0];
+  expect(event).toMatchObject({ status: "PENDING", journal_id: null, attempts: 1 });
+  expect((await listPendingAccountingEvents(ctx, { page: 1, pageSize: 100 })).items)
+    .toContainEqual(expect.objectContaining({ id: event.id, lastError: expect.stringContaining("impuesto"), ageSeconds: expect.any(Number) }));
+  await pool.query("UPDATE operating_expenses SET tax_amount=0 WHERE id=$1", [id]);
+  await pool.query(`CREATE FUNCTION recovery_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'Injected connection failure'; END $$`);
+  await pool.query(`CREATE TRIGGER recovery_failure BEFORE INSERT ON accounting_journals
+    FOR EACH ROW EXECUTE FUNCTION recovery_failure()`);
+  try {
+    await expect(processAccountingEvent(companyId, event.id)).rejects.toThrow();
+    expect((await pool.query("SELECT status,last_error,attempts FROM accounting_events WHERE id=$1", [event.id])).rows[0])
+      .toMatchObject({ status: "PENDING", last_error: expect.any(String), attempts: 2 });
+    expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toEqual([]);
+  } finally {
+    await pool.query("DROP TRIGGER recovery_failure ON accounting_journals");
+    await pool.query("DROP FUNCTION recovery_failure()");
+  }
+  await Promise.all([processAccountingEvent(companyId, event.id), processAccountingEvent(companyId, event.id)]);
+  expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toHaveLength(1);
+  expect((await pool.query("SELECT status,last_error,journal_id FROM accounting_events WHERE id=$1", [event.id])).rows[0])
+    .toMatchObject({ status: "POSTED", last_error: null, journal_id: expect.any(String) });
+});
+
+it("keeps recovery pending in a closed period and rejects another tenant, branch and unauthorized actor", async () => {
+  vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");
+  const id = await expense(10000, "PENDING_APPROVAL");
+  await pool.query("UPDATE operating_expenses SET business_date='2026-09-01',tax_amount=NULL WHERE id=$1", [id]);
+  await approve(id);
+  const event = (await pool.query("SELECT id FROM accounting_events WHERE source_id=$1", [id])).rows[0];
+  await pool.query("UPDATE operating_expenses SET tax_amount=0 WHERE id=$1", [id]);
+  await pool.query("INSERT INTO financial_periods (company_id,year,month,status) VALUES ($1,2026,9,'CLOSED')", [companyId]);
+  try {
+    expect((await retryAccountingEvent(ctx, event.id)).reason).toContain("cerrado");
+    await expect(processAccountingEvent(foreignCompany, event.id)).rejects.toMatchObject({ statusCode: 404 });
+    const managerId = randomUUID(), hiddenBranch = randomUUID();
+    await pool.query("INSERT INTO branches (id,company_id,name) VALUES ($1,$2,'Oculta')", [hiddenBranch, companyId]);
+    await pool.query(`INSERT INTO users (id,email,role,company_id,branch_id,created_at,updated_at)
+      VALUES ($1,$2,'GERENTE',$3,$4,now(),now())`, [managerId, `${managerId}@fixture.invalid`, companyId, hiddenBranch]);
+    const manager = { companyId, actorId: managerId, role: "GERENTE" as const };
+    expect((await listPendingAccountingEvents(manager, { page: 1, pageSize: 100 })).items).toEqual([]);
+    await expect(retryAccountingEvent(manager, event.id)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(listPendingAccountingEvents(manager, { page: 1, pageSize: 100, branchId })).rejects.toMatchObject({ statusCode: 403 });
+    vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "0");
+    await expect(processAccountingEvent(companyId, event.id)).rejects.toMatchObject({ statusCode: 503 });
+  } finally { await pool.query("DELETE FROM financial_periods WHERE company_id=$1 AND year=2026 AND month=9", [companyId]); }
+});
+
+it("repairs missing facts with tenant context and recovers confirmed payments with the runtime role", async () => {
+  vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");
+  expect(await runtimeService(() => withCompanyContext(ctx,
+    tx => tx.select({ id: schema.companies.id }).from(schema.companies))))
+    .toContainEqual({ id: companyId });
+  const id = await expense();
+  await pool.query("UPDATE operating_expenses SET tax_amount=NULL WHERE id=$1", [id]);
+  await runtimeService(() => recoverMissingAccountingEvents(companyId));
+  const recognition = (await pool.query("SELECT id FROM accounting_events WHERE source_id=$1", [id])).rows[0];
+  expect(await runtimeService(() => dueAccountingEvents(companyId)))
+    .toContainEqual({ id: recognition.id });
+  const payment = await manual(id, 2000);
+  const event = (await pool.query("SELECT * FROM accounting_events WHERE source_id=$1", [payment.payment.id])).rows[0];
+  expect(event.status).toBe("PENDING");
+  expect((await dueAccountingEvents(companyId)).map(row => row.id)).not.toContain(event.id);
+  await pool.query("UPDATE operating_expenses SET tax_amount=0 WHERE id=$1", [id]);
+  await runtimeService(() => processAccountingEvent(companyId, event.id));
+  await processAccountingEvent(companyId, event.id);
+  expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [payment.payment.id])).rows).toHaveLength(1);
+  expect((await listExpensePayments(ctx, id)).items[0]).toMatchObject({ pendingReason: null, accountingJournalId: expect.any(String) });
+  expect((await listExpensePayments(ctx, id)).remainingCents).toBe(8000);
+  expect((await pool.query("SELECT status FROM accounting_events WHERE source_id=$1", [id])).rows[0].status).toBe("POSTED");
+});
+
+it("survives a simulated transport outage after source commit and retries against Postgres", async () => {
+  vi.stubEnv("ACCOUNTING_POSTING_ENABLED", "1");
+  const id = await expense(10000, "PENDING_APPROVAL");
+  await pool.query("UPDATE operating_expenses SET tax_amount=NULL WHERE id=$1", [id]);
+  await approve(id);
+  const event = (await pool.query("SELECT id FROM accounting_events WHERE source_id=$1", [id])).rows[0];
+  await pool.query("UPDATE operating_expenses SET tax_amount=0 WHERE id=$1", [id]);
+  const connect = vi.spyOn(pool, "connect").mockRejectedValueOnce(new Error("ECONNRESET synthetic transport failure"));
+  try { await expect(processAccountingEvent(companyId, event.id)).rejects.toThrow("ECONNRESET"); }
+  finally { connect.mockRestore(); }
+  expect((await pool.query("SELECT status,last_error FROM accounting_events WHERE id=$1", [event.id])).rows[0])
+    .toMatchObject({ status: "PENDING", last_error: expect.any(String) });
+  await processAccountingEvent(companyId, event.id);
+  expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toHaveLength(1);
 });
 
 it("keeps the disabled approval/payment path free of accounting writes", async () => {
@@ -282,6 +403,7 @@ it("keeps the disabled approval/payment path free of accounting writes", async (
   expect((await payBalance(id)).status).toBe("PAID");
   expect((await listExpensePayments(ctx, id)).items).toEqual([]);
   expect((await pool.query("SELECT id FROM accounting_journals WHERE source_id=$1", [id])).rows).toEqual([]);
+  expect((await pool.query("SELECT id FROM accounting_events WHERE source_id=$1", [id])).rows).toEqual([]);
 });
 
 it("keeps role, tenant and branch checks ahead of real approval and payment writes", async () => {
