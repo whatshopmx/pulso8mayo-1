@@ -932,6 +932,13 @@
       "when": 1793662490511,
       "tag": "0133_fc10_accounting_events",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1793708868569,
+      "tag": "0134_fc11_sales",
+      "breakpoints": true
     }
   ]
 }

@@ -315,8 +315,11 @@ export const accountingEvents = pgTable("accounting_events", {
   foreignKey({ name: "accounting_events_journal_fk", columns: [table.companyId, table.journalId],
     foreignColumns: [accountingJournals.companyId, accountingJournals.id] }),
   check("accounting_events_source_check", sql`(${table.sourceType} = 'OPERATING_EXPENSE' AND ${table.eventType} = 'EXPENSE_RECOGNIZED')
-    OR (${table.sourceType} = 'EXPENSE_PAYMENT' AND ${table.eventType} = 'EXPENSE_PAYMENT')`),
-  check("accounting_events_version_check", sql`${table.sourceVersion} = 1`),
+    OR (${table.sourceType} = 'EXPENSE_PAYMENT' AND ${table.eventType} = 'EXPENSE_PAYMENT')
+    OR (${table.sourceType} = 'DAILY_SALES_CUT' AND ${table.eventType} = 'SALE_RECOGNIZED')
+    OR (${table.sourceType} = 'SALES_REFUND' AND ${table.eventType} = 'SALE_REFUNDED')`),
+  check("accounting_events_version_check", sql`${table.sourceVersion} >= 1
+    AND (${table.sourceType} = 'DAILY_SALES_CUT' OR ${table.sourceVersion} = 1)`),
   check("accounting_events_attempts_check", sql`${table.attempts} >= 0`),
   check("accounting_events_status_check", sql`(${table.status} = 'PENDING' AND ${table.journalId} IS NULL)
     OR (${table.status} = 'POSTED' AND ${table.journalId} IS NOT NULL AND ${table.lastError} IS NULL)`),

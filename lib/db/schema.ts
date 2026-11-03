@@ -2948,6 +2948,56 @@ export const dailySalesCuts = pgTable("daily_sales_cuts", {
     ),
 }));
 
+/** FC-11: immutable, explicitly documented recognition/refund of a canonical cut. */
+export const accountingSalesDocuments = pgTable("accounting_sales_documents", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    cutId: uuid("cut_id").notNull().references(() => dailySalesCuts.id),
+    kind: text("kind", { enum: ["SALE", "REFUND"] }).notNull(),
+    version: integer("version").default(1).notNull(),
+    originalId: uuid("original_id"),
+    businessDate: date("business_date").notNull(),
+    shift: text("shift").notNull(),
+    channel: text("channel").notNull(),
+    totalCents: integer("total_cents").notNull(),
+    cashCents: integer("cash_cents").notNull(),
+    cardCents: integer("card_cents").notNull(),
+    platformCents: integer("platform_cents").notNull(),
+    otherCents: integer("other_cents").notNull(),
+    revenueCents: integer("revenue_cents").notNull(),
+    discountCents: integer("discount_cents").notNull(),
+    taxCents: integer("tax_cents").notNull(),
+    tipsCents: integer("tips_cents").notNull(),
+    documentReference: text("document_reference").notNull(),
+    reason: text("reason").notNull(),
+    createdBy: text("created_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+    unique("accounting_sales_company_id_unique").on(table.companyId, table.id),
+    uniqueIndex("accounting_sales_cut_version_unique").on(table.companyId, table.cutId, table.version).where(sql`${table.kind} = 'SALE'`),
+    uniqueIndex("accounting_sales_replacement_unique").on(table.companyId, table.originalId).where(sql`${table.kind} = 'SALE'`),
+    index("accounting_sales_scope_idx").on(table.companyId, table.branchId, table.businessDate),
+    index("accounting_sales_original_idx").on(table.companyId, table.originalId),
+    foreignKey({ name: "accounting_sales_original_fk", columns: [table.companyId, table.originalId],
+        foreignColumns: [table.companyId, table.id] }),
+    check("accounting_sales_kind_check", sql`(${table.kind} = 'SALE' AND ${table.version} >= 1
+      AND ((${table.version} = 1) = (${table.originalId} IS NULL)))
+      OR (${table.kind} = 'REFUND' AND ${table.version} = 1 AND ${table.originalId} IS NOT NULL)`),
+    check("accounting_sales_scope_check", sql`${table.shift} IN ('MATUTINO','VESPERTINO','COMPLETO')
+      AND ${table.channel} IN ('TOTAL','SALON','DELIVERY','EVENTOS')`),
+    check("accounting_sales_amounts_check", sql`${table.totalCents} > 0 AND ${table.cashCents} >= 0 AND ${table.cardCents} >= 0
+      AND ${table.platformCents} >= 0 AND ${table.otherCents} >= 0 AND ${table.revenueCents} >= ${table.discountCents}
+      AND ${table.discountCents} >= 0 AND ${table.taxCents} >= 0 AND ${table.tipsCents} >= 0
+      AND ${table.totalCents}::bigint = ${table.cashCents}::bigint + ${table.cardCents} + ${table.platformCents} + ${table.otherCents}
+      AND ${table.totalCents}::bigint = ${table.revenueCents}::bigint - ${table.discountCents} + ${table.taxCents} + ${table.tipsCents}`),
+    check("accounting_sales_reference_check", sql`length(btrim(${table.documentReference})) BETWEEN 1 AND 200
+      AND length(btrim(${table.reason})) BETWEEN 5 AND 500`),
+    pgPolicy("accounting_sales_tenant", { for: "all", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+        withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
 /**
  * Cierres de lote físico de terminales TPV por turno (Módulo 6.2 - Conciliación TPV Banda 2).
  *
