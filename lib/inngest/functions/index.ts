@@ -58,3 +58,4 @@ export { workflowCompletionRecoveryFn } from "./workflow-completion-recovery";
 
 // Phase 0 / Control Core: proyección durable hacia `exceptions`.
 export { exceptionsSync } from "./exceptions-sync";
+export { accountingPost, accountingRecoverySweep } from "./accounting-post";
