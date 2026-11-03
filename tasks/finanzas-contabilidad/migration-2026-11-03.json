@@ -1,0 +1,588 @@
+{
+  "appliedAt": "2026-11-03T15:08:23.952Z",
+  "codeReference": "007faa4",
+  "appliedAtomically": true,
+  "rehearsalRolledBack": true,
+  "target": {
+    "host": "ep-dawn-scene-ayy93r15-pooler.c-5.us-east-2.aws.neon.tech",
+    "role": "neondb_owner",
+    "database": "neondb",
+    "rolsuper": false,
+    "rolbypassrls": true
+  },
+  "source": "DATABASE_URL",
+  "migrations": [
+    {
+      "tag": "0133_fc10_accounting_events",
+      "hash": "5d20dcd01f034259895d343bfddae2d9d7c4b47b750d03425884eb89e2ee7718",
+      "when": 1793662490511
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "hash": "93ac52319d1db2d37714e3bcc8b54a671ae1a0f68591b244e2822ee780b02ad8",
+      "when": 1793708868569
+    }
+  ],
+  "existingDataUnchanged": true,
+  "legacyHistoryUnchanged": true,
+  "existingRowsBefore": {
+    "cost_centers": {
+      "rows": 5,
+      "digest": "3bc96b034adc593342e090e221f43c70"
+    },
+    "company_bank_accounts": {
+      "rows": 1,
+      "digest": "f492c1dbe6650e3c6499cff5181cbdcd"
+    },
+    "operating_expenses": {
+      "rows": 3,
+      "digest": "c1d8b44e7ba1060a8486e725543b6bcb"
+    },
+    "payment_runs": {
+      "rows": 1,
+      "digest": "f096c3ba51403d6b0936947cddc589e5"
+    },
+    "accounting_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_source_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journal_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rule_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_openings": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_opening_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "expense_payments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "daily_sales_cuts": {
+      "rows": 93,
+      "digest": "391c21511a92aa0c33effd366cf2b4f6"
+    }
+  },
+  "existingRowsAfter": {
+    "cost_centers": {
+      "rows": 5,
+      "digest": "3bc96b034adc593342e090e221f43c70"
+    },
+    "company_bank_accounts": {
+      "rows": 1,
+      "digest": "f492c1dbe6650e3c6499cff5181cbdcd"
+    },
+    "operating_expenses": {
+      "rows": 3,
+      "digest": "c1d8b44e7ba1060a8486e725543b6bcb"
+    },
+    "payment_runs": {
+      "rows": 1,
+      "digest": "f096c3ba51403d6b0936947cddc589e5"
+    },
+    "accounting_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_source_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journal_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rule_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_openings": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_opening_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "expense_payments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "daily_sales_cuts": {
+      "rows": 93,
+      "digest": "391c21511a92aa0c33effd366cf2b4f6"
+    },
+    "accounting_events": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_sales_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  },
+  "flags": {
+    ".env": {
+      "ACCOUNTING_POSTING_ENABLED": null,
+      "ACCOUNTING_REVIEW_ENABLED": null
+    }
+  },
+  "flagsActivated": false,
+  "runtimeRoleCreated": false,
+  "runtimeRole": [],
+  "security": [
+    {
+      "relname": "accounting_events",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_sales_documents",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    }
+  ],
+  "triggers": [
+    {
+      "relname": "daily_sales_cuts",
+      "tgname": "accounting_capture_sales_cut",
+      "tgenabled": "O"
+    },
+    {
+      "relname": "accounting_events",
+      "tgname": "accounting_events_guard",
+      "tgenabled": "O"
+    },
+    {
+      "relname": "accounting_sales_documents",
+      "tgname": "accounting_sales_guard",
+      "tgenabled": "O"
+    },
+    {
+      "relname": "accounting_journals",
+      "tgname": "accounting_sales_reversal_guard",
+      "tgenabled": "O"
+    }
+  ],
+  "constraints": [
+    {
+      "conname": "accounting_events_actor_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_actor_id_users_id_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_attempts_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_attempts_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_branch_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_branch_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_company_id_companies_id_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_company_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_created_at_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_error_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_event_type_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_journal_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_next_attempt_at_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_pkey",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_source_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_source_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_source_type_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_source_version_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_status_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_status_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_updated_at_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_events_version_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_amounts_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_company_id_unique",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_branch_id_branches_id_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_branch_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_business_date_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_card_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_cash_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_channel_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_company_id_companies_id_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_company_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_created_at_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_created_by_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_created_by_users_id_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_cut_id_daily_sales_cuts_id_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_cut_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_discount_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_document_reference_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_id_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_kind_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_other_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_pkey",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_platform_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_reason_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_revenue_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_shift_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_tax_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_tips_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_total_cents_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_documents_version_not_null",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_kind_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_original_fk",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_reference_check",
+      "convalidated": true
+    },
+    {
+      "conname": "accounting_sales_scope_check",
+      "convalidated": true
+    }
+  ],
+  "policies": [
+    {
+      "tablename": "accounting_events",
+      "policyname": "accounting_events_tenant"
+    },
+    {
+      "tablename": "accounting_sales_documents",
+      "policyname": "accounting_sales_tenant"
+    }
+  ],
+  "verifiedAt": "2026-11-03T15:08:56.105Z",
+  "independentConnectionVerified": true,
+  "postVerification": {
+    "verifiedAt": "2026-11-03T15:09:43.489Z",
+    "snapshot": "0134_snapshot.json",
+    "missingColumns": [],
+    "missingIndexes": [],
+    "counts": {
+      "HASH_MISMATCH": 9,
+      "APPLIED": 100,
+      "LINE_ENDINGS_DIFFER": 25
+    },
+    "legacyDifferences": [
+      {
+        "tag": "0000_mixed_arclight",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0001_solid_blonde_phantom",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0002_melodic_silverclaw",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0003_sudden_mister_fear",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0004_secret_vance_astro",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0005_cuddly_unus",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0006_faithful_sumo",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0007_add_manager_invite_token",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0008_simple_wolf_cub",
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "tag": "0032_arqueo-cierre-turno",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0035_gaps-avanzados",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0037_lush_malice",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0038_builder-settings-arrays",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0039_objetivos-financieros-tenant",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0041_supplier-bank-accounts",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0043_workflow-review-fields",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0050_step-definition-freeze",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0051_merma-decimal-quantities",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0052_supuestos-flujo-efectivo",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0054_produccion-cantidades-decimales",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0055_idempotencia-extractores",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0056_cfdi-nomina-timbrados",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0069_freezing_mathemanic",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0070_faulty_joystick",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0071_busy_felicia_hardy",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0072_nosy_bloodstrike",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0073_solid_blizzard",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0079_remarkable_la_nuit",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0080_naive_siren",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0082_factura-contrato-recurrente",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0084_marvelous_agent_brand",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0085_natural_wrecking_crew",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0086_plain_arclight",
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "tag": "0087_volatile_blue_blade",
+        "status": "LINE_ENDINGS_DIFFER"
+      }
+    ],
+    "duplicateTimestamps": 13,
+    "unknownLegacyEntries": 1,
+    "legacyHistoryRequiresReview": true,
+    "historyRowsBefore": 146,
+    "historyRowsAfter": 148,
+    "legacyHistorySha256": "083c6d6d4bc246668c30bccb620333b837bcf40d3781953cc54eff644f8d9525"
+  }
+}
