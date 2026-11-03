@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, check, date, foreignKey, index, integer, pgPolicy, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./core";
+import { companies, branches } from "./core";
 import { users } from "./auth";
 import { costCenters } from "./service-orders";
 import { companyBankAccounts } from "./treasury";
@@ -285,6 +285,43 @@ export const accountingOpeningDocuments = pgTable("accounting_opening_documents"
   check("accounting_opening_documents_reference_check", sql`${table.reference} = btrim(${table.reference}) AND length(${table.reference}) BETWEEN 1 AND 200`),
   check("accounting_opening_documents_amount_check", sql`${table.amountCents} IS NULL OR (${table.amountCents} >= 0 AND ${table.amountCents} <= 9007199254740991)`),
   pgPolicy("accounting_opening_documents_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
+/** Durable outbox: identity only; sensitive operational data stays at its source. */
+export const accountingEvents = pgTable("accounting_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  branchId: uuid("branch_id").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceId: uuid("source_id").notNull(),
+  eventType: text("event_type").notNull(),
+  sourceVersion: integer("source_version").default(1).notNull(),
+  actorId: text("actor_id").notNull().references(() => users.id),
+  accountingDate: date("accounting_date"),
+  status: text("status", { enum: ["PENDING", "POSTED"] }).default("PENDING").notNull(),
+  journalId: uuid("journal_id"),
+  attempts: integer("attempts").default(0).notNull(),
+  lastError: text("last_error"),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("accounting_events_source_unique").on(table.companyId, table.sourceType, table.sourceId, table.eventType, table.sourceVersion),
+  index("accounting_events_pending_idx").on(table.companyId, table.status, table.nextAttemptAt, table.id),
+  foreignKey({ name: "accounting_events_branch_fk", columns: [table.branchId],
+    foreignColumns: [branches.id] }),
+  foreignKey({ name: "accounting_events_journal_fk", columns: [table.companyId, table.journalId],
+    foreignColumns: [accountingJournals.companyId, accountingJournals.id] }),
+  check("accounting_events_source_check", sql`(${table.sourceType} = 'OPERATING_EXPENSE' AND ${table.eventType} = 'EXPENSE_RECOGNIZED')
+    OR (${table.sourceType} = 'EXPENSE_PAYMENT' AND ${table.eventType} = 'EXPENSE_PAYMENT')`),
+  check("accounting_events_version_check", sql`${table.sourceVersion} = 1`),
+  check("accounting_events_attempts_check", sql`${table.attempts} >= 0`),
+  check("accounting_events_status_check", sql`(${table.status} = 'PENDING' AND ${table.journalId} IS NULL)
+    OR (${table.status} = 'POSTED' AND ${table.journalId} IS NOT NULL AND ${table.lastError} IS NULL)`),
+  check("accounting_events_error_check", sql`${table.lastError} IS NULL OR length(${table.lastError}) BETWEEN 1 AND 500`),
+  pgPolicy("accounting_events_tenant", { for: "all", to: "public",
     using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
     withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
 ]).enableRLS();
