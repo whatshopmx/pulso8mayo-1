@@ -382,6 +382,9 @@ export function reverseJournal(ctx: AccountingContext, journalId: string, input:
     const [original] = await tx.select().from(accountingJournals)
       .where(and(eq(accountingJournals.companyId,companyId),eq(accountingJournals.id,id))).limit(1).for("update");
     if (!original) throw ApiError.notFound("Póliza no encontrada.");
+    if (["DAILY_SALES_CUT", "SALES_REFUND"].includes(original.sourceType ?? "")) {
+      throw ApiError.conflict("Utiliza una devolución vinculada a la venta; la reversa manual no controla su saldo.");
+    }
     if (original.status !== "POSTED" || original.reversalOfId || original.version !== data.expectedVersion) {
       throw ApiError.conflict("Solo se revierte una póliza publicada vigente; vuelve a consultar su versión.");
     }

@@ -2,12 +2,13 @@ import { and, asc, eq, inArray, isNotNull, isNull, lte, notExists, sql } from "d
 import { z } from "zod";
 import { ApiError, isApiError } from "@/lib/api/error";
 import { resolveBranchScope } from "@/lib/branch-scope";
-import { accountingEvents, expensePayments, operatingExpenses, users } from "@/lib/db/schema";
+import { accountingEvents, branches, dailySalesCuts, expensePayments, operatingExpenses, users } from "@/lib/db/schema";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { hasPermission } from "@/lib/permissions";
 import type { AccountingContext } from "./journal-service";
 import { ensureRecognitionIn, isAccountingPostingEnabled, postPaymentIn } from "./expense-adapter";
 import { finishAccountingEventIn, recordAccountingEventIn } from "./event-store";
+import { postSalesEventIn } from "./sales-adapter";
 
 type Tx = Parameters<Parameters<typeof withCompanyContext>[1]>[0];
 const id = z.uuid();
@@ -92,7 +93,21 @@ export function recoverMissingAccountingEvents(companyId: string) {
     for (const payment of payments) await recordAccountingEventIn(tx, { companyId, branchId: payment.branchId,
       sourceType: "EXPENSE_PAYMENT", sourceId: payment.id, eventType: "EXPENSE_PAYMENT",
       actorId: payment.confirmedBy!, accountingDate: payment.paidAt });
-    return { expenses: expenses.length, payments: payments.length };
+    const sales = await tx.select({ id: dailySalesCuts.id, branchId: dailySalesCuts.branchId,
+      businessDate: dailySalesCuts.businessDate, receivedBy: dailySalesCuts.receivedBy }).from(dailySalesCuts)
+      .innerJoin(branches, and(eq(branches.id, dailySalesCuts.branchId), eq(branches.companyId, companyId)))
+      .innerJoin(users, and(eq(users.id, dailySalesCuts.receivedBy), eq(users.companyId, companyId))).where(and(
+      eq(dailySalesCuts.companyId, companyId), eq(dailySalesCuts.status, "VALIDATED"), isNotNull(dailySalesCuts.receivedBy),
+      notExists(tx.select({ id: accountingEvents.id }).from(accountingEvents).where(and(
+        eq(accountingEvents.companyId, companyId), eq(accountingEvents.sourceType, "DAILY_SALES_CUT"),
+        eq(accountingEvents.sourceId, dailySalesCuts.id), eq(accountingEvents.eventType, "SALE_RECOGNIZED"),
+        eq(accountingEvents.sourceVersion, 1),
+      ))),
+    )).orderBy(asc(dailySalesCuts.id)).limit(25);
+    for (const cut of sales) await recordAccountingEventIn(tx, { companyId, branchId: cut.branchId,
+      sourceType: "DAILY_SALES_CUT", sourceId: cut.id, eventType: "SALE_RECOGNIZED", sourceVersion: 1,
+      actorId: cut.receivedBy!, accountingDate: cut.businessDate });
+    return { expenses: expenses.length, payments: payments.length, sales: sales.length };
   });
 }
 
@@ -102,6 +117,7 @@ async function processIn(tx: Tx, companyId: string, eventId: string) {
   )).limit(1);
   if (!event) throw ApiError.notFound("Hecho contable no encontrado en esta empresa.");
   if (event.status === "POSTED") return { journal: { id: event.journalId! }, reason: null };
+  if (event.sourceType === "DAILY_SALES_CUT" || event.sourceType === "SALES_REFUND") return postSalesEventIn(tx, event);
 
   // Match the source transaction's lock order. Locking the outbox first would
   // deadlock with approval/settlement, which hold their source before the fact.

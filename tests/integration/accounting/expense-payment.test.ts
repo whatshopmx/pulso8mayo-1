@@ -57,7 +57,7 @@ beforeAll(async () => {
   await pool.query(`CREATE SCHEMA "${namespace}"`); created = true;
   await pool.query(`CREATE TYPE "${namespace}".expense_payment_method AS ENUM (${schema.expensePaymentMethodEnum.enumValues.map(value => `'${value}'`).join(",")})`);
   for (const table of ["companies", "users", "cost_centers", "company_bank_accounts", "branches", "financial_periods",
-    "operating_expenses", "expense_authorization_rules", "payment_runs", "payment_run_items", "payees", "payee_bank_accounts"]) {
+    "operating_expenses", "expense_authorization_rules", "payment_runs", "payment_run_items", "payees", "payee_bank_accounts", "daily_sales_cuts"]) {
     await pool.query(`CREATE TABLE "${namespace}".${table} (LIKE public.${table} INCLUDING DEFAULTS INCLUDING CONSTRAINTS)`);
     await pool.query(`ALTER TABLE "${namespace}".${table} ADD PRIMARY KEY (id)`);
   }
@@ -69,7 +69,7 @@ beforeAll(async () => {
   await pool.query(`GRANT "${runtimeRole}" TO CURRENT_USER`);
   for (const file of ["0124_fc05_tenant_keys", "0125_fc05_accounts", "0126_fc05_account_guards", "0127_fc06_journals",
     "0128_fc06_journal_guards", "0129_fc07_review", "0130_fc08_rules", "0131_fc09_expense_payments",
-    "0132_fc09_treasury_source", "0133_fc10_accounting_events"]) {
+    "0132_fc09_treasury_source", "0133_fc10_accounting_events", "0134_fc11_sales"]) {
     const migration = readFileSync(`drizzle/${file}.sql`, "utf8").replaceAll('"public".', `"${namespace}".`)
       .replaceAll('SCHEMA "public"', `SCHEMA "${namespace}"`)
       // Exercise only privileges provisioned by migrations, on the isolated role.
