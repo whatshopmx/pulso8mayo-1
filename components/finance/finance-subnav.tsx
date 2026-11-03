@@ -159,6 +159,11 @@ export function FinanceSubnav() {
                   Cuentas de origen (propias)
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/finance/settings/accounting" className="cursor-pointer">
+                  Preparar contabilidad
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/budgets" className="cursor-pointer">

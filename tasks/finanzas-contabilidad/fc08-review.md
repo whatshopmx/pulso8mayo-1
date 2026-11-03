@@ -1,5 +1,7 @@
 # FC-08 · Apertura y reglas vigentes
 
+Actualización 2026-11-03: la experiencia de configuración descrita aquí queda sustituida por [Preparación contable guiada](preparacion-guiada.md). Se conserva esta nota como evidencia histórica de FC-08; sus formularios de códigos, roles y versión anterior ya no son el recorrido de usuario propuesto.
+
 Extensión de **Cierre y control**, en modo Operate, para fijar la apertura de la empresa y administrar las reglas que traducen cada hecho en cuentas. Conserva la identidad de Pulso: mando operativo, lenguaje directo y una siguiente acción reconocible. Esta nota documenta la pantalla y su contrato local; `PRODUCT.md`, `DESIGN.md` y `.impeccable/design.json` conservan su autoridad global.
 
 ## Diseño heredado

@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 
 /** Real P&L components/CSS; only Next Link and HTTP/session boundaries are substituted. */
-export async function startAccountingBrowserServer(mode:"pnl"|"journals"="pnl",fixture?:(url:string,res:{setHeader:(key:string,value:string)=>void;end:(body:string)=>void})=>boolean) {
+export async function startAccountingBrowserServer(mode:"pnl"|"journals"|"settings"="pnl",fixture?:(url:string,res:{setHeader:(key:string,value:string)=>void;end:(body:string)=>void})=>boolean) {
   const requireVite = createRequire(require.resolve("vitest/package.json"));
   const { createServer } = await import(pathToFileURL(requireVite.resolve("vite")).href);
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
@@ -33,6 +33,9 @@ export async function startAccountingBrowserServer(mode:"pnl"|"journals"="pnl",f
         React.createElement('button',{onClick:()=>setBranch(branches[1].id)},'Norte (prueba)')),
       React.createElement('main',null,React.createElement(AccountingJournals,{key:branch,branchId:branch,branches})));}
     createRoot(document.getElementById('root')).render(React.createElement(App));`;
+  if(mode==="settings") virtual["\0accounting-entry.tsx"]=`import '/accounting-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
+    import {AccountingSettings} from '@/components/finance/accounting-settings';
+    createRoot(document.getElementById('root')).render(React.createElement('main',null,React.createElement(AccountingSettings)));`;
   const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", `accounting-vite-${process.pid}`),
     esbuild: { jsx: "automatic" }, css: { postcss: { plugins: [] } },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },

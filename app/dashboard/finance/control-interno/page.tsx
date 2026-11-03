@@ -195,7 +195,7 @@ export default function ControlInternoPage() {
           {isAdmin && (
             <Button variant="outline" size="sm" asChild>
               <Link href="/dashboard/finance/settings/accounting">
-                <SlidersHorizontal className="w-4 h-4 mr-2" /> Contabilidad
+                <SlidersHorizontal className="w-4 h-4 mr-2" /> Preparar contabilidad
               </Link>
             </Button>
           )}
