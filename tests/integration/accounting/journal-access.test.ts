@@ -49,7 +49,8 @@ beforeAll(async () => {
     ($1,$2,'4103','Electricidad','OPEX-LUZ'),($3,$4,'4103','Ajeno','PRIVATE LINE')`, [centerId, companyId, foreignCenter, foreignCompany]);
   await pool.query(`CREATE ROLE "${role}" NOLOGIN NOBYPASSRLS`); roleCreated = true;
   await pool.query(`GRANT "${role}" TO CURRENT_USER`);
-  for (const file of ["0124_fc05_tenant_keys", "0125_fc05_accounts", "0126_fc05_account_guards", "0127_fc06_journals", "0128_fc06_journal_guards", "0129_fc07_review"]) {
+  // The current journal model also reads rule_id/rule_version introduced by FC-08.
+  for (const file of ["0124_fc05_tenant_keys", "0125_fc05_accounts", "0126_fc05_account_guards", "0127_fc06_journals", "0128_fc06_journal_guards", "0129_fc07_review", "0130_fc08_rules"]) {
     // Substitute only schema/role identifiers; all runtime privileges come from the migration.
     const migration = readFileSync(`drizzle/${file}.sql`, "utf8").replaceAll('"public".', `"${namespace}".`)
       .replaceAll('SCHEMA "public"', `SCHEMA "${namespace}"`)

@@ -21,8 +21,11 @@ import { hasPermission, type Role } from "@/lib/permissions";
 import { SupplierClaimService } from "./supplier-claim-service";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { ApiError } from "@/lib/api/error";
+import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
+import { capturePurchaseReceiptIn } from "./accounting/purchase-adapter";
 
 export const receivingSchema = z.object({
+    businessDate: z.iso.date().refine(value => value >= "0001-01-01").optional(),
     items: z.array(z.object({
         itemId: z.string().uuid(),
         quantity: z.number().positive(),
@@ -182,6 +185,9 @@ export async function processReceiving(
         const replay = await findReceivingByIdempotencyKey(companyId, idempotencyKey, branchId);
         if (replay) return replay;
     }
+    if (isAccountingPostingEnabled() && !validatedData.businessDate) {
+        throw ApiError.badRequest("La recepción contable requiere una fecha de negocio explícita.");
+    }
 
     // H07 — Pre-flight SIN escrituras: la lectura de temperatura es exigible
     // para refrigerados/congelados y su ausencia no es conformidad. Se valida
@@ -293,6 +299,7 @@ export async function processReceiving(
             }
 
             const results: typeof receivingResults = [];
+            const valuation: Parameters<typeof capturePurchaseReceiptIn>[1]["lines"] = [];
 
             // Process each item in the receiving
             for (const itemData of validatedData.items) {
@@ -541,6 +548,9 @@ export async function processReceiving(
                     expirationDate: batch.expirationDate,
                     movementId: movement.id,
                 });
+                valuation.push({ itemId, batchId: batch.id, quantity: String(quantity), unitCostCents: finalUnitCostCents,
+                    basis: enteredUnitCost !== undefined ? "DOCUMENT" : poUnitCost !== null ? "PURCHASE_ORDER" : "LAST_COST",
+                    accepted: !temperatureCheck.quarantined });
             }
 
             // If invoice is associated, run 3-way match (dentro de la transacción)
@@ -620,6 +630,11 @@ export async function processReceiving(
                 }, tx);
             }
 
+            if (isAccountingPostingEnabled()) {
+                await capturePurchaseReceiptIn(tx, { companyId, actorId: actor.user.id, receivingReportId: created.id,
+                    accountingDate: validatedData.businessDate!, documentReference: validatedData.invoiceNumber || created.id,
+                    lines: valuation });
+            }
             return { report: created, results };
         });
 

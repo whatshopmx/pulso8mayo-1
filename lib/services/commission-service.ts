@@ -466,7 +466,8 @@ export async function getCommissionsByBranch(
     const channels = byBranch.get(branchId) ?? new Map<string, ChannelAcc>();
     byBranch.set(branchId, channels);
 
-    if (gw.feeCents > 0) {
+    // A documented zero fee also replaces an estimate for these sales.
+    if (gw.grossCents > 0) {
       const tpvAcc = channels.get("tpv") ?? {
         coveredBaseCents: 0,
         uncoveredBaseCents: 0,

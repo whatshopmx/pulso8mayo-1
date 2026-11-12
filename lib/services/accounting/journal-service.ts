@@ -180,6 +180,9 @@ async function ruleSelection(tx: Tx, companyId: string, data: { ruleId?: string 
 }
 
 async function draftValues(tx: Tx, companyId: string, data: z.output<typeof createSchema>, actorId: string) {
+  if (data.source && ["RECEIVING_REPORT", "PURCHASE_INVOICE", "PURCHASE_CREDIT", "INVOICE_PAYMENT"].includes(data.source.type)) {
+    throw ApiError.conflict("Los hechos de compra se publican desde su documento revisado; no se capturan como pólizas manuales.");
+  }
   const rule = await ruleSelection(tx, companyId, data);
   return {
     accountingDate: data.accountingDate,
@@ -384,6 +387,9 @@ export function reverseJournal(ctx: AccountingContext, journalId: string, input:
     if (!original) throw ApiError.notFound("Póliza no encontrada.");
     if (["DAILY_SALES_CUT", "SALES_REFUND"].includes(original.sourceType ?? "")) {
       throw ApiError.conflict("Utiliza una devolución vinculada a la venta; la reversa manual no controla su saldo.");
+    }
+    if (["RECEIVING_REPORT", "PURCHASE_INVOICE", "PURCHASE_CREDIT", "INVOICE_PAYMENT"].includes(original.sourceType ?? "")) {
+      throw ApiError.conflict("La corrección de compras requiere revisar los documentos, devoluciones y pagos vinculados.");
     }
     if (original.status !== "POSTED" || original.reversalOfId || original.version !== data.expectedVersion) {
       throw ApiError.conflict("Solo se revierte una póliza publicada vigente; vuelve a consultar su versión.");

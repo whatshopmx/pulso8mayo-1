@@ -23,11 +23,14 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, desc, eq, gte, inArray, lte, sql, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bankTransactions, paymentRunItems, paymentRuns, gatewayTransactions, branches } from "@/lib/db/schema";
+import { accountingEvents, bankTransactions, paymentRunItems, paymentRuns, gatewayTransactions, branches } from "@/lib/db/schema";
 import { companyBankAccounts, paymentRunItemTypeEnum } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
+import { withCompanyContext } from "@/lib/db/tenant-context";
+import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
+import { settleConfirmedTransactionIn } from "./accounting/settlement-adapter";
 
 type PaymentRunItemType = typeof paymentRunItemTypeEnum.enumValues[number];
 
@@ -871,7 +874,9 @@ export async function confirmDepositMatch(input: {
     userId: string;
     notes?: string;
 }): Promise<void> {
-    await db.transaction(async (tx) => {
+    await withCompanyContext({ companyId: input.companyId, actorId: input.userId }, async (tx) => {
+        // Same ordering as settlement recovery: company, source, configuration.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.companyId}, 601))`);
         const [txRow] = await tx
             .select({
                 id: bankTransactions.id,
@@ -977,6 +982,9 @@ export async function confirmDepositMatch(input: {
                 "El movimiento cambió de estado durante el cruce. Recarga y vuelve a intentarlo."
             );
         }
+        if (isAccountingPostingEnabled()) {
+            await settleConfirmedTransactionIn(tx, input.companyId, input.userId, input.gatewayTransactionId);
+        }
     });
 }
 
@@ -985,26 +993,35 @@ export async function unmatchDepositTransaction(input: {
     companyId: string;
     transactionId: string;
 }): Promise<void> {
-    const [updated] = await db
-        .update(bankTransactions)
-        .set({
-            matchStatus: "UNMATCHED",
-            matchedGatewayTransactionId: null,
-            matchedAt: null,
-            matchedBy: null,
-            matchNotes: null,
-        })
-        .where(
-            and(
-                eq(bankTransactions.id, input.transactionId),
-                eq(bankTransactions.companyId, input.companyId),
-                eq(bankTransactions.matchStatus, "MATCHED")
+    await withCompanyContext({ companyId: input.companyId }, async tx => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.companyId}, 601))`);
+        const [fact] = await tx.select({ id: accountingEvents.id }).from(accountingEvents)
+            .innerJoin(bankTransactions, and(eq(bankTransactions.companyId, accountingEvents.companyId),
+                eq(bankTransactions.matchedGatewayTransactionId, accountingEvents.sourceId)))
+            .where(and(eq(bankTransactions.companyId, input.companyId), eq(bankTransactions.id, input.transactionId),
+                eq(accountingEvents.sourceType, "GATEWAY_SETTLEMENT"))).limit(1);
+        if (fact) throw ApiError.conflict("Este depósito respalda un hecho contable. Requiere una corrección auditada antes de deshacer el cruce.");
+        const [updated] = await tx
+            .update(bankTransactions)
+            .set({
+                matchStatus: "UNMATCHED",
+                matchedGatewayTransactionId: null,
+                matchedAt: null,
+                matchedBy: null,
+                matchNotes: null,
+            })
+            .where(
+                and(
+                    eq(bankTransactions.id, input.transactionId),
+                    eq(bankTransactions.companyId, input.companyId),
+                    eq(bankTransactions.matchStatus, "MATCHED")
+                )
             )
-        )
-        .returning({ id: bankTransactions.id });
-    if (!updated) {
-        throw ApiError.conflict("El movimiento no estaba cruzado o no existe.");
-    }
+            .returning({ id: bankTransactions.id });
+        if (!updated) {
+            throw ApiError.conflict("El movimiento no estaba cruzado o no existe.");
+        }
+    });
 }
 
 /** Deshacer un match: el cruce era un juicio de pareja, no un hecho contable. */
@@ -1025,6 +1042,7 @@ export async function unmatchTransaction(input: {
             and(
                 eq(bankTransactions.id, input.transactionId),
                 eq(bankTransactions.companyId, input.companyId),
+                isNull(bankTransactions.matchedGatewayTransactionId),
                 eq(bankTransactions.matchStatus, "MATCHED")
             )
         )

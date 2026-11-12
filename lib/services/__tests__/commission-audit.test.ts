@@ -210,7 +210,7 @@ describe("Auditoría de Comisiones e Integridad en P&L (Línea 214)", () => {
   });
 
   describe("Integridad en P&L (getCommissionsByBranch)", () => {
-    it("sustituye la estimación por la medición real cuando existen gatewayTransactions, marcando el renglón como MEASURED", async () => {
+    it.each([{ fee: 2500, vat: 400 }, { fee: 0, vat: 0 }])("sustituye la estimación por la comisión documentada $fee + $vat sin duplicarla", async ({ fee, vat }) => {
       // 1. mockRates
       const mockRates = [
         {
@@ -239,8 +239,8 @@ describe("Auditoría de Comisiones e Integridad en P&L (Línea 214)", () => {
         {
           branchId: "branch-1",
           grossAmountCents: 100000,
-          feeAmountCents: 2500,
-          feeVatCents: 400,
+          feeAmountCents: fee,
+          feeVatCents: vat,
         },
       ];
 
@@ -275,10 +275,10 @@ describe("Auditoría de Comisiones e Integridad en P&L (Línea 214)", () => {
       expect(branchComms.branchId).toBe("branch-1");
       // El renglón de comisiones fue provisto por la medición del gateway
       expect(branchComms.source).toBe("MEASURED");
-      expect(branchComms.totalCommissionCents).toBe(2900); // 2,500 + 400
+      expect(branchComms.totalCommissionCents).toBe(fee + vat);
       expect(branchComms.channels[0].channel).toBe("tpv");
       expect(branchComms.channels[0].source).toBe("MEASURED");
-      expect(branchComms.channels[0].measuredCents).toBe(2900);
+      expect(branchComms.channels[0].measuredCents).toBe(fee + vat);
       expect(branchComms.channels[0].estimatedCents).toBe(0);
     });
   });

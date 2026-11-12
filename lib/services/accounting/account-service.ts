@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import { ApiError, isApiError } from "@/lib/api/error";
-import { accountingAccounts, accountingSourceLinks, companyBankAccounts, costCenters, operatingExpenses, users } from "@/lib/db/schema";
+import { accountingAccounts, accountingGatewayLinks, accountingSourceLinks, companyBankAccounts, costCenters, operatingExpenses, terminalAcquirerEnum, users } from "@/lib/db/schema";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { hasPermission, type Role } from "@/lib/permissions";
 import { getRoleScope } from "@/lib/rbac/resource-scope";
@@ -28,6 +28,8 @@ const linkSchema = z.union([
 ]);
 const pageSchema = z.object({ page: z.number().int().min(1).max(10000).default(1),
   pageSize: z.number().int().min(1).max(100).default(25) }).strict();
+const gatewayLinkSchema = z.object({ accountId: z.uuid(), gatewayAcquirer: z.enum(terminalAcquirerEnum.enumValues),
+  salesDestination: z.enum(["CARD", "PLATFORM", "OTHER"]) }).strict();
 
 function databaseCode(error: unknown) {
   let current = error;
@@ -112,6 +114,30 @@ export function listSourceLinks(ctx: AccountingContext, options: z.input<typeof 
     const { page, pageSize } = pageSchema.parse(options);
     const rows = await tx.select().from(accountingSourceLinks).where(eq(accountingSourceLinks.companyId, companyId))
       .orderBy(asc(accountingSourceLinks.id)).limit(pageSize + 1).offset((page - 1) * pageSize);
+    return { items: rows.slice(0, pageSize), page, pageSize, hasMore: rows.length > pageSize };
+  });
+}
+
+/** Explicit acquiring destination, independent of bank identifiers or account codes. */
+export function linkGateway(ctx: AccountingContext, input: z.input<typeof gatewayLinkSchema>) {
+  return run(ctx, async (tx, companyId, actorId) => {
+    const data = gatewayLinkSchema.parse(input);
+    const [account] = await tx.select({ id: accountingAccounts.id }).from(accountingAccounts)
+      .where(and(eq(accountingAccounts.companyId, companyId), eq(accountingAccounts.id, data.accountId))).limit(1);
+    if (!account) throw ApiError.notFound("La cuenta no existe en esta empresa.");
+    const [link] = await tx.insert(accountingGatewayLinks).values({ ...data, companyId, createdBy: actorId, updatedBy: actorId })
+      .onConflictDoUpdate({ target: [accountingGatewayLinks.companyId, accountingGatewayLinks.gatewayAcquirer],
+        set: { accountId: data.accountId, salesDestination: data.salesDestination, updatedBy: actorId, updatedAt: new Date() },
+      }).returning();
+    return link;
+  });
+}
+
+export function listGatewayLinks(ctx: AccountingContext, options: z.input<typeof pageSchema> = {}) {
+  return run(ctx, async (tx, companyId) => {
+    const { page, pageSize } = pageSchema.parse(options);
+    const rows = await tx.select().from(accountingGatewayLinks).where(eq(accountingGatewayLinks.companyId, companyId))
+      .orderBy(asc(accountingGatewayLinks.gatewayAcquirer)).limit(pageSize + 1).offset((page - 1) * pageSize);
     return { items: rows.slice(0, pageSize), page, pageSize, hasMore: rows.length > pageSize };
   });
 }

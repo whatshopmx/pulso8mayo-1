@@ -6,12 +6,13 @@ const mocks = vi.hoisted(() => ({ authorize: vi.fn(), read: vi.fn(), preview: vi
   rule: vi.fn(), resolve: vi.fn(), list: vi.fn() }));
 vi.mock("@/lib/rbac/abac", () => ({ requirePermissionApi: mocks.authorize }));
 vi.mock("@/lib/services/accounting/account-service", () => ({ readAccountingPreparation: mocks.read,
-  createAccount: mocks.create, linkSource: mocks.link }));
+  createAccount: mocks.create, linkSource: mocks.link, linkGateway: mocks.link, listGatewayLinks: mocks.list }));
 vi.mock("@/lib/services/accounting/expense-adapter", () => ({ previewExpenseRecognition: mocks.preview }));
 vi.mock("@/lib/services/accounting/mapping-service", () => ({ getRule: mocks.rule, previewRule: mocks.resolve,
   listRules: mocks.list, createRule: vi.fn() }));
 import { GET, POST } from "@/app/api/finance/accounting/preparation/route";
 import { GET as settingsGET } from "@/app/api/finance/accounting/settings/route";
+import { GET as gatewayGET, POST as gatewayPOST } from "@/app/api/finance/accounting/gateway-links/route";
 
 const companyId = "10000000-0000-4000-8000-000000000001";
 const id = "10000000-0000-4000-8000-000000000002";
@@ -77,4 +78,29 @@ it("accepts preview and version selectors without leaking them into strict rule 
   expect((await settingsGET(new NextRequest(`http://localhost/api/finance/accounting/settings?view=rule&id=${id}`))).status).toBe(200);
   expect(mocks.rule).toHaveBeenCalledWith({ companyId, actorId: "actor", role: "OWNER" }, id);
   expect((await settingsGET(new NextRequest("http://localhost/api/finance/accounting/settings?view=unknown"))).status).toBe(400);
+});
+
+it("gates acquiring configuration and scopes its private response to the session", async () => {
+  const gatewayUrl = "http://localhost/api/finance/accounting/gateway-links";
+  vi.stubEnv("ACCOUNTING_REVIEW_ENABLED", "0");
+  expect((await gatewayGET(new NextRequest(gatewayUrl))).status).toBe(503);
+  expect(mocks.list).not.toHaveBeenCalled();
+  vi.stubEnv("ACCOUNTING_REVIEW_ENABLED", "1");
+  mocks.list.mockResolvedValue({ items: [] });
+  const response = await gatewayGET(new NextRequest(gatewayUrl));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  expect(mocks.list).toHaveBeenCalledWith({ companyId, actorId: "actor", role: "OWNER" }, { page: 1, pageSize: 100 });
+  expect((await gatewayGET(new NextRequest(`${gatewayUrl}?companyId=${id}`))).status).toBe(400);
+});
+
+it("rejects acquiring writes across origins and preserves service authorization failures", async () => {
+  const input = { accountId: id, gatewayAcquirer: "CLIP", salesDestination: "CARD" };
+  expect((await gatewayPOST(request(input, "https://untrusted.invalid"))).status).toBe(403);
+  expect(mocks.link).not.toHaveBeenCalled();
+  mocks.link.mockRejectedValueOnce(ApiError.forbidden());
+  expect((await gatewayPOST(request(input))).status).toBe(403);
+  mocks.link.mockResolvedValueOnce(input);
+  expect((await gatewayPOST(request(input))).status).toBe(201);
+  expect(mocks.link).toHaveBeenLastCalledWith({ companyId, actorId: "actor", role: "OWNER" }, input);
 });

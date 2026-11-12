@@ -79,6 +79,7 @@ describe("confirmDepositMatch (protocolo atómico de entradas)", () => {
     function txMock(selectRows: unknown[], updateRows: unknown[]) {
         let call = 0;
         return {
+            execute: vi.fn().mockResolvedValue([]),
             select: vi.fn(
                 () =>
                     ({

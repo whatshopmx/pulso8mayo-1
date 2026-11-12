@@ -9,6 +9,8 @@ import type { AccountingContext } from "./journal-service";
 import { ensureRecognitionIn, isAccountingPostingEnabled, postPaymentIn } from "./expense-adapter";
 import { finishAccountingEventIn, recordAccountingEventIn } from "./event-store";
 import { postSalesEventIn } from "./sales-adapter";
+import { postSettlementEventIn, recoverSettlementFacts } from "./settlement-adapter";
+import { postPurchaseEventIn, PURCHASE_EVENTS } from "./purchase-adapter";
 
 type Tx = Parameters<Parameters<typeof withCompanyContext>[1]>[0];
 const id = z.uuid();
@@ -107,7 +109,8 @@ export function recoverMissingAccountingEvents(companyId: string) {
     for (const cut of sales) await recordAccountingEventIn(tx, { companyId, branchId: cut.branchId,
       sourceType: "DAILY_SALES_CUT", sourceId: cut.id, eventType: "SALE_RECOGNIZED", sourceVersion: 1,
       actorId: cut.receivedBy!, accountingDate: cut.businessDate });
-    return { expenses: expenses.length, payments: payments.length, sales: sales.length };
+    return { expenses: expenses.length, payments: payments.length, sales: sales.length,
+      settlements: await recoverSettlementFacts(tx, companyId) };
   });
 }
 
@@ -118,6 +121,10 @@ async function processIn(tx: Tx, companyId: string, eventId: string) {
   if (!event) throw ApiError.notFound("Hecho contable no encontrado en esta empresa.");
   if (event.status === "POSTED") return { journal: { id: event.journalId! }, reason: null };
   if (event.sourceType === "DAILY_SALES_CUT" || event.sourceType === "SALES_REFUND") return postSalesEventIn(tx, event);
+  // The settlement adapter holds the sales company lock itself, in the same
+  // order as the reconciliation that captured the fact; no source row lock here.
+  if (event.sourceType === "GATEWAY_SETTLEMENT") return postSettlementEventIn(tx, event);
+  if (Object.hasOwn(PURCHASE_EVENTS, event.sourceType)) return postPurchaseEventIn(tx, event);
 
   // Match the source transaction's lock order. Locking the outbox first would
   // deadlock with approval/settlement, which hold their source before the fact.

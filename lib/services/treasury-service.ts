@@ -60,6 +60,7 @@ import {
   isAccountingPostingEnabled,
   remainingExpenseCents,
 } from "./accounting/expense-adapter";
+import { captureInvoicePaymentIn, remainingInvoiceCentsIn } from "./accounting/purchase-adapter";
 
 type PaymentRunStatus = typeof paymentRunStatusEnum.enumValues[number];
 
@@ -296,10 +297,15 @@ async function saldarDocumentosDePartidas(
     .map((p) => p.referenceId);
 
   if (facturaIds.length > 0) {
-    await tx
-      .update(invoices)
-      .set({ paymentStatus: "PAID", paidAt: new Date(), paidBy: userId })
-      .where(inArray(invoices.id, facturaIds));
+    if (isAccountingPostingEnabled()) {
+      await setTenantContext(tx, { companyId, actorId: userId });
+      for (const item of partidas.filter(item => item.itemType === "INVOICE")) {
+        await captureInvoicePaymentIn(tx, companyId, userId, item.id);
+      }
+    } else {
+      await tx.update(invoices).set({ paymentStatus: "PAID", paidAt: new Date(), paidBy: userId })
+        .where(and(eq(invoices.companyId, companyId), inArray(invoices.id, facturaIds)));
+    }
   }
 
   const gastos = partidas.filter((p) => p.itemType === "OPERATING_EXPENSE");
@@ -612,6 +618,8 @@ export class TreasuryService {
     referenceId: string;
     /** Solo se usa en los tipos que no tienen documento con monto propio. */
     amountCents?: number;
+    /** FC-13: explicit partial invoice application, bounded by its current balance. */
+    invoicePaymentAmountCents?: number;
     notes?: string;
   }, q?: Transaccion): Promise<{
     amountCents: number;
@@ -680,8 +688,18 @@ export class TreasuryService {
           );
         }
 
+        let amountCents = invoice.total;
+        if (isAccountingPostingEnabled()) {
+          if (!q) return withCompanyContext({ companyId }, tx => TreasuryService.assertCounterpartyPayable(input, tx));
+          await setTenantContext(q, { companyId });
+          const remaining = await remainingInvoiceCentsIn(q, companyId, invoice.id);
+          amountCents = input.invoicePaymentAmountCents ?? remaining;
+          if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > remaining) {
+            throw ApiError.badRequest("El abono debe ser positivo y no exceder el saldo pendiente de la factura.");
+          }
+        }
         return {
-          amountCents: invoice.total,
+          amountCents,
           counterparty: suppName,
           // Se devuelve para congelarla en la partida: la corrida se firma
           // contra ESTA cuenta, no contra la que el proveedor tenga el día que
@@ -899,6 +917,7 @@ export class TreasuryService {
     referenceId: string;
     /** Ignorado en los tipos con documento; el monto se lee del documento. */
     amountCents?: number;
+    invoicePaymentAmountCents?: number;
     notes?: string;
   }) {
     const { paymentRunId, companyId, itemType, referenceId, notes } = input;
@@ -1437,6 +1456,12 @@ export class TreasuryService {
         settledBy: userId,
         settlementNotes: notes !== undefined ? notes : item.settlementNotes,
       };
+
+      if (isAccountingPostingEnabled() && item.itemType === "INVOICE" && settlementStatus === "CONFIRMED") {
+        await setTenantContext(tx, { companyId, actorId: userId });
+        const remaining = await remainingInvoiceCentsIn(tx, companyId, item.referenceId);
+        if (item.amountCents > remaining) throw ApiError.conflict("El abono excede el saldo actual de la factura.");
+      }
 
       if (settlementStatus === "CONFIRMED") {
         updateData.settlementReference = reference;

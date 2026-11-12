@@ -16,6 +16,7 @@ const addItemSchema = z.object({
   itemType: z.enum(paymentRunItemTypeEnum.enumValues),
   referenceId: z.string().uuid(),
   amountCents: z.number().int().positive().optional(),
+  invoicePaymentAmountCents: z.number().int().positive().optional(),
   notes: z.string().optional(),
 });
 
@@ -39,7 +40,7 @@ export async function POST(
       return ApiHandler.error(ApiError.badRequest("Datos del ítem inválidos."));
     }
 
-    const { itemType, referenceId, amountCents, notes } = parsed.data;
+    const { itemType, referenceId, amountCents, invoicePaymentAmountCents, notes } = parsed.data;
 
     // La pertenencia al tenant y el estado DRAFT los afirma el servicio, con el
     // `companyId` de la sesión: la regla vive donde se escribe, no en la ruta.
@@ -49,6 +50,7 @@ export async function POST(
       itemType,
       referenceId,
       amountCents,
+      invoicePaymentAmountCents,
       notes,
     });
 
