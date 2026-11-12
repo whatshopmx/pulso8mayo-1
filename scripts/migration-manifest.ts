@@ -11,10 +11,24 @@ import ws from "ws";
 let stage = "argumentos/archivos";
 interface ExpectedMigration { tag: string; when: number; hash: string; lineEndingHashes?: string[] }
 interface AppliedMigration { id: number; created_at: string | null; hash: string }
+interface SchemaBaseline {
+  cutoff_when: number | string;
+  schema_sha256: string;
+  manifest: { cutoff: { tag: string; when: number }; sources: { tag: string; when: number; sha256: string }[] };
+}
 
-export function classifyMigrations(expected: ExpectedMigration[], applied: AppliedMigration[]) {
+export function classifyMigrations(expected: ExpectedMigration[], applied: AppliedMigration[], baseline?: SchemaBaseline) {
   const latest = Math.max(0, ...applied.map((row) => Number(row.created_at)));
+  const cutoff = Number(baseline?.cutoff_when);
+  const anchor = applied.filter(row => Number(row.created_at) === cutoff);
+  const validBaseline = !!baseline && baseline.manifest?.cutoff?.when === cutoff
+    && expected.some(row => row.when === cutoff && row.tag === baseline.manifest.cutoff.tag)
+    && anchor.length === 1 && anchor[0].hash === baseline.schema_sha256;
   const entries = expected.map((migration) => {
+    if (validBaseline && migration.when <= cutoff) {
+      const source = baseline.manifest.sources?.filter(row => row.tag === migration.tag && row.when === migration.when) || [];
+      return { ...migration, status: source.length === 1 && source[0].sha256 === migration.hash ? "BASELINED" : "BASELINE_MISMATCH" };
+    }
     const rows = applied.filter((row) => Number(row.created_at) === migration.when);
     const status = rows.length
       ? rows.every((row) => row.hash === migration.hash) ? "APPLIED"
@@ -26,8 +40,10 @@ export function classifyMigrations(expected: ExpectedMigration[], applied: Appli
   const duplicateTimes = [...new Set(times.filter((time, i) => times.indexOf(time) !== i))];
   const unknownApplied = applied.filter((row) => !expected.some((migration) => migration.when === Number(row.created_at)));
   return { entries, duplicateTimes, unknownApplied,
-    requiresReview: duplicateTimes.length > 0 || unknownApplied.length > 0
-      || entries.some((entry) => !["APPLIED", "PENDING"].includes(entry.status)) };
+    baseline: baseline ? { cutoffTag: baseline.manifest?.cutoff?.tag, cutoffWhen: cutoff, validJournalAnchor: validBaseline,
+      scope: "Esquema inicial documentado; no ejecución individual del historial." } : undefined,
+    requiresReview: (!!baseline && !validBaseline) || duplicateTimes.length > 0 || unknownApplied.length > 0
+      || entries.some((entry) => !["APPLIED", "PENDING", "BASELINED"].includes(entry.status)) };
 }
 
 async function main() {
@@ -65,6 +81,8 @@ async function main() {
     stage = "journal";
     const journalExists = (await client.query("SELECT to_regclass('drizzle.__drizzle_migrations') name")).rows[0].name;
     const applied = journalExists ? (await client.query("SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at, id")).rows : [];
+    const baselineExists = (await client.query("SELECT to_regclass('drizzle.pulso_schema_baselines') name")).rows[0].name;
+    const baseline = baselineExists ? (await client.query("SELECT cutoff_when, schema_sha256, manifest FROM drizzle.pulso_schema_baselines ORDER BY cutoff_when DESC LIMIT 1")).rows[0] : undefined;
     stage = "columnas/índices";
     const columns = (await client.query(`SELECT table_name, column_name, data_type, is_nullable
       FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position`)).rows;
@@ -87,11 +105,16 @@ async function main() {
       (SELECT count(*)::int FROM pg_policy p WHERE p.polrelid=c.oid) policy_count
       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relkind='r' ORDER BY c.relname`)).rows;
-    const history = classifyMigrations(expected, applied);
+    const policies = (await client.query("SELECT * FROM pg_policies WHERE schemaname='public' ORDER BY tablename, policyname")).rows;
+    const privileges = (await client.query(`SELECT table_name, grantee, privilege_type FROM information_schema.role_table_grants
+      WHERE table_schema='public' AND grantee IN (current_user, 'pulso_app', 'PUBLIC') ORDER BY table_name, grantee, privilege_type`)).rows;
+    const columnPrivileges = (await client.query(`SELECT table_name, column_name, grantee, privilege_type FROM information_schema.column_privileges
+      WHERE table_schema='public' AND grantee='pulso_app' ORDER BY table_name, column_name, privilege_type`)).rows;
+    const history = classifyMigrations(expected, applied, baseline);
     await client.query("ROLLBACK");
     console.log(JSON.stringify({ generatedAt: new Date().toISOString(), target: { host: target.hostname, ...identity },
       journalExists: !!journalExists, history, comparison: { expectedSnapshot: last.tag, missingColumns, missingIndexes,
-        scope: "Existencia de columnas e índices; no certifica tipos/defaults/FK/enums ni datos." }, roles, security,
+        scope: "Existencia de columnas e índices; no certifica tipos/defaults/FK/enums ni datos." }, roles, security, policies, privileges, columnPrivileges,
       operationalChanges: false }, null, 2));
   } finally { client.release(); await pool.end(); }
 }

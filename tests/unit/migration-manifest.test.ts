@@ -41,4 +41,26 @@ describe("OPS-01: manifiesto no confunde el último timestamp con historial ínt
     expect(result.entries[0].status).toBe("LINE_ENDINGS_DIFFER");
     expect(result.requiresReview).toBe(true);
   });
+  const baseline = { cutoff_when: 300, schema_sha256: "schema-snapshot", manifest: {
+    cutoff: { tag: "0122_snapshot", when: 300 },
+    sources: expected.map(row => ({ tag: row.tag, when: row.when, sha256: row.hash })),
+  } };
+  it("distingue baseline documentado de migraciones ejecutadas individualmente", () => {
+    const result = classifyMigrations(expected, [{ id: 1, created_at: "300", hash: "schema-snapshot" }], baseline);
+    expect(result.entries.map(row => row.status)).toEqual(["BASELINED", "BASELINED", "BASELINED"]);
+    expect(result.requiresReview).toBe(false);
+  });
+  it("un baseline no oculta archivos alterados, fuentes ausentes ni migraciones posteriores", () => {
+    const altered = { ...baseline, manifest: { ...baseline.manifest, sources: baseline.manifest.sources.slice(1) } };
+    const result = classifyMigrations([...expected, { tag: "0123_next", when: 400, hash: "d" }], [{ id: 1, created_at: "300", hash: "schema-snapshot" }], altered);
+    expect(result.entries.map(row => row.status)).toEqual(["BASELINE_MISMATCH", "BASELINED", "BASELINED", "PENDING"]);
+    expect(result.requiresReview).toBe(true);
+    const changed = classifyMigrations([{ ...expected[0], hash: "changed" }, ...expected.slice(1)], [{ id: 1, created_at: "300", hash: "schema-snapshot" }], baseline);
+    expect(changed.entries[0].status).toBe("BASELINE_MISMATCH");
+  });
+  it("rechaza un baseline sin ancla de hash/cutoff en el journal", () => {
+    const result = classifyMigrations(expected, [{ id: 1, created_at: "300", hash: "otro" }], baseline);
+    expect(result.entries.every(row => row.status !== "BASELINED")).toBe(true);
+    expect(result.requiresReview).toBe(true);
+  });
 });

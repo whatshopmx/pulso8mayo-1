@@ -7,6 +7,7 @@
 import { pgTable, pgPolicy, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index, unique, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AguinaldoSnapshotCabecera, AguinaldoEmpleadoSnapshot } from "../services/aguinaldo-snapshot";
+import type { AppliedSaleAllocation, SaleConsumptionMovement, SaleRecipeSnapshot } from "../services/sale-consumption-contract";
 
 // Import auth tables and enums for internal use within this file
 import { account, users, session, sessions, verifications, magicLinks, roleEnum } from './schema/auth';
@@ -1036,7 +1037,10 @@ export const inventoryItems = pgTable("inventory_items", {
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+    pgPolicy("sale_inventory_catalog_tenant", { for: "select", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid` }),
+]).enableRLS();
 
 export const inventoryPriceHistory = pgTable("inventory_price_history", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -1060,7 +1064,10 @@ export const unitConversions = pgTable("unit_conversions", {
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+    pgPolicy("sale_conversion_catalog_tenant", { for: "select", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid` }),
+]).enableRLS();
 
 // ---------------------------------------------------------------------------
 // Cantidades en `numeric(12,4)` — misma convención que `stock_counts` (AD-6;
@@ -1092,7 +1099,14 @@ export const inventoryBatches = pgTable("inventory_batches", {
     parentBatchIds: jsonb("parent_batch_ids"), // UUIDs of batches consumed to produce this one
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => {
+    const scope = sql`EXISTS (SELECT 1 FROM public.branches b JOIN public.inventory_items i ON i.id = ${table.itemId}
+        WHERE b.id = ${table.branchId} AND b.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid
+        AND i.company_id = b.company_id)
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+            OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`;
+    return [pgPolicy("sale_batch_application_tenant", { for: "all", to: "public", using: scope, withCheck: scope })];
+}).enableRLS();
 
 export const inventoryMovements = pgTable("inventory_movements", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -1109,7 +1123,20 @@ export const inventoryMovements = pgTable("inventory_movements", {
     timestamp: timestamp("timestamp").defaultNow().notNull(),
 }, (table) => ({
     movementsBranchItemIdx: index("movements_branch_item_idx").on(table.branchId, table.itemId, table.timestamp),
-}));
+    saleMovementApplicationTenant: pgPolicy("sale_movement_application_tenant", { for: "all", to: "public",
+        using: sql`EXISTS (SELECT 1 FROM public.branches b JOIN public.inventory_items i ON i.id = ${table.itemId}
+            WHERE b.id = ${table.branchId} AND b.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND i.company_id = b.company_id)
+            AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+                OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`,
+        withCheck: sql`EXISTS (SELECT 1 FROM public.branches b JOIN public.inventory_items i ON i.id = ${table.itemId}
+            WHERE b.id = ${table.branchId} AND b.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND i.company_id = b.company_id)
+            AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+                OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)
+            AND (${table.batchId} IS NULL OR EXISTS (SELECT 1 FROM public.inventory_batches batch
+                WHERE batch.id = ${table.batchId} AND batch.item_id = ${table.itemId} AND batch.branch_id = ${table.branchId}))` }),
+})).enableRLS();
 
 // Temperature Monitoring Logs
 export const temperatureLogs = pgTable("temperature_logs", {
@@ -2810,7 +2837,10 @@ export const recipes = pgTable("recipes", {
     foodCostPercentage: numeric("food_cost_percentage", { precision: 5, scale: 2 }).default("0.00").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+    pgPolicy("sale_recipe_catalog_tenant", { for: "select", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid` }),
+]).enableRLS();
 
 export const recipeItems = pgTable("recipe_items", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -2822,7 +2852,11 @@ export const recipeItems = pgTable("recipe_items", {
     yieldPercent: integer("yield_percent").default(100), // 0-100, overrides item default if set
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+    pgPolicy("sale_recipe_line_catalog_tenant", { for: "select", to: "public",
+        using: sql`EXISTS (SELECT 1 FROM public.recipes r WHERE r.id = ${table.recipeId}
+            AND r.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid)` }),
+]).enableRLS();
 
 // Versionado histórico de fichas técnicas de recetas (Módulo 1.2.2)
 export const recipeVersions = pgTable("recipe_versions", {
@@ -2869,7 +2903,87 @@ export const salesEntries = pgTable("sales_entries", {
     salesEntryUnique: uniqueIndex("sales_entries_unique_sale").on(
         table.companyId, table.branchId, table.saleDate, table.recipeId
     ),
-}));
+    saleEntryApplicationTenant: pgPolicy("sale_entry_application_tenant", { for: "all", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+                OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`,
+        withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+                OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)
+            AND EXISTS (SELECT 1 FROM public.branches b WHERE b.id=${table.branchId} AND b.company_id=${table.companyId})
+            AND EXISTS (SELECT 1 FROM public.recipes r WHERE r.id=${table.recipeId} AND r.company_id=${table.companyId})` }),
+})).enableRLS();
+
+/** Identidad del origen, independiente del mapeo mutable producto → receta. */
+export const salesConsumptionIdentities = pgTable("sales_consumption_identities", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    source: text("source").notNull(),
+    productKey: text("product_key").notNull(),
+    saleDay: date("sale_day").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    const scope = sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+          OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`;
+    return [
+        unique("sale_cons_identity_key_unique").on(table.companyId, table.branchId, table.source, table.productKey, table.saleDay),
+        unique("sale_cons_identity_scope_unique").on(table.id, table.companyId, table.branchId),
+        check("sale_cons_identity_source_check", sql`${table.source} ~ '^[a-z0-9][a-z0-9._:-]{0,63}$'`),
+        check("sale_cons_identity_product_check", sql`${table.productKey} = btrim(${table.productKey}) AND length(${table.productKey}) BETWEEN 1 AND 256`),
+        check("sale_cons_identity_day_check", sql`${table.saleDay} BETWEEN '0001-01-01'::date AND '9999-12-31'::date`),
+        pgPolicy("sale_cons_identity_tenant", { for: "all", to: "public", using: scope,
+            withCheck: sql`${scope} AND EXISTS (SELECT 1 FROM public.branches b WHERE b.id = ${table.branchId} AND b.company_id = ${table.companyId})` }),
+    ];
+}).enableRLS();
+
+/** Solo hechos aplicados: INV-01.b escribirá venta, movimientos y revisión en una transacción. */
+export const salesConsumptionRevisions = pgTable("sales_consumption_revisions", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    identityId: uuid("identity_id").notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    revision: integer("revision").notNull(),
+    previousRevision: integer("previous_revision"),
+    previousQuantitySold: numeric("previous_quantity_sold", { precision: 10, scale: 2 }).notNull(),
+    quantitySold: numeric("quantity_sold", { precision: 10, scale: 2 }).notNull(),
+    /** NULL conserva ingreso histórico desconocido; el writer nuevo exige centavos explícitos. */
+    totalRevenue: integer("total_revenue"),
+    recipeId: uuid("recipe_id").notNull().references(() => recipes.id),
+    recipeSnapshot: jsonb("recipe_snapshot").$type<SaleRecipeSnapshot>().notNull(),
+    allocations: jsonb("allocations").$type<AppliedSaleAllocation[]>().notNull(),
+    movementRefs: jsonb("movement_refs").$type<SaleConsumptionMovement[]>().notNull(),
+    recordedBy: text("recorded_by").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    const scope = sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+          OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`;
+    return [
+        unique("sale_cons_revision_unique").on(table.identityId, table.revision),
+        unique("sale_cons_revision_quantity_unique").on(table.identityId, table.revision, table.quantitySold),
+        foreignKey({ name: "sale_cons_revision_identity_scope_fk", columns: [table.identityId, table.companyId, table.branchId],
+            foreignColumns: [salesConsumptionIdentities.id, salesConsumptionIdentities.companyId, salesConsumptionIdentities.branchId] }),
+        // La FK enlaza también la cantidad previa: ni saltos ni un antes inventado.
+        foreignKey({ name: "sale_cons_revision_previous_fk", columns: [table.identityId, table.previousRevision, table.previousQuantitySold],
+            foreignColumns: [table.identityId, table.revision, table.quantitySold] }),
+        check("sale_cons_revision_chain_check", sql`${table.revision} >= 1 AND (
+            (${table.revision} = 1 AND ${table.previousRevision} IS NULL AND ${table.previousQuantitySold} = 0)
+            OR (${table.revision} > 1 AND ${table.previousRevision} IS NOT NULL AND ${table.previousRevision} = ${table.revision} - 1))`),
+        check("sale_cons_revision_quantity_check", sql`${table.quantitySold} >= 0 AND ${table.previousQuantitySold} >= 0`),
+          check("sale_cons_revision_revenue_check", sql`${table.totalRevenue} IS NULL OR ${table.totalRevenue} >= 0`),
+        check("sale_cons_revision_actor_check", sql`${table.recordedBy} = btrim(${table.recordedBy}) AND length(${table.recordedBy}) > 0`),
+        check("sale_cons_revision_snapshot_check", sql`(jsonb_typeof(${table.recipeSnapshot}) = 'object'
+            AND ${table.recipeSnapshot}->>'schemaVersion' = '1'
+            AND ${table.recipeSnapshot}->>'recipeId' = ${table.recipeId}::text
+            AND length(${table.recipeSnapshot}->>'versionKey') BETWEEN 1 AND 128
+            AND jsonb_typeof(${table.recipeSnapshot}->'definition') = 'object') IS TRUE`),
+        check("sale_cons_revision_allocations_check", sql`jsonb_typeof(${table.allocations}) = 'array' AND jsonb_typeof(${table.movementRefs}) = 'array'`),
+        pgPolicy("sale_cons_revision_tenant", { for: "all", to: "public", using: scope,
+            withCheck: sql`${scope} AND EXISTS (SELECT 1 FROM public.recipes r WHERE r.id = ${table.recipeId} AND r.company_id = ${table.companyId})` }),
+    ];
+}).enableRLS();
 
 // M13: Daily sales cuts (corte de ventas diario por sucursal/turno/canal)
 // Ingested from POS files (upload/WhatsApp) or a manual fallback form.

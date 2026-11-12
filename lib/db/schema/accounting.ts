@@ -1,9 +1,10 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, check, date, foreignKey, index, integer, pgPolicy, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, date, foreignKey, index, integer, jsonb, pgPolicy, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { companies, branches } from "./core";
 import { users } from "./auth";
 import { costCenters } from "./service-orders";
 import { companyBankAccounts } from "./treasury";
+import { terminalAcquirerEnum } from "./finance";
 
 // Ledger structure only. Operational classification remains in cost_centers;
 // bank numbers/purpose remain in company_bank_accounts. No default mappings.
@@ -64,6 +65,36 @@ export const accountingSourceLinks = pgTable("accounting_source_links", {
     foreignColumns: [companyBankAccounts.companyId, companyBankAccounts.id] }),
   check("accounting_links_one_source_check", sql`(${table.costCenterId} IS NOT NULL) <> (${table.bankAccountId} IS NOT NULL)`),
   pgPolicy("accounting_links_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
+/**
+ * FC-12 — acquirer → destination. A settlement is reported by acquirer, never by
+ * cost center or bank account, and it clears the "por liquidar" account that the
+ * declared destination names. Without this link the fact stays pending: the
+ * account is never inferred from a code, a name or the deposit's own account.
+ * Its own table because the catalog links above are read by every expense and
+ * treasury client; widening that row shape for one fact would couple FC-12 to
+ * unrelated writes.
+ */
+export const accountingGatewayLinks = pgTable("accounting_gateway_links", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  companyId: uuid("company_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  gatewayAcquirer: terminalAcquirerEnum("gateway_acquirer").notNull(),
+  salesDestination: text("sales_destination", { enum: ["CARD", "PLATFORM", "OTHER"] }).notNull(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  updatedBy: text("updated_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, table => [
+  uniqueIndex("accounting_gateway_links_company_acquirer_unique").on(table.companyId, table.gatewayAcquirer),
+  index("accounting_gateway_links_account_idx").on(table.companyId, table.accountId),
+  foreignKey({ name: "accounting_gateway_links_account_company_fk", columns: [table.companyId, table.accountId],
+    foreignColumns: [accountingAccounts.companyId, accountingAccounts.id] }),
+  check("accounting_gateway_links_destination_check", sql`${table.salesDestination} IN ('CARD','PLATFORM','OTHER')`),
+  pgPolicy("accounting_gateway_links_tenant", { for: "all", to: "public",
     using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
     withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
 ]).enableRLS();
@@ -317,7 +348,12 @@ export const accountingEvents = pgTable("accounting_events", {
   check("accounting_events_source_check", sql`(${table.sourceType} = 'OPERATING_EXPENSE' AND ${table.eventType} = 'EXPENSE_RECOGNIZED')
     OR (${table.sourceType} = 'EXPENSE_PAYMENT' AND ${table.eventType} = 'EXPENSE_PAYMENT')
     OR (${table.sourceType} = 'DAILY_SALES_CUT' AND ${table.eventType} = 'SALE_RECOGNIZED')
-    OR (${table.sourceType} = 'SALES_REFUND' AND ${table.eventType} = 'SALE_REFUNDED')`),
+    OR (${table.sourceType} = 'SALES_REFUND' AND ${table.eventType} = 'SALE_REFUNDED')
+    OR (${table.sourceType} = 'GATEWAY_SETTLEMENT' AND ${table.eventType} = 'SETTLEMENT_RECOGNIZED')
+    OR (${table.sourceType} = 'RECEIVING_REPORT' AND ${table.eventType} = 'PURCHASE_RECEIVED')
+    OR (${table.sourceType} = 'PURCHASE_INVOICE' AND ${table.eventType} = 'PURCHASE_INVOICED')
+    OR (${table.sourceType} = 'PURCHASE_CREDIT' AND ${table.eventType} = 'PURCHASE_CREDITED')
+    OR (${table.sourceType} = 'INVOICE_PAYMENT' AND ${table.eventType} = 'INVOICE_PAID')`),
   check("accounting_events_version_check", sql`${table.sourceVersion} >= 1
     AND (${table.sourceType} = 'DAILY_SALES_CUT' OR ${table.sourceVersion} = 1)`),
   check("accounting_events_attempts_check", sql`${table.attempts} >= 0`),
@@ -325,6 +361,30 @@ export const accountingEvents = pgTable("accounting_events", {
     OR (${table.status} = 'POSTED' AND ${table.journalId} IS NOT NULL AND ${table.lastError} IS NULL)`),
   check("accounting_events_error_check", sql`${table.lastError} IS NULL OR length(${table.lastError}) BETWEEN 1 AND 500`),
   pgPolicy("accounting_events_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
+/** Reviewed purchase valuation, immutable independently of mutable operational catalogs. */
+export const accountingPurchaseFacts = pgTable("accounting_purchase_facts", {
+  eventId: uuid("event_id").primaryKey().references(() => accountingEvents.id),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  receivingReportId: uuid("receiving_report_id").notNull(),
+  invoiceId: uuid("invoice_id"),
+  kind: text("kind", { enum: ["RECEIPT", "INVOICE", "CREDIT", "PAYMENT"] }).notNull(),
+  documentReference: text("document_reference").notNull(),
+  declaredBy: text("declared_by").notNull().references(() => users.id),
+  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  index("accounting_purchase_facts_receipt_idx").on(table.companyId, table.receivingReportId),
+  index("accounting_purchase_facts_invoice_idx").on(table.companyId, table.invoiceId),
+  uniqueIndex("accounting_purchase_facts_one_invoice_idx").on(table.companyId, table.receivingReportId)
+    .where(sql`${table.kind} = 'INVOICE'`),
+  check("accounting_purchase_facts_kind_check", sql`${table.kind} IN ('RECEIPT','INVOICE','CREDIT','PAYMENT')`),
+  check("accounting_purchase_facts_reference_check", sql`length(btrim(${table.documentReference})) BETWEEN 1 AND 200`),
+  check("accounting_purchase_facts_snapshot_check", sql`jsonb_typeof(${table.snapshot}) = 'object'`),
+  pgPolicy("accounting_purchase_facts_tenant", { for: "all", to: "public",
     using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
     withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
 ]).enableRLS();

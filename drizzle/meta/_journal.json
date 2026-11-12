@@ -946,6 +946,41 @@
       "when": 1793710000000,
       "tag": "0135_fc_preparation_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1793745547475,
+      "tag": "0136_fc12_settlements",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1794435136067,
+      "tag": "0137_inv01a_sale_consumption_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1794487594765,
+      "tag": "0138_inv01b_recipe_reader",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1794488694351,
+      "tag": "0139_inv01b_application_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1794490259952,
+      "tag": "0140_fc13_purchases",
+      "breakpoints": true
     }
   ]
 }
