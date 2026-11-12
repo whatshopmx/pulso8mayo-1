@@ -1,0 +1,21 @@
+{
+  "project": "soft-cloud-50478212",
+  "branch": "br-steep-frog-bet3a8l6",
+  "environment": "main",
+  "queryMode": "SELECT de solo lectura; sin backfill",
+  "rows": [
+    {
+      "captured_at": "2026-11-12T04:07:21.190Z",
+      "database": "neondb",
+      "role": "neondb_owner",
+      "sales_entries": 0,
+      "inventory_movements": 0,
+      "recipes": 0,
+      "inventory_batches": 0,
+      "invalid_sales_scope": 0,
+      "noncanonical_legacy_sales": 0,
+      "identity_table": null,
+      "migration_cutoff": "1793745547475"
+    }
+  ]
+}

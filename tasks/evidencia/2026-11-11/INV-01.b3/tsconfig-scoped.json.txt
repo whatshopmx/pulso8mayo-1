@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": ["../lib/services/sale-consumption-service.ts"],
+  "exclude": ["../node_modules", "../tests", "../.next"]
+}

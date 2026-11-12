@@ -1,0 +1,3712 @@
+{
+  "tasks": [
+    {
+      "id": "SEC-05.resto.recetas",
+      "title": "Aislamiento de recetas: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.produccion",
+      "title": "Aislamiento de produccion: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.compras",
+      "title": "Aislamiento de compras: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.recepcion",
+      "title": "Aislamiento de recepcion: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.facturas-gastos",
+      "title": "Aislamiento de facturas-gastos: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.canales",
+      "title": "Aislamiento de canales: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.configuracion",
+      "title": "Aislamiento de configuracion: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.grupo",
+      "title": "Aislamiento de grupo: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.workflows",
+      "title": "Aislamiento de workflows: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.evidencia",
+      "title": "Aislamiento de evidencia: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.excepciones",
+      "title": "Aislamiento de excepciones: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.operacion",
+      "title": "Aislamiento de operacion: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.cumplimiento",
+      "title": "Aislamiento de cumplimiento: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "SEC-05.resto.equipo",
+      "title": "Aislamiento de equipo: tablas, HTTP/job, rol runtime y alcance de sucursal",
+      "parent": "SEC-05.resto",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "SEC-05.tesoreria",
+        "SEC-05.nomina",
+        "SEC-05.inventario"
+      ]
+    },
+    {
+      "id": "APR-01.compra",
+      "title": "Aprobación de compra: actor, capacidad, sucursal, motivo, evidencia y concurrencia",
+      "parent": "APR-01",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "AUD-02",
+        "NOM-03",
+        "BAN-04"
+      ]
+    },
+    {
+      "id": "APR-01.factura",
+      "title": "Aprobación de factura: actor, capacidad, sucursal, motivo, evidencia y concurrencia",
+      "parent": "APR-01",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "AUD-02",
+        "NOM-03",
+        "BAN-04"
+      ]
+    },
+    {
+      "id": "APR-01.gasto",
+      "title": "Aprobación de gasto: actor, capacidad, sucursal, motivo, evidencia y concurrencia",
+      "parent": "APR-01",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "AUD-02",
+        "NOM-03",
+        "BAN-04"
+      ]
+    },
+    {
+      "id": "APR-01.pago",
+      "title": "Aprobación de pago: actor, capacidad, sucursal, motivo, evidencia y concurrencia",
+      "parent": "APR-01",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "AUD-02",
+        "NOM-03",
+        "BAN-04"
+      ]
+    },
+    {
+      "id": "APR-01.nomina",
+      "title": "Aprobación de nomina: actor, capacidad, sucursal, motivo, evidencia y concurrencia",
+      "parent": "APR-01",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "AUD-02",
+        "NOM-03",
+        "BAN-04"
+      ]
+    },
+    {
+      "id": "INT-02.pos",
+      "title": "Importación pos: identificar formato disponible, identidad, revisión, error y repetición; aceptación externa pendiente si no hay fuente",
+      "parent": "INT-02",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-01",
+        "INV-01.d"
+      ]
+    },
+    {
+      "id": "INT-02.uber",
+      "title": "Importación uber: identificar formato disponible, identidad, revisión, error y repetición; aceptación externa pendiente si no hay fuente",
+      "parent": "INT-02",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-01",
+        "INV-01.d"
+      ]
+    },
+    {
+      "id": "INT-02.rappi",
+      "title": "Importación rappi: identificar formato disponible, identidad, revisión, error y repetición; aceptación externa pendiente si no hay fuente",
+      "parent": "INT-02",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-01",
+        "INV-01.d"
+      ]
+    },
+    {
+      "id": "INT-02.didi",
+      "title": "Importación didi: identificar formato disponible, identidad, revisión, error y repetición; aceptación externa pendiente si no hay fuente",
+      "parent": "INT-02",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-01",
+        "INV-01.d"
+      ]
+    },
+    {
+      "id": "INT-02.otros",
+      "title": "Importación otros: identificar formato disponible, identidad, revisión, error y repetición; aceptación externa pendiente si no hay fuente",
+      "parent": "INT-02",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-01",
+        "INV-01.d"
+      ]
+    },
+    {
+      "id": "FIN-07.ticket",
+      "title": "Definir ticket: fórmula, unidad, entradas, cobertura y oráculo; normal/vacío/error",
+      "parent": "FIN-07",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V3"
+      ],
+      "dependsOn": [
+        "FIN-02.b"
+      ]
+    },
+    {
+      "id": "FIN-07.prime-cost",
+      "title": "Definir prime-cost: fórmula, unidad, entradas, cobertura y oráculo; normal/vacío/error",
+      "parent": "FIN-07",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V3"
+      ],
+      "dependsOn": [
+        "FIN-02.b"
+      ]
+    },
+    {
+      "id": "FIN-07.contribucion",
+      "title": "Definir contribucion: fórmula, unidad, entradas, cobertura y oráculo; normal/vacío/error",
+      "parent": "FIN-07",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V3"
+      ],
+      "dependsOn": [
+        "FIN-02.b"
+      ]
+    },
+    {
+      "id": "FIN-07.unit-economics",
+      "title": "Definir unit-economics: fórmula, unidad, entradas, cobertura y oráculo; normal/vacío/error",
+      "parent": "FIN-07",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V3"
+      ],
+      "dependsOn": [
+        "FIN-02.b"
+      ]
+    },
+    {
+      "id": "PER-01.owner",
+      "title": "Perfil owner: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "PER-01.operaciones",
+      "title": "Perfil operaciones: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "PER-01.supervisor",
+      "title": "Perfil supervisor: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "PER-01.gerente",
+      "title": "Perfil gerente: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "PER-01.finanzas",
+      "title": "Perfil finanzas: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "PER-01.compras",
+      "title": "Perfil compras: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "PER-01.rh",
+      "title": "Perfil rh: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "PER-01.colaborador",
+      "title": "Perfil colaborador: capacidades permitidas/denegadas y alcance empresa/sucursal, HTTP y navegador",
+      "parent": "PER-01",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "SEC-05.resto"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M01",
+      "title": "Aceptar módulo 01: Organización y configuración del grupo; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.configuracion",
+        "PER-01.owner",
+        "PER-01.operaciones",
+        "PER-01.supervisor",
+        "PER-01.gerente",
+        "PER-01.finanzas",
+        "PER-01.compras",
+        "PER-01.rh",
+        "PER-01.colaborador",
+        "AUD-02"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M02",
+      "title": "Aceptar módulo 02: Centro de Control del Grupo; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.grupo",
+        "FIN-01",
+        "EXC-05",
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M03",
+      "title": "Aceptar módulo 03: Workflows y ejecución operativa; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.workflows"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M04",
+      "title": "Aceptar módulo 04: Evidencia y verificación; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.evidencia",
+        "EVI-02.a",
+        "EVI-02.b"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M05",
+      "title": "Aceptar módulo 05: Excepciones, incidentes y acciones correctivas; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.excepciones",
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "EVI-02.b",
+        "EXC-04.merma",
+        "APR-01.factura",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "OPE-01.b",
+        "OPE-02",
+        "EXC-04.banco",
+        "VAL-01.transversal.C1",
+        "VAL-01.transversal.C2",
+        "VAL-01.transversal.C3",
+        "VAL-01.transversal.C4",
+        "VAL-01.transversal.C5",
+        "VAL-01.transversal.C6",
+        "VAL-01.transversal.C7"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M06",
+      "title": "Aceptar módulo 06: Operación diaria de sucursal; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.operacion",
+        "OPE-03.handoff",
+        "OPE-03.cocina",
+        "OPE-03.salon",
+        "PROD-02",
+        "INV-05",
+        "OPE-02",
+        "OPE-04",
+        "OPE-03.gerente"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M07",
+      "title": "Aceptar módulo 07: Food Safety, calidad y cumplimiento; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.cumplimiento",
+        "EVI-02.b",
+        "REC-03A",
+        "REC-03B",
+        "OPE-03.aceite",
+        "CMP-01"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M08",
+      "title": "Aceptar módulo 08: Equipos y mantenimiento; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.equipo",
+        "OPE-01.a",
+        "OPE-01.b",
+        "OPE-02"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M09",
+      "title": "Aceptar módulo 09: People / Workforce; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.nomina",
+        "NOM-02.b",
+        "NOM-02.a",
+        "NOM-02.c1",
+        "NOM-02.c2"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M10",
+      "title": "Aceptar módulo 10: Nómina; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.nomina",
+        "NOM-01",
+        "NOM-02.a",
+        "NOM-06",
+        "NOM-02.b",
+        "NOM-02.c1",
+        "NOM-02.c2",
+        "NOM-02.d1",
+        "NOM-02.d2",
+        "NOM-02.d3",
+        "NOM-03",
+        "APR-01.nomina",
+        "NOM-04.a",
+        "NOM-04.b",
+        "NOM-02.e",
+        "NOM-05"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M11",
+      "title": "Aceptar módulo 11: Catálogo, recetas y food cost; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.recetas",
+        "INV-02",
+        "INT-01",
+        "INV-01.a1",
+        "INV-01.a2",
+        "INV-01.b1",
+        "INV-01.b2a",
+        "INV-01.b2",
+        "INV-01.b3a",
+        "INV-01.b3",
+        "INV-01.b4a",
+        "INV-01.b4b",
+        "INV-01.b4",
+        "INV-01.c",
+        "INV-01.d",
+        "INV-04"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M12",
+      "title": "Aceptar módulo 12: Producción de alimentos; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.produccion",
+        "PROD-00",
+        "PROD-02",
+        "PROD-01.a",
+        "PROD-01.b"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M13",
+      "title": "Aceptar módulo 13: Inventarios; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.inventario",
+        "INV-03",
+        "EXC-04.merma",
+        "INV-05",
+        "INV-04"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M14",
+      "title": "Aceptar módulo 14: Compras y proveedores; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.compras",
+        "APR-01.compra",
+        "INV-05"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M15",
+      "title": "Aceptar módulo 15: Recepción de mercancía; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.recepcion",
+        "REC-03A",
+        "REC-03B",
+        "EVI-02.b"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M16",
+      "title": "Aceptar módulo 16: Administración y cuentas por pagar; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.resto.facturas-gastos",
+        "EVI-02.b",
+        "EXC-02",
+        "EXC-03.a",
+        "APR-01.factura",
+        "APR-01.gasto",
+        "EVI-02.a",
+        "FIN-03.a",
+        "FIN-03.b"
+      ]
+    },
+    {
+      "id": "VAL-01.M01-M17.M17",
+      "title": "Aceptar módulo 17: Finanzas, tesorería y control económico; normal/vacío/error y alcance",
+      "parent": "VAL-01.M01-M17",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-05.tesoreria",
+        "FIN-04",
+        "APR-01.pago",
+        "BAN-04",
+        "FIN-05",
+        "FIN-01",
+        "BAN-01",
+        "BAN-06.a",
+        "BAN-06.b",
+        "BAN-05",
+        "FIN-06.a",
+        "FIN-06.b",
+        "FIN-02.a",
+        "FIN-02.b",
+        "FIN-03.b",
+        "NOM-02.e",
+        "NOM-03",
+        "INV-04",
+        "FIN-07.prime-cost",
+        "FIN-07.contribucion",
+        "FIN-07.unit-economics"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.canales",
+      "title": "Aceptar fuentes, ticket, mix, cortes, comisiones, settlements, depósitos y diferencias; cada fuente externa identificada",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco",
+        "SEC-05.resto.canales",
+        "INT-02.pos",
+        "INT-02.uber",
+        "INT-02.rappi",
+        "INT-02.didi",
+        "INT-02.otros",
+        "FIN-07.ticket",
+        "FIN-06.a",
+        "FIN-06.b",
+        "BAN-06.a",
+        "BAN-06.b"
+      ]
+    },
+    {
+      "id": "VAL-02.configuracion",
+      "title": "Aceptar configuración individual de ocho unidades y carga 3/8/15: objetivos fijados antes, datos sintéticos separados del piloto",
+      "parent": "VAL-02",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "VAL-01.M01-M17",
+        "VAL-01.transversal"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.C1",
+      "title": "Aceptar caso 05.C1: Temperatura incorrecta; normal/vacío/error con recuperación",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco",
+        "EXC-01",
+        "EXC-03.a",
+        "EVI-02.b"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.C2",
+      "title": "Aceptar caso 05.C2: Merma alta; normal/vacío/error con recuperación",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.C3",
+      "title": "Aceptar caso 05.C3: Factura con diferencia; normal/vacío/error con recuperación",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco",
+        "EXC-02",
+        "EXC-03.a",
+        "APR-01.factura"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.C4",
+      "title": "Aceptar caso 05.C4: Gasto fuera de presupuesto; normal/vacío/error con recuperación",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.C5",
+      "title": "Aceptar caso 05.C5: Falta de empleado; normal/vacío/error con recuperación",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.C6",
+      "title": "Aceptar caso 05.C6: Equipo averiado; normal/vacío/error con recuperación",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco",
+        "OPE-01.b",
+        "OPE-02",
+        "EXC-02",
+        "EXC-03.a"
+      ]
+    },
+    {
+      "id": "VAL-01.transversal.C7",
+      "title": "Aceptar caso 05.C7: Pago sin conciliar; normal/vacío/error con recuperación",
+      "parent": "VAL-01.transversal",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INT-03",
+        "PER-01",
+        "CMP-01",
+        "EXC-04.merma",
+        "EXC-04.presupuesto",
+        "EXC-04.ausencia",
+        "EXC-04.banco"
+      ]
+    },
+    {
+      "id": "INV-01.a1",
+      "title": "Contrato de identidad/revisión y caracterización previa al backfill",
+      "parent": "INV-01.a",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-00"
+      ]
+    },
+    {
+      "id": "INV-01.a2",
+      "title": "Bitácora append-only, cadena y aislamiento de identidad/revisiones",
+      "parent": "INV-01.a",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "P0-03",
+        "SEC-00",
+        "INV-01.a1"
+      ]
+    },
+    {
+      "id": "INV-01.b1",
+      "title": "Planificador exacto del diferencial y procedencia",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a"
+      ],
+      "checks": [
+        "V1"
+      ]
+    },
+    {
+      "id": "INV-01.b2",
+      "title": "Snapshot servidor, demanda racional y lector acotado",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b2a"
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "id": "INV-01.b3",
+      "title": "Writer transaccional de venta, stock y revisión",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b1",
+        "INV-01.b2",
+        "INV-01.b3a"
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "id": "INV-01.b4",
+      "title": "Conectar ingestión y captura manual al writer único",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b"
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "id": "INV-01.b2a",
+      "title": "RLS de lectura y privilegios mínimos del catálogo para runtime",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a"
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "id": "INV-01.b3a",
+      "title": "Ingreso por revisión y RLS/privilegios mínimos de aplicación",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b2a"
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "id": "INV-01.b4a",
+      "title": "Normalización y agrupación exacta de importación",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3"
+      ],
+      "checks": [
+        "V1"
+      ]
+    },
+    {
+      "id": "INV-01.b4b",
+      "title": "Ingestión atómica y conservación de ingreso no reportado",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4a"
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "id": "01.01",
+      "tasks": [
+        "VAL-01.M01-M17.M01"
+      ],
+      "acceptance": "VAL-01.M01-M17.M01"
+    },
+    {
+      "id": "01.02",
+      "tasks": [
+        "VAL-01.M01-M17.M01"
+      ],
+      "acceptance": "VAL-01.M01-M17.M01"
+    },
+    {
+      "id": "01.03",
+      "tasks": [
+        "PER-01.owner",
+        "PER-01.operaciones",
+        "PER-01.supervisor",
+        "PER-01.gerente",
+        "PER-01.finanzas",
+        "PER-01.compras",
+        "PER-01.rh",
+        "PER-01.colaborador",
+        "VAL-01.M01-M17.M01"
+      ],
+      "acceptance": "VAL-01.M01-M17.M01"
+    },
+    {
+      "id": "01.04",
+      "tasks": [
+        "PER-01.owner",
+        "PER-01.operaciones",
+        "PER-01.supervisor",
+        "PER-01.gerente",
+        "PER-01.finanzas",
+        "PER-01.compras",
+        "PER-01.rh",
+        "PER-01.colaborador",
+        "VAL-01.M01-M17.M01"
+      ],
+      "acceptance": "VAL-01.M01-M17.M01"
+    },
+    {
+      "id": "01.05",
+      "tasks": [
+        "VAL-01.M01-M17.M01"
+      ],
+      "acceptance": "VAL-01.M01-M17.M01"
+    },
+    {
+      "id": "01.06",
+      "tasks": [
+        "AUD-02",
+        "VAL-01.M01-M17.M01"
+      ],
+      "acceptance": "VAL-01.M01-M17.M01"
+    },
+    {
+      "id": "02.01",
+      "tasks": [
+        "FIN-01",
+        "EXC-05",
+        "VAL-01.M01-M17.M02"
+      ],
+      "acceptance": "VAL-01.M01-M17.M02"
+    },
+    {
+      "id": "02.02",
+      "tasks": [
+        "FIN-01",
+        "EXC-05",
+        "VAL-01.M01-M17.M02"
+      ],
+      "acceptance": "VAL-01.M01-M17.M02"
+    },
+    {
+      "id": "02.03",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M02"
+      ],
+      "acceptance": "VAL-01.M01-M17.M02"
+    },
+    {
+      "id": "02.04",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M02"
+      ],
+      "acceptance": "VAL-01.M01-M17.M02"
+    },
+    {
+      "id": "02.05",
+      "tasks": [
+        "VAL-01.M01-M17.M02"
+      ],
+      "acceptance": "VAL-01.M01-M17.M02"
+    },
+    {
+      "id": "02.06",
+      "tasks": [
+        "VAL-01.M01-M17.M02"
+      ],
+      "acceptance": "VAL-01.M01-M17.M02"
+    },
+    {
+      "id": "03.01",
+      "tasks": [
+        "VAL-01.M01-M17.M03"
+      ],
+      "acceptance": "VAL-01.M01-M17.M03"
+    },
+    {
+      "id": "03.02",
+      "tasks": [
+        "VAL-01.M01-M17.M03"
+      ],
+      "acceptance": "VAL-01.M01-M17.M03"
+    },
+    {
+      "id": "03.03",
+      "tasks": [
+        "VAL-01.M01-M17.M03"
+      ],
+      "acceptance": "VAL-01.M01-M17.M03"
+    },
+    {
+      "id": "03.04",
+      "tasks": [
+        "VAL-01.M01-M17.M03"
+      ],
+      "acceptance": "VAL-01.M01-M17.M03"
+    },
+    {
+      "id": "03.05",
+      "tasks": [
+        "VAL-01.M01-M17.M03"
+      ],
+      "acceptance": "VAL-01.M01-M17.M03"
+    },
+    {
+      "id": "03.06",
+      "tasks": [
+        "VAL-01.M01-M17.M03"
+      ],
+      "acceptance": "VAL-01.M01-M17.M03"
+    },
+    {
+      "id": "03.07",
+      "tasks": [
+        "VAL-01.M01-M17.M03"
+      ],
+      "acceptance": "VAL-01.M01-M17.M03"
+    },
+    {
+      "id": "04.01",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "04.02",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "04.03",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "04.04",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "04.05",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "04.06",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "04.07",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "04.08",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M04"
+      ],
+      "acceptance": "VAL-01.M01-M17.M04"
+    },
+    {
+      "id": "05.01",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.02",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.03",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.04",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.05",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.06",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.07",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.08",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.09",
+      "tasks": [
+        "EXC-01",
+        "EXC-02",
+        "EXC-03.a",
+        "EXC-03.b",
+        "EXC-05",
+        "VAL-01.M01-M17.M05"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "06.01",
+      "tasks": [
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.02",
+      "tasks": [
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.03",
+      "tasks": [
+        "OPE-03.handoff",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.04",
+      "tasks": [
+        "OPE-03.cocina",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.05",
+      "tasks": [
+        "OPE-03.salon",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.06",
+      "tasks": [
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.07",
+      "tasks": [
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.08",
+      "tasks": [
+        "PROD-02",
+        "INV-05",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.09",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.10",
+      "tasks": [
+        "OPE-04",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.11",
+      "tasks": [
+        "OPE-03.gerente",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "06.12",
+      "tasks": [
+        "OPE-03.handoff",
+        "VAL-01.M01-M17.M06"
+      ],
+      "acceptance": "VAL-01.M01-M17.M06"
+    },
+    {
+      "id": "07.01",
+      "tasks": [
+        "EVI-02.b",
+        "REC-03A",
+        "REC-03B",
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.02",
+      "tasks": [
+        "EVI-02.b",
+        "REC-03A",
+        "REC-03B",
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.03",
+      "tasks": [
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.04",
+      "tasks": [
+        "OPE-03.aceite",
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.05",
+      "tasks": [
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.06",
+      "tasks": [
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.07",
+      "tasks": [
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.08",
+      "tasks": [
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.09",
+      "tasks": [
+        "CMP-01",
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.10",
+      "tasks": [
+        "CMP-01",
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "07.11",
+      "tasks": [
+        "CMP-01",
+        "VAL-01.M01-M17.M07"
+      ],
+      "acceptance": "VAL-01.M01-M17.M07"
+    },
+    {
+      "id": "08.01",
+      "tasks": [
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.02",
+      "tasks": [
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.03",
+      "tasks": [
+        "OPE-01.a",
+        "OPE-01.b",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.04",
+      "tasks": [
+        "OPE-01.a",
+        "OPE-01.b",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.05",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.06",
+      "tasks": [
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.07",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.08",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.09",
+      "tasks": [
+        "OPE-01.a",
+        "OPE-01.b",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.10",
+      "tasks": [
+        "OPE-01.a",
+        "OPE-01.b",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.11",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "09.01",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.02",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.03",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.04",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.05",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.06",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.07",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.08",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.09",
+      "tasks": [
+        "NOM-02.b",
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.10",
+      "tasks": [
+        "NOM-02.a",
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.11",
+      "tasks": [
+        "NOM-02.c1",
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.12",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.13",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.14",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.15",
+      "tasks": [
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "09.16",
+      "tasks": [
+        "NOM-02.c2",
+        "VAL-01.M01-M17.M09"
+      ],
+      "acceptance": "VAL-01.M01-M17.M09"
+    },
+    {
+      "id": "10.01",
+      "tasks": [
+        "NOM-01",
+        "NOM-02.a",
+        "NOM-06",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.02",
+      "tasks": [
+        "NOM-02.a",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.03",
+      "tasks": [
+        "NOM-02.b",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.04",
+      "tasks": [
+        "NOM-02.a",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.05",
+      "tasks": [
+        "NOM-02.c1",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.06",
+      "tasks": [
+        "NOM-02.c2",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.07",
+      "tasks": [
+        "NOM-02.d1",
+        "NOM-02.d2",
+        "NOM-02.d3",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.08",
+      "tasks": [
+        "NOM-03",
+        "APR-01.nomina",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.09",
+      "tasks": [
+        "NOM-03",
+        "APR-01.nomina",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.10",
+      "tasks": [
+        "NOM-04.a",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.11",
+      "tasks": [
+        "NOM-04.b",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.12",
+      "tasks": [
+        "NOM-04.b",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.13",
+      "tasks": [
+        "NOM-02.e",
+        "NOM-03",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "10.14",
+      "tasks": [
+        "NOM-05",
+        "VAL-01.M01-M17.M10"
+      ],
+      "acceptance": "VAL-01.M01-M17.M10"
+    },
+    {
+      "id": "11.01",
+      "tasks": [
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.02",
+      "tasks": [
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.03",
+      "tasks": [
+        "INV-02",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.04",
+      "tasks": [
+        "INV-02",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.05",
+      "tasks": [
+        "INV-02",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.06",
+      "tasks": [
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.07",
+      "tasks": [
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.08",
+      "tasks": [
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.09",
+      "tasks": [
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.10",
+      "tasks": [
+        "INT-01",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.11",
+      "tasks": [
+        "INV-01.a1",
+        "INV-01.a2",
+        "INV-01.b1",
+        "INV-01.b2a",
+        "INV-01.b2",
+        "INV-01.b3a",
+        "INV-01.b3",
+        "INV-01.b4a",
+        "INV-01.b4b",
+        "INV-01.b4",
+        "INV-01.c",
+        "INV-01.d",
+        "INV-02",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.12",
+      "tasks": [
+        "INV-04",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.13",
+      "tasks": [
+        "INV-04",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "11.14",
+      "tasks": [
+        "INV-04",
+        "VAL-01.M01-M17.M11"
+      ],
+      "acceptance": "VAL-01.M01-M17.M11"
+    },
+    {
+      "id": "12.01",
+      "tasks": [
+        "PROD-00",
+        "PROD-02",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.02",
+      "tasks": [
+        "PROD-00",
+        "PROD-02",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.03",
+      "tasks": [
+        "PROD-00",
+        "PROD-01.a",
+        "PROD-01.b",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.04",
+      "tasks": [
+        "PROD-00",
+        "PROD-01.a",
+        "PROD-01.b",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.05",
+      "tasks": [
+        "PROD-00",
+        "PROD-01.a",
+        "PROD-01.b",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.06",
+      "tasks": [
+        "PROD-00",
+        "PROD-01.a",
+        "PROD-01.b",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.07",
+      "tasks": [
+        "PROD-00",
+        "PROD-01.a",
+        "PROD-01.b",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.08",
+      "tasks": [
+        "PROD-00",
+        "PROD-01.a",
+        "PROD-01.b",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.09",
+      "tasks": [
+        "PROD-00",
+        "PROD-01.a",
+        "PROD-01.b",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.10",
+      "tasks": [
+        "PROD-00",
+        "PROD-02",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.11",
+      "tasks": [
+        "PROD-00",
+        "PROD-02",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "12.12",
+      "tasks": [
+        "PROD-00",
+        "PROD-02",
+        "VAL-01.M01-M17.M12"
+      ],
+      "acceptance": "VAL-01.M01-M17.M12"
+    },
+    {
+      "id": "13.01",
+      "tasks": [
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.02",
+      "tasks": [
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.03",
+      "tasks": [
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.04",
+      "tasks": [
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.05",
+      "tasks": [
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.06",
+      "tasks": [
+        "INV-03",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.07",
+      "tasks": [
+        "INV-03",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.08",
+      "tasks": [
+        "EXC-04.merma",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.09",
+      "tasks": [
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.10",
+      "tasks": [
+        "INV-05",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.11",
+      "tasks": [
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.12",
+      "tasks": [
+        "INV-04",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.13",
+      "tasks": [
+        "INV-05",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.14",
+      "tasks": [
+        "INV-04",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "13.15",
+      "tasks": [
+        "INV-05",
+        "VAL-01.M01-M17.M13"
+      ],
+      "acceptance": "VAL-01.M01-M17.M13"
+    },
+    {
+      "id": "14.01",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.02",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.03",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.04",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.05",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.06",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.07",
+      "tasks": [
+        "APR-01.compra",
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.08",
+      "tasks": [
+        "APR-01.compra",
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.09",
+      "tasks": [
+        "APR-01.compra",
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.10",
+      "tasks": [
+        "APR-01.compra",
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.11",
+      "tasks": [
+        "INV-05",
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.12",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "14.13",
+      "tasks": [
+        "VAL-01.M01-M17.M14"
+      ],
+      "acceptance": "VAL-01.M01-M17.M14"
+    },
+    {
+      "id": "15.01",
+      "tasks": [
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.02",
+      "tasks": [
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.03",
+      "tasks": [
+        "REC-03A",
+        "REC-03B",
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.04",
+      "tasks": [
+        "REC-03A",
+        "REC-03B",
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.05",
+      "tasks": [
+        "REC-03A",
+        "REC-03B",
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.06",
+      "tasks": [
+        "REC-03A",
+        "REC-03B",
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.07",
+      "tasks": [
+        "EVI-02.b",
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.08",
+      "tasks": [
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.09",
+      "tasks": [
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.10",
+      "tasks": [
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "15.11",
+      "tasks": [
+        "REC-03A",
+        "REC-03B",
+        "VAL-01.M01-M17.M15"
+      ],
+      "acceptance": "VAL-01.M01-M17.M15"
+    },
+    {
+      "id": "16.01",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.02",
+      "tasks": [
+        "EVI-02.b",
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.03",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.04",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.05",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.06",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.07",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.08",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.09",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.10",
+      "tasks": [
+        "EXC-02",
+        "EXC-03.a",
+        "APR-01.factura",
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.11",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.12",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.13",
+      "tasks": [
+        "APR-01.factura",
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.14",
+      "tasks": [
+        "APR-01.gasto",
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.15",
+      "tasks": [
+        "EVI-02.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.16",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.17",
+      "tasks": [
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "16.18",
+      "tasks": [
+        "FIN-03.a",
+        "FIN-03.b",
+        "VAL-01.M01-M17.M16"
+      ],
+      "acceptance": "VAL-01.M01-M17.M16"
+    },
+    {
+      "id": "17.01",
+      "tasks": [
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.02",
+      "tasks": [
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.03",
+      "tasks": [
+        "FIN-04",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.04",
+      "tasks": [
+        "APR-01.pago",
+        "BAN-04",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.05",
+      "tasks": [
+        "APR-01.pago",
+        "BAN-04",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.06",
+      "tasks": [
+        "BAN-04",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.07",
+      "tasks": [
+        "BAN-04",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.08",
+      "tasks": [
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.09",
+      "tasks": [
+        "FIN-05",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.10",
+      "tasks": [
+        "FIN-05",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.11",
+      "tasks": [
+        "FIN-01",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.12",
+      "tasks": [
+        "BAN-01",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.13",
+      "tasks": [
+        "BAN-01",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.14",
+      "tasks": [
+        "BAN-04",
+        "BAN-06.a",
+        "BAN-06.b",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.15",
+      "tasks": [
+        "BAN-05",
+        "BAN-06.a",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.16",
+      "tasks": [
+        "FIN-06.a",
+        "FIN-06.b",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.17",
+      "tasks": [
+        "FIN-02.a",
+        "FIN-02.b",
+        "FIN-03.b",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.18",
+      "tasks": [
+        "NOM-02.e",
+        "NOM-03",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.19",
+      "tasks": [
+        "INV-04",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.20",
+      "tasks": [
+        "FIN-07.prime-cost",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.21",
+      "tasks": [
+        "FIN-07.contribucion",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "17.22",
+      "tasks": [
+        "FIN-07.unit-economics",
+        "VAL-01.M01-M17.M17"
+      ],
+      "acceptance": "VAL-01.M01-M17.M17"
+    },
+    {
+      "id": "05.C1",
+      "tasks": [
+        "EXC-01",
+        "EXC-03.a",
+        "EVI-02.b",
+        "VAL-01.M01-M17.M05",
+        "VAL-01.transversal.C1"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.C2",
+      "tasks": [
+        "EXC-04.merma",
+        "VAL-01.M01-M17.M05",
+        "VAL-01.transversal.C2"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.C3",
+      "tasks": [
+        "EXC-02",
+        "EXC-03.a",
+        "APR-01.factura",
+        "VAL-01.M01-M17.M05",
+        "VAL-01.transversal.C3"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.C4",
+      "tasks": [
+        "EXC-04.presupuesto",
+        "VAL-01.M01-M17.M05",
+        "VAL-01.transversal.C4"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.C5",
+      "tasks": [
+        "EXC-04.ausencia",
+        "VAL-01.M01-M17.M05",
+        "VAL-01.transversal.C5"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.C6",
+      "tasks": [
+        "OPE-01.b",
+        "OPE-02",
+        "EXC-02",
+        "EXC-03.a",
+        "VAL-01.M01-M17.M05",
+        "VAL-01.transversal.C6"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "05.C7",
+      "tasks": [
+        "EXC-04.banco",
+        "VAL-01.M01-M17.M05",
+        "VAL-01.transversal.C7"
+      ],
+      "acceptance": "VAL-01.M01-M17.M05"
+    },
+    {
+      "id": "08.C1",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.C2",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.C3",
+      "tasks": [
+        "OPE-01.a",
+        "OPE-01.b",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "08.C4",
+      "tasks": [
+        "OPE-02",
+        "VAL-01.M01-M17.M08"
+      ],
+      "acceptance": "VAL-01.M01-M17.M08"
+    },
+    {
+      "id": "18.F1",
+      "tasks": [
+        "INT-02.pos",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.F2",
+      "tasks": [
+        "INT-02.uber",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.F3",
+      "tasks": [
+        "INT-02.rappi",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.F4",
+      "tasks": [
+        "INT-02.didi",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.F5",
+      "tasks": [
+        "INT-02.otros",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R1",
+      "tasks": [
+        "INT-03",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R2",
+      "tasks": [
+        "INT-03",
+        "FIN-07.ticket",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R3",
+      "tasks": [
+        "INT-03",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R4",
+      "tasks": [
+        "INT-03",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R5",
+      "tasks": [
+        "FIN-06.a",
+        "FIN-06.b",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R6",
+      "tasks": [
+        "INT-03",
+        "BAN-06.a",
+        "BAN-06.b",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R7",
+      "tasks": [
+        "INT-03",
+        "BAN-06.a",
+        "BAN-06.b",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "18.R8",
+      "tasks": [
+        "INT-03",
+        "BAN-06.a",
+        "BAN-06.b",
+        "VAL-01.transversal.canales"
+      ],
+      "acceptance": "VAL-01.transversal.canales"
+    },
+    {
+      "id": "19.1",
+      "tasks": [
+        "PER-01.owner"
+      ],
+      "acceptance": "PER-01.owner"
+    },
+    {
+      "id": "19.2",
+      "tasks": [
+        "PER-01.operaciones"
+      ],
+      "acceptance": "PER-01.operaciones"
+    },
+    {
+      "id": "19.3",
+      "tasks": [
+        "PER-01.supervisor"
+      ],
+      "acceptance": "PER-01.supervisor"
+    },
+    {
+      "id": "19.4",
+      "tasks": [
+        "PER-01.gerente"
+      ],
+      "acceptance": "PER-01.gerente"
+    },
+    {
+      "id": "19.5",
+      "tasks": [
+        "PER-01.finanzas"
+      ],
+      "acceptance": "PER-01.finanzas"
+    },
+    {
+      "id": "19.6",
+      "tasks": [
+        "PER-01.compras"
+      ],
+      "acceptance": "PER-01.compras"
+    },
+    {
+      "id": "19.7",
+      "tasks": [
+        "PER-01.rh"
+      ],
+      "acceptance": "PER-01.rh"
+    },
+    {
+      "id": "19.8",
+      "tasks": [
+        "PER-01.colaborador"
+      ],
+      "acceptance": "PER-01.colaborador"
+    },
+    {
+      "id": "20.1",
+      "tasks": [
+        "VAL-02.configuracion"
+      ],
+      "acceptance": "VAL-02.configuracion"
+    },
+    {
+      "id": "20.2",
+      "tasks": [
+        "VAL-02.configuracion"
+      ],
+      "acceptance": "VAL-02.configuracion"
+    }
+  ],
+  "execution": {
+    "P0-01": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/P0-01/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local documental, diff P0-01",
+          "commands": [
+            {
+              "command": "git rev-parse HEAD",
+              "exit": 0
+            },
+            {
+              "command": "git status --porcelain=v1 -z --untracked-files=all",
+              "exit": 0
+            },
+            {
+              "command": "git diff --stat HEAD",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "D"
+          ]
+        }
+      ]
+    },
+    "P0-02": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/P0-02/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local documental, diff P0-01",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "D"
+          ]
+        }
+      ]
+    },
+    "P0-03": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/P0-03/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local documental, diff P0-01",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "D"
+          ]
+        }
+      ]
+    },
+    "P0-04": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/P0-04/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "soft-cloud-50478212 main y test-faltantes-20261111",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec tsx scripts/migration-manifest.ts --env-file .env --url-key MIGRATION_DATABASE_URL",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec tsx scripts/migration-manifest.ts --env-file .env.test --url-key TEST_DATABASE_URL",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "D",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "SEC-00": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/SEC-00/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "soft-cloud-50478212 / br-round-voice-belheola, aislada",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/isolation-harness-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "P0-05": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/P0-05/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local documental, diff P0-01",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "D"
+          ]
+        }
+      ]
+    },
+    "INV-01.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.a/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local + soft-cloud-50478212 / br-round-voice-belheola; 0137 pendiente en main",
+          "commands": [
+            {
+              "command": "pnpm.cmd run build",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b": {
+      "state": "en curso",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local; planificador puro, writer/V2 pendientes",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers 2",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-delta.ts lib/services/__tests__/sale-consumption-delta.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.a1": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.a1/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local + soft-cloud-50478212 / br-round-voice-belheola; 0137 pendiente en main",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/sale-consumption-contract.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-contract.ts lib/services/__tests__/sale-consumption-contract.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.a2": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.a2/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local + soft-cloud-50478212 / br-round-voice-belheola; 0137 pendiente en main",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b1": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b1/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local; planificador puro, writer/V2 pendientes",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers 2",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-delta.ts lib/services/__tests__/sale-consumption-delta.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.b2": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b2/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "soft-cloud-50478212 / br-round-voice-belheola; 0137/0138 pendientes main",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts lib/db/schema.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b2a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b2a/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "soft-cloud-50478212 / br-round-voice-belheola; 0137/0138 pendientes main",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts lib/db/schema.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b3a": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b3a/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local + br-round-voice-belheola; V2 runtime y gate global pendiente por FC-13",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01b3.json",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd run build",
+              "exit": 1
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b3": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b3/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local + br-round-voice-belheola; V2 runtime y gate global pendiente por FC-13",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01b3.json",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd run build",
+              "exit": 1
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4a": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b4a/README.md",
+          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+          "environment": "local Windows; fase pura, sin DB ni activación operativa",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": []
+        }
+      ]
+    },
+    "INV-01.b4b": {
+      "state": "pendiente",
+      "evidence": []
+    }
+  }
+}

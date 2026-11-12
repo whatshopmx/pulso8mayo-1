@@ -1,0 +1,153 @@
+{
+  "capturedAt": "2026-11-11T20:05:27.345Z",
+  "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+  "branch": "main",
+  "commands": [
+    "git rev-parse HEAD",
+    "git status --porcelain=v1 -z --untracked-files=all",
+    "git diff --binary HEAD",
+    "git diff --stat HEAD"
+  ],
+  "diffSha256": "142640640b406f6eab4c1ebd5fb4e61f2ab62600ced843016d10224850814c55",
+  "diffStat": "drizzle/meta/_journal.json                         |  9 +++-\n lib/db/schema/accounting.ts                        | 34 +++++++++++-\n .../__tests__/bank-statement-service.test.ts       |  1 +\n lib/services/__tests__/commission-audit.test.ts    | 10 ++--\n lib/services/accounting/account-service.ts         | 28 +++++++++-\n lib/services/accounting/event-service.ts           |  7 ++-\n lib/services/bank-statement-service.ts             | 62 ++++++++++++++--------\n lib/services/commission-service.ts                 |  3 +-\n sistemainvestigacion17oct.md                       |  2 +-\n tasks/finanzas-contabilidad/plan.md                |  2 +\n tasks/finanzas-contabilidad/todo.md                | 13 +++++\n .../integration/accounting/expense-payment.test.ts |  6 ++-\n .../finance/accounting-preparation-http.test.ts    | 28 +++++++++-\n 13 files changed, 169 insertions(+), 36 deletions(-)",
+  "files": [
+    {
+      "status": " M",
+      "path": "drizzle/meta/_journal.json",
+      "sha256": "5986566d0b976495c4b4aa6140ec973af84e057472cfb7bc0b46b90e290a2d3a"
+    },
+    {
+      "status": " M",
+      "path": "lib/db/schema/accounting.ts",
+      "sha256": "7d3e8a8b28019dbc86259065453137c9f6ed7b9aaff4cdebb5108e6dc6ae9b3c"
+    },
+    {
+      "status": " M",
+      "path": "lib/services/__tests__/bank-statement-service.test.ts",
+      "sha256": "7c95af74c694d58c7cf29e00b4091a221ae2c3be0ad966bb399ba021f4c0c4c3"
+    },
+    {
+      "status": " M",
+      "path": "lib/services/__tests__/commission-audit.test.ts",
+      "sha256": "bb63435be60a878c3906f8efacf33b261f434dee9342c6cb441c10b013f1b0ba"
+    },
+    {
+      "status": " M",
+      "path": "lib/services/accounting/account-service.ts",
+      "sha256": "884bc194411d1f59e554369111b2e1a4bb1bfcc70f72567f5fdd6326fcf8c622"
+    },
+    {
+      "status": " M",
+      "path": "lib/services/accounting/event-service.ts",
+      "sha256": "03698b3fbcdb6832b9b55ae9ff557bb31346e7c9db4c09121ee4406e57b8cc2a"
+    },
+    {
+      "status": " M",
+      "path": "lib/services/bank-statement-service.ts",
+      "sha256": "3ebb05c5966d069fc6a2d56e21a6bfd660c4c31fe2b71cd202d3fa856239a747"
+    },
+    {
+      "status": " M",
+      "path": "lib/services/commission-service.ts",
+      "sha256": "388d05c3024c15edf00c873e86daae70eb58e1c0deacd0d85dfbc1fd45b3196b"
+    },
+    {
+      "status": " M",
+      "path": "sistemainvestigacion17oct.md",
+      "sha256": "1c4ca5d26f3fee4d41a1ded0bd05adbbc160283b6732b48882259dd5bafe5581"
+    },
+    {
+      "status": " M",
+      "path": "tasks/finanzas-contabilidad/plan.md",
+      "sha256": "82304370a030d36de413a33c23047c22d9943fd5a1f39143c92b6f71a5408ac9"
+    },
+    {
+      "status": " M",
+      "path": "tasks/finanzas-contabilidad/todo.md",
+      "sha256": "e12ad755e38e6f0aca48e9254403b3bc53289ee76544e9fb9259922af54ce830"
+    },
+    {
+      "status": " M",
+      "path": "tests/integration/accounting/expense-payment.test.ts",
+      "sha256": "84035012151186baccf4560bc97934af5e2aa1ae22605a0191781d89940daa21"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/finance/accounting-preparation-http.test.ts",
+      "sha256": "b9aa0cb98ac8a4e3333a31ac17806706c1c3df2fe22052b7ad133afad14358d7"
+    },
+    {
+      "status": "??",
+      "path": ".claude/settings.local.json",
+      "sha256": "531b3a13955003195fd525db73d4cc91a62c72334bd0be19c599a5f3950c5d47"
+    },
+    {
+      "status": "??",
+      "path": "app/api/finance/accounting/gateway-links/route.ts",
+      "sha256": "dccd952860c5461c546cc204ccf17f4869d1f5303fdfb4b1efcf471b22a37c8c"
+    },
+    {
+      "status": "??",
+      "path": "docs/2026-11-11-investigacion-plan-faltantes.md",
+      "sha256": "2099d235cfa76b0e7f0a7511bb9eb10f996cbe965dbaf04fd1728a351506f5f4"
+    },
+    {
+      "status": "??",
+      "path": "drizzle/0136_fc12_settlements.sql",
+      "sha256": "25d34d7ca047982b1e09be33c394b2827ea193a5469e1e7eaf6a806c8ad45c18"
+    },
+    {
+      "status": "??",
+      "path": "drizzle/meta/0136_snapshot.json",
+      "sha256": "7f2b4c46a4b63ce70761a69ad6a8eefedb8dcdde70d0fc854b78f0a95fe099f1"
+    },
+    {
+      "status": "??",
+      "path": "lib/services/accounting/settlement-adapter.ts",
+      "sha256": "360b329c67448ffc2d262e5ebcafe9b8d6c5dd572dff589630735c68e92f36e5"
+    },
+    {
+      "status": "??",
+      "path": "plans/2026-11-11-plan-implementacion-faltantes.md",
+      "sha256": "4c5fa15e8009493dc87aa305ebed9e121387a10cc82080bda06d41b80841e3af"
+    },
+    {
+      "status": "??",
+      "path": "tasks/todo-implementacion-faltantes.md",
+      "sha256": "de4b7fe61b4a72e066664d715f363dc0e5c42cec180445cb336f28606dedf3cb"
+    },
+    {
+      "status": "??",
+      "path": "tests/integration/accounting/settlements.test.ts",
+      "sha256": "438afa140d6e7c02c029dcaf9f7609656ddcfd8e6d012a0fdb039c532c9e93bc"
+    }
+  ],
+  "environment": {
+    "files": [
+      {
+        "file": ".env",
+        "exists": true,
+        "databaseConfigured": true,
+        "testDatabaseConfigured": false
+      },
+      {
+        "file": ".env.local",
+        "exists": false,
+        "databaseConfigured": false,
+        "testDatabaseConfigured": false
+      },
+      {
+        "file": ".env.test",
+        "exists": true,
+        "databaseConfigured": false,
+        "testDatabaseConfigured": true
+      }
+    ],
+    "effectiveTestUrlConfigured": true,
+    "effectiveTestUrlValid": true,
+    "sameTargetAsOperational": false,
+    "liveIsolationVerified": false,
+    "limit": "Comparación local host/base, normalizando pooler; no demuestra branch/proyecto Neon, rol runtime ni RLS. No se abrió conexión ni se registraron URLs/credenciales."
+  },
+  "captureCorrection": "Se corrigió el primer registro: trim() había eliminado el espacio inicial del status porcelain. Hash de journal leído después de la captura; este frente no lo ha modificado. Resto de la captura original conservada."
+}

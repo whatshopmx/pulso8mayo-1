@@ -1,0 +1,20 @@
+pnpm.cmd : (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to 
+become the default in a future major version of Vite:
+En línea: 2 Carácter: 1
++ pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool= ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((!) Your Vite c...ersion of Vite::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` 
+in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+
+ Test Files  3 passed (3)
+      Tests  47 passed (47)
+   Start at  04:19:28
+   Duration  4.30s (transform 646ms, setup 0ms, import 1.32s, tests 159ms, environment 1ms)
+

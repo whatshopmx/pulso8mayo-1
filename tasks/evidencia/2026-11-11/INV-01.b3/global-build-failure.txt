@@ -1,0 +1,23 @@
+HEAD: ba88018d2cbd7d879549cfe6476d39e4addfd5d2 + diff local concurrente
+Command: NODE_OPTIONS=--use-system-ca --max-old-space-size=4096 pnpm.cmd run build
+Exit: 1
+
+Next.js 16.1.6 (Turbopack)
+Compiled successfully in 2.0min
+Running TypeScript ...
+Failed to compile.
+
+./lib/services/accounting/purchase-contract.ts:13:16
+Type error: BigInt literals are not available when targeting lower than ES2020.
+
+13 | let scaled = 0n;
+
+Next.js build worker exited with code: 1 and signal: null
+
+Observación posterior: archivo nuevo del frente contable, SHA256
+2a2ff264dc7cd057c45dc9703bb49cea3916f416fc07a40ae986e8f594f26169.
+También apareció drizzle/0140_fc13_purchases.sql y su entrada de journal,
+después de aplicar 0139 en la rama aislada. Ninguno fue escrito ni aplicado
+por esta continuación de inventario. No se altera target ES2017 ni se mezclan
+estos cambios con el writer. Tipo scoped del writer con el mismo tsconfig: exit 0.
+Este resultado no acredita build global ni aceptación V1 completa del checkpoint.

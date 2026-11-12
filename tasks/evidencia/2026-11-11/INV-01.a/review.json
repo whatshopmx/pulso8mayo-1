@@ -1,0 +1,57 @@
+{
+  "at": "2026-11-12T04:43:48.714Z",
+  "brokenLinks": [],
+  "protectedFiles": [
+    {
+      "file": "lib/services/sales-ingest-service.ts",
+      "unchanged": true
+    },
+    {
+      "file": "lib/services/theoretical-consumption-service.ts",
+      "unchanged": true
+    },
+    {
+      "file": "lib/services/accounting/settlement-adapter.ts",
+      "unchanged": true
+    },
+    {
+      "file": "tasks/finanzas-contabilidad/todo.md",
+      "unchanged": true
+    },
+    {
+      "file": "drizzle/0136_fc12_settlements.sql",
+      "unchanged": true
+    }
+  ],
+  "implementationFiles": [
+    {
+      "file": "lib/services/sale-consumption-contract.ts",
+      "unchangedSinceCheckpoint": true
+    },
+    {
+      "file": "lib/services/__tests__/sale-consumption-contract.test.ts",
+      "unchangedSinceCheckpoint": true
+    },
+    {
+      "file": "lib/db/schema.ts",
+      "unchangedSinceCheckpoint": true
+    },
+    {
+      "file": "drizzle/0137_inv01a_sale_consumption_identity.sql",
+      "unchangedSinceCheckpoint": true
+    },
+    {
+      "file": "drizzle/meta/_journal.json",
+      "unchangedSinceCheckpoint": true
+    },
+    {
+      "file": "drizzle/meta/0137_snapshot.json",
+      "unchangedSinceCheckpoint": true
+    },
+    {
+      "file": "tests/integration/sale-consumption-identity-db.test.ts",
+      "unchangedSinceCheckpoint": true
+    }
+  ],
+  "scope": "Revisión documental y preservación; sin commit ni aplicación de 0137 en main"
+}

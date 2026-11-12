@@ -1,0 +1,10 @@
+/** Archivo de evidencia: launcher aislado de 0137, con guarda para no aplicar lotes posteriores. */
+const fs = require('node:fs');
+const { parse } = require('dotenv');
+const { spawnSync } = require('node:child_process');
+const journal = JSON.parse(fs.readFileSync('drizzle/meta/_journal.json', 'utf8'));
+if (journal.entries.at(-1).tag !== '0137_inv01a_sale_consumption_identity') throw new Error('Revisar el lote nuevo antes de migrar');
+const isolated = parse(fs.readFileSync('.env.test')).TEST_DATABASE_URL;
+if (new URL(isolated).hostname !== 'ep-cold-morning-bewqoz3o.c-9.us-east-2.aws.neon.tech') throw new Error('Destino aislado inesperado');
+const result = spawnSync('cmd.exe', ['/d', '/c', 'pnpm.cmd', 'db:migrate'], { stdio: 'inherit', env: { ...process.env, NODE_OPTIONS: '--use-system-ca --max-old-space-size=4096', DATABASE_URL: isolated, MIGRATION_DATABASE_URL: isolated } });
+process.exit(result.status ?? 1);

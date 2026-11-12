@@ -1,0 +1,94 @@
+﻿{
+    "recordedAt":  "2026-11-12T12:57:20.749Z",
+    "head":  "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+    "state":  "aceptado V1,V2 en rama aislada",
+    "environment":  {
+                        "project":  "soft-cloud-50478212",
+                        "branch":  "br-round-voice-belheola",
+                        "main":  "br-steep-frog-bet3a8l6",
+                        "mainMigrations137138":  "PENDING"
+                    },
+    "commands":  [
+                     {
+                         "command":  "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd exec tsc --noEmit",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd exec eslint tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts lib/db/schema.ts",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd run build",
+                         "exit":  0
+                     }
+                 ],
+    "checks":  {
+                   "unit":  {
+                                "passed":  85,
+                                "exit":  0
+                            },
+                   "integration":  {
+                                       "passed":  17,
+                                       "catalog":  5,
+                                       "snapshotRuntime":  1,
+                                       "identity":  7,
+                                       "harness":  4,
+                                       "exit":  0
+                                   },
+                   "typescript":  {
+                                      "exit":  0
+                                  },
+                   "lint":  {
+                                "errors":  0,
+                                "existingWarnings":  3,
+                                "exit":  0
+                            },
+                   "build":  {
+                                 "exit":  0,
+                                 "pages":  443,
+                                 "nodeOptions":  "--use-system-ca --max-old-space-size=4096"
+                             }
+               },
+    "dependency":  "INV-01.b2a",
+    "integration":  {
+                        "runtimePassed":  1,
+                        "rollbackVerified":  true,
+                        "sameConnectionRole":  "pulso_app",
+                        "exit":  0
+                    },
+    "history":  "characterization-results.json",
+    "files":  [
+                  {
+                      "file":  "lib/services/sale-consumption-snapshot.ts",
+                      "sha256":  "01d6c11583355064450d55f323bb730cfd01b6105b4b45b564aded13c327cc2d"
+                  },
+                  {
+                      "file":  "lib/services/sale-consumption-reader.ts",
+                      "sha256":  "f92f28076d2329f377eb4efd8d7d0120a9dc3180acc444019fe94d7b11b6c3fe"
+                  },
+                  {
+                      "file":  "lib/services/__tests__/sale-consumption-snapshot.test.ts",
+                      "sha256":  "17807f607c0a5a51868bfb059d597b5aa5a22e041208bbb0ec7e7899fdcb59c3"
+                  },
+                  {
+                      "file":  "tests/integration/sale-consumption-snapshot-db.test.ts",
+                      "sha256":  "1d6cc6cea295d52b5da973cd7eee9c720700a3ba611420b3687323983324e931"
+                  }
+              ],
+    "traceability":  {
+                         "children":  69,
+                         "acceptedTasks":  12,
+                         "command":  "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+                         "errors":  0,
+                         "exit":  0,
+                         "rows":  239
+                     }
+}

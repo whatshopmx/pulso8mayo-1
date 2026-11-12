@@ -1,0 +1,964 @@
+{
+  "project": "soft-cloud-50478212",
+  "branch": "br-steep-frog-bet3a8l6",
+  "generatedAt": "2026-11-11T20:24:47.783Z",
+  "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+  "cutoff": {
+    "tag": "0136_fc12_settlements",
+    "when": 1793745547475,
+    "sha256": "25d34d7ca047982b1e09be33c394b2827ea193a5469e1e7eaf6a806c8ad45c18"
+  },
+  "mode": "SCHEMA_BASELINE_NOT_HISTORICAL_REPLAY",
+  "schemaSha256": "4bb9a9332ed477cc93146c5aef2260b030d2a07c9ecfcf249bd63255ade801c5",
+  "generatedSchemaSha256": "03dd148ec170185288140e1169dcf38ac77fdf45a2160bf5ef5b2897efd5b975",
+  "sources": [
+    {
+      "tag": "0000_mixed_arclight",
+      "when": 1784815642393,
+      "sha256": "e18fdb26deeed1e6337099de61e3c62821ac5a5bff097206e97924d1db5735ec"
+    },
+    {
+      "tag": "0001_solid_blonde_phantom",
+      "when": 1784815702393,
+      "sha256": "0724caafc4c904a3eb1aa4129dc4fe6e583487319409b041ababf41c1a760996"
+    },
+    {
+      "tag": "0002_melodic_silverclaw",
+      "when": 1784815762393,
+      "sha256": "5d84aa8c59173b970d023f61a4c06c5e5fff724413473a90f2d4fd84d11d3f25"
+    },
+    {
+      "tag": "0003_sudden_mister_fear",
+      "when": 1784815822393,
+      "sha256": "064d1e0ac046dbd05c2698666833181cedc771aff045636cd8938f036a0c4da6"
+    },
+    {
+      "tag": "0004_secret_vance_astro",
+      "when": 1784815882393,
+      "sha256": "d2a8ca04a62023a72d05f9aa9a7f864bfeff72a89d564c0bd2d2859b4ad45be7"
+    },
+    {
+      "tag": "0005_cuddly_unus",
+      "when": 1784815942393,
+      "sha256": "57aa437c04c6fd5b14aaf6a8b0b2207d1cd9f8937df164d6ecaf2cd286358622"
+    },
+    {
+      "tag": "0006_faithful_sumo",
+      "when": 1784816002393,
+      "sha256": "f36e7e6e6747655bbda46863d0959360433cd4f3be80ec6cb41e68fb74c9d4e4"
+    },
+    {
+      "tag": "0007_add_manager_invite_token",
+      "when": 1784816062393,
+      "sha256": "9faa937d3eff6f9288235e97d68b17f3e58628ed61bdfec7b6e9d071b5e30036"
+    },
+    {
+      "tag": "0008_simple_wolf_cub",
+      "when": 1784816122393,
+      "sha256": "c1e6f65c7faffb61e875081c6082347a153b7f7615dfd242b0034ac92d9b96c0"
+    },
+    {
+      "tag": "0009_naive_luminals",
+      "when": 1784905189002,
+      "sha256": "ee29b14779321d9e1e0a0b1b714a2d6206fdb8f5046bca58a0c56cccec7b7779"
+    },
+    {
+      "tag": "0010_clean_leech",
+      "when": 1784906575993,
+      "sha256": "8e2ccacf85ba36cfba324832261ab80f8c4adcd442d636a0d375ee87a972c247"
+    },
+    {
+      "tag": "0011_sour_roughhouse",
+      "when": 1784906986760,
+      "sha256": "795eaf9f3a82c65efd23984bfbde1c19ad5000522844b81ec642882594dcb2b8"
+    },
+    {
+      "tag": "0012_sudden_madripoor",
+      "when": 1784985645668,
+      "sha256": "6e2f0113eb4ba8478df09f9438d2bf7ae5bc2fbeb8b461cce07759f16697f68d"
+    },
+    {
+      "tag": "0013_pale_robin_chapel",
+      "when": 1785005432837,
+      "sha256": "cdf2686ae56c36bc57c4d77186d824e0b2c18670c4adbb13a11dbb18b41b3011"
+    },
+    {
+      "tag": "0014_elite_mandrill",
+      "when": 1785155152194,
+      "sha256": "c205e53dd65f509317bff639b8767dc41d3e9ad0a61846b033704cd20c249d07"
+    },
+    {
+      "tag": "0015_fine_thena",
+      "when": 1785155599220,
+      "sha256": "52c4ce9756daa5cd16b5320602c3f7d2973ee6653dc56db99db62e02dfe86544"
+    },
+    {
+      "tag": "0016_classy_post",
+      "when": 1785155655420,
+      "sha256": "28d0e1ceb207b0f362d5dd2b18a56763e7bad42a1240f287ee07228af4b11014"
+    },
+    {
+      "tag": "0017_mean_sharon_carter",
+      "when": 1785160757418,
+      "sha256": "f2e86b12fb4fe7659fa0457f3359d67c6c54b80c42b1aeef6c4ca180bb9aa7cc"
+    },
+    {
+      "tag": "0018_sad_bloodstorm",
+      "when": 1785209010727,
+      "sha256": "02fb1350f3ce8c7e22f46f0f376038b1dd243d33f864a2eca7dd7923ce9c2853"
+    },
+    {
+      "tag": "0019_next_ricochet",
+      "when": 1785251787256,
+      "sha256": "22ad15dcf3db469b4e2fb75164bd8adf664e69a454bffd58fe4f3f8bf7a44f94"
+    },
+    {
+      "tag": "0020_volatile_dormammu",
+      "when": 1785253105889,
+      "sha256": "8bf6c3cfcd0447cc0cc6507df581c26cf5be0f6b1b2320f8b12f4f30c9e24073"
+    },
+    {
+      "tag": "0021_striped_wallop",
+      "when": 1785716676483,
+      "sha256": "c8713d45602abfbd0dbb739bd32e50696203ebcef7f4dff8c5c72f7b5829a1be"
+    },
+    {
+      "tag": "0022_flat_wonder_man",
+      "when": 1785723666237,
+      "sha256": "d2ca478db62466b5f1fca6ccd85e292773405b2cb40919ea26395ec9c4761f55"
+    },
+    {
+      "tag": "0023_amazing_unus",
+      "when": 1785731101332,
+      "sha256": "91b7d2eba56823ab182c75b7c5c19f11f4b133d0c8fb6ef320cc3a6b85406d10"
+    },
+    {
+      "tag": "0024_cuddly_gertrude_yorkes",
+      "when": 1785731721404,
+      "sha256": "09bd0a49c26db621682993a8993e8cf731d7bb351ea950e116bb3f414dbb459f"
+    },
+    {
+      "tag": "0025_new_kylun",
+      "when": 1785761034446,
+      "sha256": "702cbb70f57110d21c75f3a32c0d2b1e03188d3249146de1c47817ee977d1246"
+    },
+    {
+      "tag": "0026_useful_ikaris",
+      "when": 1785766837906,
+      "sha256": "2b10fa68978bc593c972b9c09b8d928e1cabc3bd2a2c987870e8cdb161ca26b6"
+    },
+    {
+      "tag": "0027_sleepy_nocturne",
+      "when": 1785864755469,
+      "sha256": "95df46f2dca5feba0014147814f1928dd55054f375c931ca9e2de3a759014829"
+    },
+    {
+      "tag": "0028_melted_reavers",
+      "when": 1785875436325,
+      "sha256": "fba04366f2ef807adae2a8afc894167da5280f8ed9967ebc2a68c24a87666e01"
+    },
+    {
+      "tag": "0029_vengeful_scarlet_spider",
+      "when": 1785877886523,
+      "sha256": "9ec51bb27806fb0d3f5e17979b6a0d886fc0780553a4eef32c4753053f6507d6"
+    },
+    {
+      "tag": "0030_pnl_snapshots",
+      "when": 1785955997211,
+      "sha256": "00eceeac5e1ebcd6da8dcee8934e3e1c4682b8dae387ac68edf1bc827b7a1399"
+    },
+    {
+      "tag": "0031_closed_vampiro",
+      "when": 1785959220110,
+      "sha256": "840fe498f4278d7804d1aa6e18dc6aedb431bce1cae7e5a0c9a26190478f6291"
+    },
+    {
+      "tag": "0032_arqueo-cierre-turno",
+      "when": 1785960912829,
+      "sha256": "ea02449a1118793bd018a3bb030514ce6a4ae989539f1e23e9264a431c4d3f64"
+    },
+    {
+      "tag": "0033_desglose-agregadores",
+      "when": 1785960952526,
+      "sha256": "20d5696419c96c1a2b893488fdd0605194a361d63e30797198a835e94abae35b"
+    },
+    {
+      "tag": "0034_sku-alto-valor",
+      "when": 1785961105235,
+      "sha256": "c61df18a37b2b434f6640bfa58722a20f03455512b717d9d46a3d7f47b376e5d"
+    },
+    {
+      "tag": "0035_gaps-avanzados",
+      "when": 1786031904384,
+      "sha256": "880eb35d2cb56297e8d295ba0675bd8742c3683db11388ec2af5ced17bdf6fb6"
+    },
+    {
+      "tag": "0036_tags-inventory-items",
+      "when": 1786051189302,
+      "sha256": "dd0819d87972f640c9b55bdf1bbadf1184af0fb2f60b1140e0eb9f317f3d90d4"
+    },
+    {
+      "tag": "0037_lush_malice",
+      "when": 1786111597033,
+      "sha256": "0293aa027097a66c167760ca7d200531bf2340713a7f093655dfa456cbf16e13"
+    },
+    {
+      "tag": "0038_builder-settings-arrays",
+      "when": 1786150938231,
+      "sha256": "a5f3ef166d2404610f48c8421e4112f4d1300cd07fd93b76aa015faecf5f7a2a"
+    },
+    {
+      "tag": "0039_objetivos-financieros-tenant",
+      "when": 1786197611355,
+      "sha256": "036906f8f7659b3dd9deaa63116e29e4e9fffff53c8026124005752bf4c55bf8"
+    },
+    {
+      "tag": "0040_cuentas-por-pagar",
+      "when": 1786198857644,
+      "sha256": "0685353b0ec29fa61de4a8ad96300c5d51d8f5e679a77e0cf37994843d944af7"
+    },
+    {
+      "tag": "0041_supplier-bank-accounts",
+      "when": 1786245446777,
+      "sha256": "9cac608f36296fd6b27853fadedbd7608bc691bce24679b368bf5db9c3c92544"
+    },
+    {
+      "tag": "0042_nebulous_alex_wilder",
+      "when": 1786282931686,
+      "sha256": "08959e6c9a6b92a0f0017135bbc839ba8ed89a73da805e128d90a8be6a5fc780"
+    },
+    {
+      "tag": "0043_workflow-review-fields",
+      "when": 1786284799621,
+      "sha256": "3ddcb948b990ac87cd14d653b89ab1c8cea7f7ed880c1ac4ee716a3dbf10916e"
+    },
+    {
+      "tag": "0044_smartlink-session-optional",
+      "when": 1786299163578,
+      "sha256": "a408a6a2a1d99d2cb3e134bf01137efd750604c3bea055277c4c67eddcb3e78b"
+    },
+    {
+      "tag": "0045_regular_sebastian_shaw",
+      "when": 1786317692091,
+      "sha256": "47920b0dadafbe37c0d4dcd3594141161ed8ca75a05acbfc9fc4a46dfe57c277"
+    },
+    {
+      "tag": "0046_tricky_wendigo",
+      "when": 1786321075751,
+      "sha256": "95492e1024d0a8928a5d375c6990274b768e59a6c6cb4aee13bbb8af29ef1c1a"
+    },
+    {
+      "tag": "0047_same_jack_power",
+      "when": 1786326157386,
+      "sha256": "335febe044aaf437353e9233ea4aea760288e7b73fc49f64393cd948bb666c76"
+    },
+    {
+      "tag": "0048_majestic_ozymandias",
+      "when": 1786327548119,
+      "sha256": "624977cc58359ca084adc1110e086e48242fc007960a8360dc6a88cba1010171"
+    },
+    {
+      "tag": "0049_organic_puck",
+      "when": 1786329881842,
+      "sha256": "4ae9a8f5a993389d48c011db7a7f6f78bb0ed3b9378c02165ae6a2035548c34e"
+    },
+    {
+      "tag": "0050_step-definition-freeze",
+      "when": 1786468130515,
+      "sha256": "f76c1c6b7784693fd2b18b8b615523c6c82df593705d0a40a8eb094c16816a93"
+    },
+    {
+      "tag": "0051_merma-decimal-quantities",
+      "when": 1786474571267,
+      "sha256": "aedce4d28992da5f051ab146adba9bc7257bb075560a34a3ff329e5fbcc18a46"
+    },
+    {
+      "tag": "0052_supuestos-flujo-efectivo",
+      "when": 1786891301639,
+      "sha256": "8937e5003dfc9008ee5cfe5788a89114c86e1f6af24c0dca0fe63e3d21428fb6"
+    },
+    {
+      "tag": "0053_demonic_viper",
+      "when": 1787075456159,
+      "sha256": "87fbdd88455efff37bf70cc904c959b31987cef85a7514c3c6fda8b0c25a62a6"
+    },
+    {
+      "tag": "0054_produccion-cantidades-decimales",
+      "when": 1787269031562,
+      "sha256": "b666c6f3bf344671d3e1b0c4475eb2fd6d1c8b8c020c6e84743a1c7212925cb0"
+    },
+    {
+      "tag": "0055_idempotencia-extractores",
+      "when": 1787271353454,
+      "sha256": "1ef94ee459467630515173ff4581e67867dee45f1379f9bc7297bbf4f30c2ede"
+    },
+    {
+      "tag": "0056_cfdi-nomina-timbrados",
+      "when": 1787329216499,
+      "sha256": "f84cda75b3aafe01ecfe01fa71a18910a4370bcd0caf76b20dc42ffe4c73dbb4"
+    },
+    {
+      "tag": "0057_omniscient_colossus",
+      "when": 1787546120144,
+      "sha256": "2e7b768d6fe50974e12ce19d9709142b555f819a3f500976e39afe9e48cb4de5"
+    },
+    {
+      "tag": "0058_add-waste-evidence-url",
+      "when": 1787599075181,
+      "sha256": "df3209252c1069b6b7f798ad0fc8815b72402f44622beb64fbcbef6bf3cf7907"
+    },
+    {
+      "tag": "0059_add_invoice_number_to_receiving_reports",
+      "when": 1787622373537,
+      "sha256": "1c78b06f44a07175af71ee795dba5c032a3fda5717c088e4b7de653a355b76db"
+    },
+    {
+      "tag": "0060_mysterious_pride",
+      "when": 1787668177468,
+      "sha256": "b505dc99a4e3eb8fc41ccc5d0cf9f80e7dbdd43053cb023fe0fd38290e37b537"
+    },
+    {
+      "tag": "0061_cute_the_captain",
+      "when": 1787676032929,
+      "sha256": "b1e925822ded128162d46db3914b8e3e2ef20b79cb9dff5e8097c33613a9bf17"
+    },
+    {
+      "tag": "0062_loving_paibok",
+      "when": 1787681354218,
+      "sha256": "da2dfe6eed66f1bd2a78440597878e4333814aa0ccc1cf9f5e84b8b2e817b55e"
+    },
+    {
+      "tag": "0063_square_mister_sinister",
+      "when": 1787683142176,
+      "sha256": "2a010424ea941db97bf3e492e58caa65f15418a186240055e73054ce289f0d52"
+    },
+    {
+      "tag": "0064_closed_shen",
+      "when": 1787686873818,
+      "sha256": "acfa11a7d09757e84077ba71a60f175fa081df79e3fb5346fd4e4076d1852279"
+    },
+    {
+      "tag": "0065_blushing_ronan",
+      "when": 1787688340570,
+      "sha256": "7b6a7459a1f370747cb09ee489b7539094d0783ce981d4cb0cb574421672ef88"
+    },
+    {
+      "tag": "0066_sudden_stepford_cuckoos",
+      "when": 1787695074732,
+      "sha256": "870f62ac516b0a95a3d2639fecbf28541a51ff7d912b40e6ecff839e950792cf"
+    },
+    {
+      "tag": "0068_new_ben_grimm",
+      "when": 1787713145668,
+      "sha256": "23298dae5eb83c52e06675b865b814020c45342a953d3b203154d1c2fbdeb859"
+    },
+    {
+      "tag": "0069_freezing_mathemanic",
+      "when": 1787754080326,
+      "sha256": "86103fe4b6116b6463da5eac1245afa847b1af5a0d9cf3d68842b1386d131613"
+    },
+    {
+      "tag": "0070_faulty_joystick",
+      "when": 1787756116625,
+      "sha256": "42abe3b665561dcf2dd79357ec5b4bf469dbe595858f733ab59b120eb581c8c4"
+    },
+    {
+      "tag": "0071_busy_felicia_hardy",
+      "when": 1787757256616,
+      "sha256": "8b57bbcba2939b8355727e4a7b05dd82ad97382a366af5b0565147e6e987f89a"
+    },
+    {
+      "tag": "0072_nosy_bloodstrike",
+      "when": 1787761063070,
+      "sha256": "f0d62eb459e2bcc61d83e995d70f064899740eb429ec315f8fadff4b8bbd636e"
+    },
+    {
+      "tag": "0073_solid_blizzard",
+      "when": 1787772001277,
+      "sha256": "71b1caf4fed7ec74f6f4b5b85e960ef3e0f611dc99d3fc47903246b2a31c5a0c"
+    },
+    {
+      "tag": "0074_brief_gressill",
+      "when": 1787786199620,
+      "sha256": "aa01b2853a284f3cff2cdd3b4294e1b9e5ac0376736ecc0bdb4573606f047513"
+    },
+    {
+      "tag": "0075_modern_hex",
+      "when": 1787802162079,
+      "sha256": "e84c8a3ec7e8381608da31abfd9bfa23cea09217711a3022d3aafbd45b5e9118"
+    },
+    {
+      "tag": "0076_magenta_tenebrous",
+      "when": 1787947204915,
+      "sha256": "eee0c715a1e24e54aefba38b57d9e43e6de8827a705740c929ae2b3be30889bb"
+    },
+    {
+      "tag": "0077_tranquil_living_mummy",
+      "when": 1787947439918,
+      "sha256": "62152690f5853a0fad5c6ce27a591d3c42e8c5083973ba3fd87dd816d77f865f"
+    },
+    {
+      "tag": "0078_blue_peter_parker",
+      "when": 1787948727553,
+      "sha256": "e40c3caa165c9faf8b8d4f185228c925f7ed290ef8287ba302cb286584191673"
+    },
+    {
+      "tag": "0079_remarkable_la_nuit",
+      "when": 1788235638918,
+      "sha256": "c0cbcf1989ed9beea4e6d844a555aebf8e73b5ff2067811ac1d78bd3b78bb8b2"
+    },
+    {
+      "tag": "0080_naive_siren",
+      "when": 1788272464337,
+      "sha256": "bdbda0b8f52cc299db24529c9a1b905cbec1707d4b441e1d285190f5f0890295"
+    },
+    {
+      "tag": "0081_fat_glorian",
+      "when": 1788279946150,
+      "sha256": "2105a6d152083a5bbe32399d7e9e8508480c83f213bbeaed73a735c4f94f7aa0"
+    },
+    {
+      "tag": "0082_factura-contrato-recurrente",
+      "when": 1788366346150,
+      "sha256": "fefd5242749ad6ccd3519a9b8acf72e3c1f7cf4692c0452359993178cbe7a0eb"
+    },
+    {
+      "tag": "0083_deep_barracuda",
+      "when": 1788366347150,
+      "sha256": "4baebdaf05594022cd08017d3bedac217088359fa2566d9d67b725a0156bd9c1"
+    },
+    {
+      "tag": "0084_marvelous_agent_brand",
+      "when": 1788366348150,
+      "sha256": "e2dc1fec4466325698ef0b8f0a08c7143928dccb844811ad2d1f764ac4efafed"
+    },
+    {
+      "tag": "0085_natural_wrecking_crew",
+      "when": 1788366349150,
+      "sha256": "39c5f34ac8673652fd2140ef44aaaa8bf52cc5765ba0cde80c85a2e903d01c41"
+    },
+    {
+      "tag": "0086_plain_arclight",
+      "when": 1788366350150,
+      "sha256": "5a97c618297748800e695b01a0d7dc46a988c985a90b98030655981e9a509553"
+    },
+    {
+      "tag": "0087_volatile_blue_blade",
+      "when": 1788366351150,
+      "sha256": "8e81d33f014f7af1cbe4ce290b7c6d894dd60c7cb92fb4c047212c87a766a22c"
+    },
+    {
+      "tag": "0088_black_archangel",
+      "when": 1788495126176,
+      "sha256": "10bc3c3c336fbf713ab7dcc9135a35422bcb08af3f9e6ff1cd5ff4a1e3c8080b"
+    },
+    {
+      "tag": "0089_slim_katie_power",
+      "when": 1788536263769,
+      "sha256": "c1057bf127b5475accc1c9b0faea759e0c4a38f282b498ef10d85ba45d59c485"
+    },
+    {
+      "tag": "0090_modern_luminals",
+      "when": 1789561143909,
+      "sha256": "bddd5686c8475f9c2235015455b6835a68be5724d173007837a410f568037089"
+    },
+    {
+      "tag": "0091_known_namorita",
+      "when": 1789668621065,
+      "sha256": "c06cc87c23e7a2642ef7ffacd10ebc8e4a2218b0190b9708588aa1eeb5fbbd8a"
+    },
+    {
+      "tag": "0092_remarkable_ben_urich",
+      "when": 1791698386584,
+      "sha256": "b6fa7bc9a034524d05c56444c47404639ff1c3a80d7069077e033ef36e304e67"
+    },
+    {
+      "tag": "0093_slippery_meggan",
+      "when": 1791823860444,
+      "sha256": "ff9feb6c13bb2113a217fb40520d3fe06a5bbe1d4005cd5d8a47f0988fba8161"
+    },
+    {
+      "tag": "0094_minor_jasper_sitwell",
+      "when": 1791826900589,
+      "sha256": "ea5170d7a799e71ee8bd3ba07bc380a1d252d7d7007910ea64c1a8bfaa0c82a4"
+    },
+    {
+      "tag": "0095_square_gladiator",
+      "when": 1791921209819,
+      "sha256": "89661c8bf7664d14d4a648b96a64fffbea08be2522d65efbd2149f9d91bad5a3"
+    },
+    {
+      "tag": "0096_workflow_completion_outbox",
+      "when": 1792022400000,
+      "sha256": "25a1cc9bd1fdbabbc615076617149ce21990e894f6c397cb4410cb21d8d11835"
+    },
+    {
+      "tag": "0097_cooing_william_stryker",
+      "when": 1792165092226,
+      "sha256": "f246707a20974026004a43a6c737f66f69c39e6eebad14285204c68a110dc2e2"
+    },
+    {
+      "tag": "0098_closed_lenny_balinger",
+      "when": 1792182596053,
+      "sha256": "cca0904dc5c2e22f073821dc5db637638b83a75c731cad1dfad9c4ff5c94c8bc"
+    },
+    {
+      "tag": "0099_exotic_warpath",
+      "when": 1792255192618,
+      "sha256": "6d1ec524e79f8d5853b8f6fd38a441659679743ba2cdd7e4971d34cf98838576"
+    },
+    {
+      "tag": "0100_green_excalibur",
+      "when": 1792265703972,
+      "sha256": "cd4407d0098303d2c6a43a885a09fa7a30e2ba15287f14757b40b79e9375e242"
+    },
+    {
+      "tag": "0101_clammy_talkback",
+      "when": 1792297057246,
+      "sha256": "b43c105a6ff5669c89f75d4858ebc55a7dfeb1f650cdafbb9dd6f511d914968c"
+    },
+    {
+      "tag": "0102_parallel_red_skull",
+      "when": 1792301587985,
+      "sha256": "bfc26f0d4fe97e4d5c5cfa3fa21976f72a99a7d3f95ac6c165539d7d231ee8f3"
+    },
+    {
+      "tag": "0103_tenant_rls_evidence",
+      "when": 1792333118084,
+      "sha256": "b61d84b2bf7bf1ac2aa9e7fb1ecaabdb4729f99f97b6bde67b3c609ba97de218"
+    },
+    {
+      "tag": "0104_rls_receiving",
+      "when": 1792334760455,
+      "sha256": "c5b2b379841deb63902489dfe4d36853eba672a76c771e1e0859f6574f070e69"
+    },
+    {
+      "tag": "0105_rls_inventory_monitoring",
+      "when": 1792336238263,
+      "sha256": "104510d1ce92df9ac5a3f344eaef623dafe7a9a8f4726b1bbe6de41d8ad8b228"
+    },
+    {
+      "tag": "0106_rls_stock_counts",
+      "when": 1792352624936,
+      "sha256": "1050eb5f34589b8f198d1b11d604a110556c454e8c766bbf0a57503b1b86925a"
+    },
+    {
+      "tag": "0107_company_bank_accounts",
+      "when": 1792362318608,
+      "sha256": "212d5290728152429ff167512bcb06bb135852e404508a38f8969bd085592495"
+    },
+    {
+      "tag": "0108_bank_transactions",
+      "when": 1792366780360,
+      "sha256": "26666994a04682d7fa3e0ce0d9790eceab4c64710d9a95db8f4674397c1b817d"
+    },
+    {
+      "tag": "0109_recurring_payables",
+      "when": 1792368239402,
+      "sha256": "19da92f1d7d2183711afa010bdbc2a6b3dfff8cf78a3c4c0bf2c4cbaa8ad621b"
+    },
+    {
+      "tag": "0110_account_purpose",
+      "when": 1792597712634,
+      "sha256": "7eaed904dbeeec89871bbfce289c3a3263058e2beb5e859c03eb818733c0fa00"
+    },
+    {
+      "tag": "0111_gateway_destination",
+      "when": 1792599120230,
+      "sha256": "a28bb69154756deec14e2f4ddf6ba79b45067ae08f34609788deb4ccb7a89094"
+    },
+    {
+      "tag": "0112_bank_deposit_match",
+      "when": 1792602523048,
+      "sha256": "a5a1bb1f7208f43f7442ba5e49726f601f0414bd3f6ae3ff457bed5206dd6d85"
+    },
+    {
+      "tag": "0113_aggregator_acquirers",
+      "when": 1792605423290,
+      "sha256": "65bb697de9354f3b52ddb5132ba8a794dd649f9685fc8dc59ef803c62fa5b3c3"
+    },
+    {
+      "tag": "0114_account_anchor",
+      "when": 1792607646574,
+      "sha256": "388b4881063816402b9849f642d04166402a3cbca620b83cb1856a407e1bfdcf"
+    },
+    {
+      "tag": "0115_mature_red_wolf",
+      "when": 1792615712236,
+      "sha256": "0bf4105a6a0eaf4bf9d3d39fa69a2268d42b342e4d3ad6f19ababa9dcade7c01"
+    },
+    {
+      "tag": "0116_wakeful_energizer",
+      "when": 1792615931083,
+      "sha256": "ed8e9fa2103e707ad26dc899f5eee69e6fdde07a65265e344cd86d09fd3b2f16"
+    },
+    {
+      "tag": "0117_typical_diamondback",
+      "when": 1792617768120,
+      "sha256": "a88d899d7d0909253ce0705e1215622a57ac9e5a5502d9d26a2f0da6cde391ee"
+    },
+    {
+      "tag": "0118_steady_vance_astro",
+      "when": 1792621334222,
+      "sha256": "c1b93bd479225bb96a24b9460e72095f2d5a2046c4b10715b59b8fd7bbe26113"
+    },
+    {
+      "tag": "0119_redundant_unicorn",
+      "when": 1792629196856,
+      "sha256": "b77841ac04950035de0f065097132864f97871d842bbcbefc4664294367dd470"
+    },
+    {
+      "tag": "0120_sparkling_carnage",
+      "when": 1792630269665,
+      "sha256": "a5d1943a418633d3f17612b4014f64259377f83f1623d3392e6c0fc91389b2ec"
+    },
+    {
+      "tag": "0121_imss_movimientos",
+      "when": 1792691071337,
+      "sha256": "594bea70b9fadd396567fae4517c39272197b228a69f23e12292e55f88a9e660"
+    },
+    {
+      "tag": "0122_aguinaldo_snapshot",
+      "when": 1792801464567,
+      "sha256": "33050c36633c5d586cad0f8c453499f1e1743d9af86317c33addf00c01950595"
+    },
+    {
+      "tag": "0123_rls_nomina",
+      "when": 1793211322963,
+      "sha256": "feede1268378e194668f92744102c8d41b4b1460997d471ec32649d530b9502d"
+    },
+    {
+      "tag": "0124_fc05_tenant_keys",
+      "when": 1793466216517,
+      "sha256": "4130b2e28af98c517ce41537ea98b42a8460d4709db45a06ef33fac4aac7f232"
+    },
+    {
+      "tag": "0125_fc05_accounts",
+      "when": 1793466315973,
+      "sha256": "a2483b83a7197137e3113414e5e62e20ca8345cd736a7f08f3b472d60f1b1969"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "when": 1793466562289,
+      "sha256": "a4f2f7a6e6209a1dbcd3fdc8fbc9ffbb9dcbcf1635b2f7fa4e2d55154e536ff0"
+    },
+    {
+      "tag": "0127_fc06_journals",
+      "when": 1793471209750,
+      "sha256": "2ed3d408da9a35a4ae65f9e262855de7fb164ba7f8910a33567c949a14c3e27a"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "when": 1793471244163,
+      "sha256": "37983200833ab4485ef524407036aad03b4dbc64e270c1dd4ca3689c5feac8dc"
+    },
+    {
+      "tag": "0129_fc07_review",
+      "when": 1793526223271,
+      "sha256": "57c66282aa905faa6e851c73347858d4298ef46a577043ef6b9d4ffaa069c884"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "when": 1793553175259,
+      "sha256": "9395daf7ba887fb0b5ce8cd99c6edf055b9cb2a956b02e34f9f276fb2962c44f"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "when": 1793557977992,
+      "sha256": "5c5dc151c9027ef360d57499ca8f7e69a86815210f0145955f2ad3731f9a457c"
+    },
+    {
+      "tag": "0132_fc09_treasury_source",
+      "when": 1793658585339,
+      "sha256": "f67a8b8b85f01332632cb67b0f0042baa1b34725747bf2000ad144b44607ce94"
+    },
+    {
+      "tag": "0133_fc10_accounting_events",
+      "when": 1793662490511,
+      "sha256": "5d20dcd01f034259895d343bfddae2d9d7c4b47b750d03425884eb89e2ee7718"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "when": 1793708868569,
+      "sha256": "93ac52319d1db2d37714e3bcc8b54a671ae1a0f68591b244e2822ee780b02ad8"
+    },
+    {
+      "tag": "0135_fc_preparation_permissions",
+      "when": 1793710000000,
+      "sha256": "c9dc23f8d0be58b4d3adf47d09c1694fc019a42618ddde465774bf4e0e3f2675"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "when": 1793745547475,
+      "sha256": "25d34d7ca047982b1e09be33c394b2827ea193a5469e1e7eaf6a806c8ad45c18"
+    }
+  ],
+  "additions": [
+    {
+      "tag": "0103_tenant_rls_evidence",
+      "sha256": "b61d84b2bf7bf1ac2aa9e7fb1ecaabdb4729f99f97b6bde67b3c609ba97de218"
+    },
+    {
+      "tag": "0104_rls_receiving",
+      "sha256": "c5b2b379841deb63902489dfe4d36853eba672a76c771e1e0859f6574f070e69"
+    },
+    {
+      "tag": "0105_rls_inventory_monitoring",
+      "sha256": "104510d1ce92df9ac5a3f344eaef623dafe7a9a8f4726b1bbe6de41d8ad8b228"
+    },
+    {
+      "tag": "0106_rls_stock_counts",
+      "sha256": "1050eb5f34589b8f198d1b11d604a110556c454e8c766bbf0a57503b1b86925a"
+    },
+    {
+      "tag": "0123_rls_nomina",
+      "sha256": "feede1268378e194668f92744102c8d41b4b1460997d471ec32649d530b9502d"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "sha256": "ef17cd51fa590210aa619cd60848d358452632cb906306cdbcbf9e3cd34bd95a"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "sha256": "ef1fcd4e867d39ad968712ad62a02ae82a102d4cae90a4f9447234eb6b8cde05"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "sha256": "81655e7f15a6a1a976badcceabe5b5e6892895ee5780d905ec7c0fd040e11375"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "sha256": "80b9d313d508b425a696560b2baf19c2408f726eb121bc205c8e03ee05e0d66b"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "sha256": "7ee0971664f07d3f535a9b8d64372faff4981953c9f763a738115e165c861959"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "sha256": "226852822e8418acdb6cd10cc01dde62b82e0ea8d4f208ab6cb233708224a093"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "sha256": "2917a17f32522adb843d9c3e29010fb2792c76006dcee19dfd600ba9194f9d55"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "sha256": "4a526d782b3a5b236a2b43dda3e74941cfab647d48a726d23654aacbaf3e2f2e"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "sha256": "4215ef85049a93f3c9986586b437ea8ed57451e62747a1fb6c42f85b2d65e92d"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "sha256": "2cb50d8bea9429ecb2c2e23f492dea05fd37b473720ab440f3707e3951d314fd"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "sha256": "48cbca3019d5a29ab08e2da92a0ba8c93acaad9741f4cc70e21c8e92a229f87b"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "sha256": "ee430a2b5517fffe861211115fcf123e0b83b64a34068c5a8ecc4ad5cafd514d"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "sha256": "de38d6c68b80ac1818010416859a44d7ec9a8d0d020529d5da5ad4e27b205133"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "sha256": "cf7c46bba3ab3a1300411ee3fdf91594d55e9dd3eeb5a2ed122526f414f7233b"
+    },
+    {
+      "tag": "0129_fc07_review",
+      "sha256": "525e046f7930b2529e1f0a860ea0d851aedd728254a2f9fd10b1ccff3a856597"
+    },
+    {
+      "tag": "0129_fc07_review",
+      "sha256": "566775fa91cae1bb9a1845b84bf1ecbfea5f63a6283590670cc6c685a0e9c47d"
+    },
+    {
+      "tag": "0129_fc07_review",
+      "sha256": "1b0c3ce613f0e34d9da95e65d6270606341b5c2c8f31ead3f924e6043a05738a"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "0b9140b0a6170c772c3cbc861191789216a0b75a22cf18949ab07bd58807dcdc"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "4250c070143db585ff00c135cb79ef8c18551017a6715ea5023289aab91eff95"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "c8fc8e230a0b4bd938e941d87d4e606a553d7c7a1a9415fd050d889b3b0805c6"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "9af60e122825f82c4a8bd260c38443795b5711c4fc0edcda6c016395437eafb7"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "29cb8182329f38ccd1910940560fbabe8e3a5bf87668e12aefa67a6f3bf5b274"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "feb11eb208d4912930addbd04eb1bbf99c31a2e17c6dbe4b5c179680278427c6"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "3c0e629fd2537f35becb78047f3e88ab02111e7302a1e910b89c5a6ac26a8946"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "14f077b0d43c79f3b99284ed86ab59c8ddc39c0c0fbb1ccd5821d77038f42219"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "0d747e399d6d4de994fbb88c3d25598ea2d9d7fea71467abd3332323bc087daa"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "4ef2d8594ae167b3e240e2c3817e70ca3f5c368b70ea9d155e6c2f33daf24802"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "62ad93cf13a49409592c7f239b79b7c76f4b350570ea755c4e28e5fa95518aa6"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "6b20bb7bf7aae6e8e9f2c473d43ca80d446b507f4d66aae5377f41a17a023114"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "cd00a391e24f248ad3916dc0742700c4f8080f7aceb6041c2ba56bebbb02f5de"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "d96692f8a41f637feb6fae9254f4e92c27f633c205b81b280e681fa3f25e976c"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "3981d8c22730b11125c1659ac98a17e9c1dae8de4f8a052103950f1965694ba3"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "sha256": "25241e1ad91f772e8d0e10482ecabb3d0590e3f85a69e56e98bd80bfac20ce3c"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "sha256": "22385b4047c0535cf70e1181f6582b796bb16972dcd2e7fe673882201bc8200e"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "sha256": "d6408665d75d4c1701eb8ccca34b666d9820a840723d146307d044faeb9aa1f5"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "sha256": "2bf29f20347714341a02f92d81e0593476650fffcb2307980acbbfc577e390ec"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "sha256": "a69de2dbe041c1939e1a2bdd8487a2855972063f83e4e44dc156db63022377f3"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "sha256": "d5320d6aafea0b57b652f70a0da3f05b867d0a5b0d77025d0e07e4b7712f9309"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "sha256": "b47800ea4f941c172508bd413a77abaacf82914362b08104a43e19e5d6ed479a"
+    },
+    {
+      "tag": "0132_fc09_treasury_source",
+      "sha256": "af736ed4245887ab19152407971519fc9c4c8a0b51f1a477950c4921e410b88c"
+    },
+    {
+      "tag": "0132_fc09_treasury_source",
+      "sha256": "4182c2d84818ea68a2f56879c979ccd13df9456f655175a8dd17f227783551a8"
+    },
+    {
+      "tag": "0132_fc09_treasury_source",
+      "sha256": "5fe6376a2379a3db6d9f63eb6b0246f379edcead18f5c8543d39254a063eda05"
+    },
+    {
+      "tag": "0133_fc10_accounting_events",
+      "sha256": "3499cb0aa0e9c026ee00e776099932ad80402e9700755c509c47c80921b07e1c"
+    },
+    {
+      "tag": "0133_fc10_accounting_events",
+      "sha256": "ad2fa112e97aa21d46519c9f3076561d59811861448d2e705ffb8cda6f311ec1"
+    },
+    {
+      "tag": "0133_fc10_accounting_events",
+      "sha256": "fe86a7231b94a9959f2898cc8cb35d4e4f87f00739ae6989a767e7041df64b59"
+    },
+    {
+      "tag": "0133_fc10_accounting_events",
+      "sha256": "02a3471d0f2854d54543ae3c98059b4e27fd63c80033f20937d1c98edbf08239"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "513638203e44caf3e5356d08c62fc48f2d049110efbfd03d9d84ef64e9226b52"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "80b672514a04cc7ae30bd2f9de513e8bf6e1f06d9e99f166e885daaed248ade9"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "0b1502f27e745f8ed842e8509288d64eac1d997974231a1c0a9138a679a00a56"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "d33700159f878935179a545dcd872a9285e423ce1a2044319db5e140b3dc38d7"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "749fde5965d2b1572870b9edd0dfd7b148d5ec23e99cee5b3781bf3ee028a96c"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "2c78357e438e75446e710748d8077fec442eafe0f082230a0c1347965a0beb6b"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "74265ee43b60fd22d570dd1ce03b900f0d1a22098af9db04e7da230939f2b5f9"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "sha256": "ff366ac8ad3cef375688d7ef3b240e3efb8ba2979738b64077b0eaeb69b1e646"
+    },
+    {
+      "tag": "0135_fc_preparation_permissions",
+      "sha256": "c9dc23f8d0be58b4d3adf47d09c1694fc019a42618ddde465774bf4e0e3f2675"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "sha256": "7f3e90a582e147df80d9ca80b3e9b745cba89e9003b4d0326acaf5c7007cbb0a"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "sha256": "c561c49116fe53f14a870acb7731bd9594d65b89e93a04d24200f9f71ed6b51e"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "sha256": "84ea08809c0eed4e4604c3ba6259717b24595304d2f53abc09aa6c86e9c0bc3e"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "sha256": "cf1b7e313a1a07410cc119790bfb840e403f12799bea78e4e473f857601b5ffa"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "sha256": "6a46e285b0dbacb386c0415400eefa7ac1a9ab87757796bb8c4ad1b7b916e99f"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "sha256": "f40138b7bc9e509ecf54ca0bff20fd7bd5420c5a14ef8b2a59e689ca41236f42"
+    }
+  ],
+  "generatedCommand": "pnpm.cmd db:generate --dialect postgresql --schema ./lib/db/schema.ts --out ./.tmp/pulso29-neon-bootstrap --name pulso29_initial",
+  "limit": "Base vacía inicializada desde esquema local, incluidos cambios FC-12 sin commit. Las 136 migraciones históricas no se ejecutan individualmente. Sin datos, seeds, activación contable ni validación operativa."
+}

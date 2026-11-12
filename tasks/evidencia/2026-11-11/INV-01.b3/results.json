@@ -1,0 +1,89 @@
+{
+  "recordedAt": "2026-11-12T13:44:30.535Z",
+  "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+  "state": "código implementado; V2 comprobada, aceptación pendiente de V1/checkpoint global",
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "isolated": "br-round-voice-belheola",
+    "main": "br-steep-frog-bet3a8l6",
+    "mainMigration": "0136; 0137-0139 PENDING"
+  },
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01b3.json",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd run build",
+      "exit": 1
+    }
+  ],
+  "checks": {
+    "unit": {
+      "passed": 85,
+      "exit": 0
+    },
+    "integration": {
+      "passed": 33,
+      "writer": 12,
+      "applicationSchema": 4,
+      "catalog": 5,
+      "snapshot": 1,
+      "identity": 7,
+      "harness": 4,
+      "exit": 0
+    },
+    "typescriptScoped": {
+      "exit": 0,
+      "targetUnchanged": "ES2017"
+    },
+    "lint": {
+      "exit": 0
+    },
+    "build": {
+      "exit": 1,
+      "compiled": true,
+      "failingFile": "lib/services/accounting/purchase-contract.ts:13",
+      "reason": "BigInt literal with target ES2017"
+    }
+  },
+  "preservedConcurrent": [
+    {
+      "file": "lib/services/accounting/purchase-contract.ts",
+      "sha256": "277f41892f3b7422860d5fe8cb97a4c19cceb66b3db55a4f934991b8e428c719"
+    },
+    {
+      "file": "drizzle/0140_fc13_purchases.sql",
+      "sha256": "77404aa1adeba46a646017fd27c5a93f89fa2905b3de62eb91d34dddaea97969"
+    }
+  ],
+  "laterJournalTags": [
+    "0140_fc13_purchases"
+  ],
+  "cleanup": {
+    "remainingFailureFunctions": 0,
+    "remainingFailureTriggers": 0
+  },
+  "files": [
+    {
+      "file": "lib/services/sale-consumption-service.ts",
+      "sha256": "25edb58733dbeffbe62ca35330ee846a3385b894c4757b2e49f919c4f522aa09"
+    },
+    {
+      "file": "tests/integration/sale-consumption-application-db.test.ts",
+      "sha256": "69334c78734a295f6d5cd8d49eea21cd6faf7dec0dba12d9c1f3e5fc28c7fb7f"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+﻿{
+    "typescript":  {
+                       "exit":  0
+                   },
+    "head":  "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+    "traceability":  {
+                         "exit":  0,
+                         "errors":  0,
+                         "rows":  239,
+                         "children":  69
+                     },
+    "state":  "en curso: V1 y caracterización dueña; V2 runtime pendiente de b2a",
+    "recordedAt":  "2026-11-12T12:44:07.0349606Z",
+    "integration":  {
+                        "runtime":  "PENDING",
+                        "ownerCharacterizationPassed":  1,
+                        "rollbackVerified":  true,
+                        "exit":  0
+                    },
+    "environment":  {
+                        "project":  "soft-cloud-50478212",
+                        "branch":  "br-round-voice-belheola"
+                    },
+    "build":  {
+                  "pages":  443,
+                  "nodeOptions":  "--use-system-ca --max-old-space-size=4096",
+                  "command":  "pnpm.cmd run build",
+                  "exit":  0
+              },
+    "catalog":  {
+                    "runtimeTableSelect":  false,
+                    "tablesWithoutRls":  [
+                                             "recipes",
+                                             "recipe_items",
+                                             "inventory_items",
+                                             "unit_conversions",
+                                             "inventory_batches",
+                                             "inventory_movements",
+                                             "sales_entries"
+                                         ]
+                },
+    "fullUnitSuite":  {
+                          "exit":  0,
+                          "todo":  1,
+                          "skipped":  1,
+                          "files":  201,
+                          "passed":  2506
+                      },
+    "files":  [
+                  {
+                      "sha256":  "01d6c11583355064450d55f323bb730cfd01b6105b4b45b564aded13c327cc2d",
+                      "file":  "lib/services/sale-consumption-snapshot.ts"
+                  },
+                  {
+                      "sha256":  "f92f28076d2329f377eb4efd8d7d0120a9dc3180acc444019fe94d7b11b6c3fe",
+                      "file":  "lib/services/sale-consumption-reader.ts"
+                  },
+                  {
+                      "sha256":  "17807f607c0a5a51868bfb059d597b5aa5a22e041208bbb0ec7e7899fdcb59c3",
+                      "file":  "lib/services/__tests__/sale-consumption-snapshot.test.ts"
+                  },
+                  {
+                      "sha256":  "f5af1eb8c146c1cf2690607644a8a92977db3ae2ffbbd641931574e4227e5860",
+                      "file":  "tests/integration/sale-consumption-snapshot-db.test.ts"
+                  }
+              ],
+    "focal":  {
+                  "newTests":  18,
+                  "exit":  0,
+                  "passed":  76
+              },
+    "lint":  {
+                 "exit":  0
+             }
+}

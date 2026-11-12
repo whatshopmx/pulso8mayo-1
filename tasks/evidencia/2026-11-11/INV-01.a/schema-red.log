@@ -1,0 +1,62 @@
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: ⚙️  write to custom object with { processEnv: myObject }
+pnpm.cmd : (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to 
+become the default in a future major version of Vite:
+En línea: 2 Carácter: 66
++ ... size=4096'; pnpm.cmd exec vitest run --configLoader bundle --config v ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((!) Your Vite c...ersion of Vite::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": 
+"module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+stdout | tests/integration/sale-consumption-identity-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+
+ ❯ tests/integration/sale-consumption-identity-db.test.ts (7 tests | 7 skipped) 2209ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/sale-consumption-identity-db.test.ts > INV-01.a2: identidad y revisión persistidas con rol 
+runtime
+Error: Failed query: GRANT SELECT, INSERT, UPDATE, DELETE ON "sales_consumption_identities" TO "pulso_app"
+params: 
+ ❯ NeonPreparedQuery.queryWithCache node_modules/.pnpm/drizzle-orm@0.45.2_@electri_e81e30e41e1b6598d901e3b69fdcf04d/nod
+e_modules/src/pg-core/session.ts:73:10
+ ❯ NeonPreparedQuery.execute node_modules/.pnpm/drizzle-orm@0.45.2_@electri_e81e30e41e1b6598d901e3b69fdcf04d/node_modul
+es/src/neon-serverless/session.ts:147:10
+ ❯ provisionRuntimeRole tests/integration/helpers/runtime-role.ts:44:5
+     42|   await db.execute(sql.raw(`GRANT USAGE ON SCHEMA "public" TO "${RUNTI…
+     43|   for (const table of tables) {
+     44|     await db.execute(
+       |     ^
+     45|       sql.raw(`GRANT SELECT, INSERT, UPDATE, DELETE ON "${table}" TO "…
+     46|     );
+ ❯ tests/integration/sale-consumption-identity-db.test.ts:52:5
+
+Caused by: error: relation "sales_consumption_identities" does not exist
+ ❯ node_modules/.pnpm/@neondatabase+serverless@1.0.2/node_modules/@neondatabase/serverless/index.mjs:1087:33
+ ❯ node_modules/.pnpm/drizzle-orm@0.45.2_@electri_e81e30e41e1b6598d901e3b69fdcf04d/node_modules/drizzle-orm/neon-server
+less/session.js:106:16
+ ❯ NeonPreparedQuery.queryWithCache node_modules/.pnpm/drizzle-orm@0.45.2_@electri_e81e30e41e1b6598d901e3b69fdcf04d/nod
+e_modules/drizzle-orm/pg-core/session.js:39:16
+ ❯ NeonPreparedQuery.execute node_modules/.pnpm/drizzle-orm@0.45.2_@electri_e81e30e41e1b6598d901e3b69fdcf04d/node_modul
+es/drizzle-orm/neon-serverless/session.js:105:14
+ ❯ provisionRuntimeRole tests/integration/helpers/runtime-role.ts:44:5
+ ❯ tests/integration/sale-consumption-identity-db.test.ts:52:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ Test Files  1 failed (1)
+      Tests  7 skipped (7)
+   Start at  22:34:42
+   Duration  4.77s (transform 506ms, setup 86ms, import 1.49s, tests 2.21s, environment 0ms)
+
+Serialized Error: { length: 126, severity: 'ERROR', code: '42P01', detail: undefined, hint: undefined, position: 
+undefined, internalPosition: undefined, internalQuery: undefined, where: undefined, schema: undefined, table: 
+undefined, dataType: undefined, constraint: undefined, file: 'namespace.c', routine: 'RangeVarGetRelidExtended' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

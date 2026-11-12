@@ -1,0 +1,56 @@
+{
+  "recordedAt": "2026-11-11T21:52:38.805Z",
+  "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+  "diff": "P0-01/baseline.json + archivos de esta continuación; sin commit automático",
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "main": "br-steep-frog-bet3a8l6",
+    "test": "br-round-voice-belheola"
+  },
+  "checks": {
+    "unit": {
+      "files": 2,
+      "passed": 20,
+      "exit": 0
+    },
+    "integration": {
+      "files": 1,
+      "passed": 4,
+      "exit": 0
+    },
+    "typescript": {
+      "command": "pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    "lint": {
+      "files": [
+        "scripts/validate-faltantes.ts",
+        "scripts/migration-manifest.ts",
+        "tests/unit/faltantes-traceability.test.ts",
+        "tests/unit/migration-manifest.test.ts",
+        "tests/integration/isolation-harness-db.test.ts"
+      ],
+      "exit": 0
+    },
+    "build": {
+      "command": "pnpm.cmd run build",
+      "nodeOptions": "--use-system-ca --max-old-space-size=4096",
+      "exit": 0,
+      "generatedPages": 443
+    },
+    "traceability": {
+      "rows": 239,
+      "planTasks": 86,
+      "children": 62,
+      "acceptedPreparationTasks": 6,
+      "errors": 0
+    }
+  },
+  "limits": [
+    "No aceptación funcional de las 239 filas",
+    "No copia de datos de la cuenta anterior",
+    "Sin seed, despliegue de aplicación ni aceptación bancaria/PAC/canales",
+    "FC-12 concurrente no editado ni aceptado por este frente"
+  ],
+  "next": "INV-01.a; renovar HEAD/diff y caracterizar datos antes de backfill"
+}

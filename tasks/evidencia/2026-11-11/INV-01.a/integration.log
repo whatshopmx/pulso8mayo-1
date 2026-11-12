@@ -1,0 +1,21 @@
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+pnpm.cmd : (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to 
+become the default in a future major version of Vite:
+En línea: 2 Carácter: 66
++ ... size=4096'; pnpm.cmd exec vitest run --configLoader bundle --config v ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((!) Your Vite c...ersion of Vite::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": 
+"module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  04:29:40
+   Duration  42.95s (transform 2.74s, setup 841ms, import 9.98s, tests 24.77s, environment 1ms)
+

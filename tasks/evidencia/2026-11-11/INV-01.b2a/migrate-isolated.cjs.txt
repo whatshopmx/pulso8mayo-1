@@ -1,0 +1,15 @@
+const fs = require('node:fs');
+const { createHash } = require('node:crypto');
+const { parse } = require('dotenv');
+const { spawnSync } = require('node:child_process');
+const tag = '0138_inv01b_recipe_reader';
+const journal = JSON.parse(fs.readFileSync('drizzle/meta/_journal.json', 'utf8'));
+if (journal.entries.at(-1).tag !== tag) throw new Error('Lote posterior sin revisar');
+const hash = createHash('sha256').update(fs.readFileSync(`drizzle/${tag}.sql`)).digest('hex');
+if (hash !== 'a48f2fcf5de0f2d92d7325c6fa3e024b0b2b54210abf64842133c11b5bad474e') throw new Error('SQL distinto del revisado');
+const isolated = parse(fs.readFileSync('.env.test')).TEST_DATABASE_URL;
+if (new URL(isolated).hostname.replace(/-pooler(?=\.)/, '') !== 'ep-cold-morning-bewqoz3o.c-9.us-east-2.aws.neon.tech') throw new Error('Destino aislado inesperado');
+const result = spawnSync('cmd.exe', ['/d', '/c', 'pnpm.cmd', 'db:migrate'], { stdio: 'inherit', env: {
+  ...process.env, NODE_OPTIONS: '--use-system-ca --max-old-space-size=4096', DATABASE_URL: isolated, MIGRATION_DATABASE_URL: isolated,
+} });
+process.exit(result.status ?? 1);

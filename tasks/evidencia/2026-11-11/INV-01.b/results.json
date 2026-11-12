@@ -1,0 +1,48 @@
+﻿{
+    "fullUnitSuite":  {
+                          "exit":  0,
+                          "todo":  1,
+                          "skipped":  1,
+                          "files":  200,
+                          "passed":  2488
+                      },
+    "recordedAt":  "2026-11-12T12:25:41.1884458Z",
+    "environment":  "local",
+    "lint":  {
+                 "exit":  0
+             },
+    "focal":  {
+                  "newTests":  20,
+                  "generatedSequences":  150,
+                  "exit":  0,
+                  "passed":  47
+              },
+    "state":  "en curso: solo planificador V1; writer y V2 pendientes",
+    "traceability":  {
+                         "errors":  0,
+                         "rows":  239,
+                         "exit":  0
+                     },
+    "files":  [
+                  {
+                      "sha256":  "c0fdc5fcae9f029b2fb09be529a4a1896954d28db75671d964f479d2fe6a7997",
+                      "file":  "lib/services/sale-consumption-delta.ts"
+                  },
+                  {
+                      "sha256":  "23493e32d8fa5fbd6b23b23bb5fb51aadef7defaa014723c1470eaeef5becfb6",
+                      "file":  "lib/services/__tests__/sale-consumption-delta.test.ts"
+                  }
+              ],
+    "typescript":  {
+                       "exit":  0
+                   },
+    "head":  "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+    "build":  {
+                  "nodeOptions":  "--use-system-ca --max-old-space-size=4096",
+                  "exit":  0,
+                  "retry":  "network access",
+                  "command":  "pnpm.cmd run build",
+                  "restrictedAttempt":  "failed: Google Fonts network",
+                  "pages":  443
+              }
+}

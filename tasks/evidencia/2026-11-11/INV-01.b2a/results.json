@@ -1,0 +1,106 @@
+﻿{
+    "recordedAt":  "2026-11-12T12:57:20.749Z",
+    "head":  "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+    "state":  "aceptado V1,V2 en rama aislada",
+    "environment":  {
+                        "project":  "soft-cloud-50478212",
+                        "branch":  "br-round-voice-belheola",
+                        "main":  "br-steep-frog-bet3a8l6",
+                        "mainMigrations137138":  "PENDING"
+                    },
+    "commands":  [
+                     {
+                         "command":  "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd exec tsc --noEmit",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd exec eslint tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts lib/db/schema.ts",
+                         "exit":  0
+                     },
+                     {
+                         "command":  "pnpm.cmd run build",
+                         "exit":  0
+                     }
+                 ],
+    "checks":  {
+                   "unit":  {
+                                "passed":  85,
+                                "exit":  0
+                            },
+                   "integration":  {
+                                       "passed":  17,
+                                       "catalog":  5,
+                                       "snapshotRuntime":  1,
+                                       "identity":  7,
+                                       "harness":  4,
+                                       "exit":  0
+                                   },
+                   "typescript":  {
+                                      "exit":  0
+                                  },
+                   "lint":  {
+                                "errors":  0,
+                                "existingWarnings":  3,
+                                "exit":  0
+                            },
+                   "build":  {
+                                 "exit":  0,
+                                 "pages":  443,
+                                 "nodeOptions":  "--use-system-ca --max-old-space-size=4096"
+                             }
+               },
+    "migration":  {
+                      "tag":  "0138_inv01b_recipe_reader",
+                      "sha256":  "a48f2fcf5de0f2d92d7325c6fa3e024b0b2b54210abf64842133c11b5bad474e",
+                      "status":  "APPLIED isolated",
+                      "when":  1794487594765,
+                      "exit":  0
+                  },
+    "catalog":  {
+                    "rls":  true,
+                    "force":  false,
+                    "generalSelect":  false,
+                    "dml":  false,
+                    "ownerCompatibility":  true,
+                    "snapshotDiffTables":  4,
+                    "otherSnapshotChanges":  0
+                },
+    "files":  [
+                  {
+                      "file":  "lib/db/schema.ts",
+                      "sha256":  "a36e145bb8eda6f68e9ac8122efe2c1fbb4e141f12cda61e2e89b08a8aaac702"
+                  },
+                  {
+                      "file":  "drizzle/0138_inv01b_recipe_reader.sql",
+                      "sha256":  "a48f2fcf5de0f2d92d7325c6fa3e024b0b2b54210abf64842133c11b5bad474e"
+                  },
+                  {
+                      "file":  "drizzle/meta/_journal.json",
+                      "sha256":  "d2933591c0ee74113c20cdb605b5ed332c879a4c9900ca1ad6aacbcd03b44fce"
+                  },
+                  {
+                      "file":  "drizzle/meta/0138_snapshot.json",
+                      "sha256":  "31d78915680dd40570092e3ae1f99a2289a52e403fd791f57dbacfeb3251f796"
+                  },
+                  {
+                      "file":  "tests/integration/sale-recipe-catalog-rls-db.test.ts",
+                      "sha256":  "e417c72e6363c442198f39473c83978dd861f6da97b2edbb5da4f23244a4584b"
+                  }
+              ],
+    "traceability":  {
+                         "children":  69,
+                         "acceptedTasks":  12,
+                         "command":  "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+                         "errors":  0,
+                         "exit":  0,
+                         "rows":  239
+                     }
+}

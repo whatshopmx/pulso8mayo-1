@@ -1,0 +1,723 @@
+# Plan de implementación de faltantes — revisión basada en investigación
+
+Fecha: 2026-11-11. Revisión 2 del plan de la misma fecha.
+
+Fuente principal: [investigación del sistema](../docs/2026-11-11-investigacion-plan-faltantes.md). Alcance de referencia: las 239 filas de [la matriz histórica](../docs/matriz-cumplimiento-sistema-2026-10-17.csv) y H01–H10. Ejecución: [checklist de faltantes](../tasks/todo-implementacion-faltantes.md).
+
+## 1. Resultado esperado y límites
+
+Cerrar brechas con recorridos verificables: venta corregida → consumo correcto; producción → stock terminado; asistencia aprobada → nómina explicable → obligación/pago; corte → liquidación → depósito; documento → evidencia/aprobación/excepción; período → P&L histórico.
+
+Este plan sustituye la secuencia y las dependencias de la versión anterior. Conserva IDs mediante equivalencias. No declara las 239 filas cubiertas hasta completar P0-03 ni convierte código localizado en aceptación. La revisión verificó 157 unitarias en 7 archivos, no el sistema completo ni producción.
+
+Base de investigación: HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más cambios locales. P0-01 debe renovarla al iniciar: hay trabajo concurrente y el diff no está congelado.
+
+## 2. Qué se reutiliza y qué cambia
+
+| Evidencia existente | Tratamiento del plan |
+|---|---|
+| Evidencia durable y API común | Ampliar sujetos y recorridos; conservar almacenamiento y controles existentes. |
+| Excepciones canónicas, lifecycle y reglas SLA con unitarias | Aceptar persistencia, sync, concurrencia y job; conectar acciones UI. |
+| Recepción con conversión de costo y temperatura obligatoria | Aceptar V2/V3 por fila; no reimplementar. |
+| Banca, cuentas, matching de salidas y depósitos | Validar recorridos y completar identidad/corrección de hechos; conservar contratos. |
+| Comisiones y P&L con procedencia/cobertura | Separar importe reportado de conciliación; no confundir etiquetas con evidencia bancaria. |
+| FiscalAPI integrado | Reutilizar proveedor y validar sandbox/configuración; no iniciar otra integración. |
+| Producción transaccional con FEFO, ingredientes, costo y hold time | Añadir stock terminado y consumo correcto; conservar estas garantías. |
+| Ceros silenciosos de nómina y carga patronal fija | Calcular con entradas/versiones y bloquear resultados incompletos. |
+| Migraciones RLS contables posteriores a 0123 | Inventariar también estas políticas y privilegios; no asumir despliegue. |
+
+## 3. Contrato de ejecución
+
+- Tipos: **I** implementación o ampliación; **A** aceptación de base existente, con corrección solo si falla; **R** rastreo/decisión con evidencia.
+- Tamaños: **S** 1–2 archivos, **M** 3–5 incluyendo pruebas/migración. **P** es un padre de coordinación: subdividir por documento, dominio, canal, perfil o módulo antes de programar. No es un ticket M disfrazado.
+- Los archivos de cada fase son puntos de entrada orientativos. Cada ticket elige archivos concretos y se subdivide si rebasa 5 o una sesión enfocada. Consultar CodeGraph antes de decisiones estructurales.
+- Toda escritura verifica sesión/capacidad, empresa y alcance de sucursal; jobs declaran contexto. Dinero en centavos enteros, cantidades con unidad y precisión explícitas.
+- Toda fórmula fiscal/laboral exige fuente oficial, vigencia y oráculo independiente antes de implementarse. Este documento no fija tasas legales.
+- Migraciones aditivas mediante `pnpm.cmd db:generate`, revisión SQL y número del journal vigente; nunca `db:push`, DROP ni cambios improvisados de migraciones ya aplicadas.
+- Una reversa de datos no equivale a rollback de despliegue. Preferir bandera compatible, reversa compensatoria o corrección auditada; preservar hechos.
+- Estados: pendiente → en curso → código implementado → V1 → V2 → V3 → aceptado. Registrar no aplicable con causa; no saltar a aceptado por tener tests o archivos.
+- Evidencia por hijo ejecutable: `tasks/evidencia/2026-11-11/<ID>/`, con HEAD/diff, entorno sin secretos, comandos, exit, casos, resultado y límites. Un padre cierra solo con todos sus hijos y filas acreditados.
+- Datos sintéticos prueban contratos técnicos. Un recorrido operativo real o sandbox identificado se acredita por separado. Un pendiente externo bloquea solo su aceptación dependiente.
+
+### Verificación por ticket
+
+| Código | Comprobación exigida |
+|---|---|
+| D | Integridad documental: IDs/enlaces/dependencias, filas y correspondencia con evidencia. No requiere build si solo cambia documentación. |
+| V1 | Pruebas focalizadas con caso feliz, vacío y error; `pnpm.cmd exec tsc --noEmit`; lint de archivos afectados. Cálculos con oráculos independientes. |
+| V2 | Postgres aislado, dos empresas/dos sucursales, runtime NOBYPASSRLS, rollback, idempotencia y carreras cuando apliquen. Confirmar aislamiento antes de ejecutar. |
+| V3 | API/navegador, capacidades y alcance; probar errores visibles y recuperación. Nunca sustituir banco/PAC/canal por un mock para afirmar aceptación externa. |
+
+Comando unitario de referencia en este Windows: `pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads <archivos>`. Integración: `pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts <archivos>`. Navegador: `pnpm.cmd exec playwright test <spec>`. Seleccionar archivos reales al abrir el ticket.
+
+Checkpoint después de cada 2–3 tickets ejecutables: pruebas del recorrido afectado y tipos/lint; build `pnpm.cmd run build` al cerrar hito de código y antes de commit; V2/V3 aplicables antes de aceptación. Registrar fallos preexistentes con evidencia, sin ocultarlos. La revisión del checkpoint no requiere una nueva autorización para continuar trabajo ya encargado.
+
+## 4. Orden de trabajo
+
+Las secciones siguientes son frentes temáticos, no una secuencia rígida de fases. **Mandan las dependencias de cada ticket**. Se comprobaron IDs únicos, referencias internas y ausencia de ciclos.
+
+1. Preparar P0-01/02/03/04, SEC-00 y P0-05. Resolver cualquier huérfana de la matriz antes de cerrar P0.
+2. Iniciar AUD-02 y el frente INV-01.a/b/c/d → INV-02. Son la primera entrega de integridad: corregir/repetir/anular no corrompe stock.
+3. Preparar SEC-05.tesoreria → BAN-01 → BAN-04. Desarrollar nómina desde NOM-01 y producción desde PROD-00 según disponibilidad.
+4. Completar ingresos/depósitos/comisiones con FC-12 coordinado; conectar nómina con tesorería y cerrar snapshots.
+5. Aceptar excepciones/evidencia y ampliar operación; ejecutar rastreos antes de afirmar ausencia de implementación.
+6. Completar centros de costo/cierre financiero/canales y las validaciones por dominio. Seguridad se incorpora en cada frente; la fase 8 completa cobertura y perfiles.
+7. Aplicar lotes estables mediante OPS-03 dentro de cada hito cuando corresponda; piloto y cierre de matriz al final.
+
+Migraciones, journal, `payroll-service.ts`, `pnl-service.ts`, `operating-config` y archivos de conciliación/contabilidad compartidos se editan secuencialmente. No iniciar trabajo paralelo sobre ellos. Este plan no inicia agentes ni modifica el estado de otros frentes.
+
+## 5. Tickets y criterios de aceptación
+
+Todos los tickets parten pendientes. Las pruebas previas son evidencia de base, no cierre automático. Dependencias y verificación de cada ticket son obligatorias además del contrato de la sección 3.
+
+### 0. Base, trazabilidad y aislamiento
+
+Entradas de código/documentación: `docs/matriz-cumplimiento-sistema-2026-10-17.csv`, `drizzle/meta/_journal.json`, `tests/integration/setup.ts`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### P0-01 — Fijar la base de ejecución
+
+**Tipo/tamaño:** R / S. **Depende de:** —. **Verificación:** D.
+
+**Entrega y aceptación:** Registrar HEAD, diff y archivos nuevos; identificar cambios de otras sesiones sin commit automático; comprobar aislamiento de .env.test sin registrar secretos.
+
+#### P0-02 — Actualizar la matriz de 239 filas
+
+**Tipo/tamaño:** R / S. **Depende de:** P0-01. **Verificación:** D.
+
+**Entrega y aceptación:** Crear docs/matriz-cumplimiento-sistema-2026-11-11.csv con estado anterior/nuevo, delta, evidencia y límite; 239 IDs únicos; banca 17.12–17.14 deja de figurar ausente si se acredita su implementación, sin darla por aceptada.
+
+#### P0-03 — Construir el mapa fila → tarea → evidencia
+
+**Tipo/tamaño:** R / M. **Depende de:** P0-02. **Verificación:** D.
+
+**Entrega y aceptación:** Cada ID de la matriz tiene tarea ejecutable o aceptación explícita; detectar huérfanas, referencias inexistentes y cierres sin evidencia mediante un validador reproducible.
+
+#### P0-04 — Inventariar migraciones por entorno
+
+**Tipo/tamaño:** R / M. **Depende de:** P0-01. **Verificación:** D,V2.
+
+**Entrega y aceptación:** Manifiesto por tabla/política/privilegio/rol y migración aplicada o pendiente; incluir 0101, 0103–0108, 0123 y contabilidad posterior hasta el journal vigente; no inferir aplicación por archivo local.
+
+#### SEC-00 — Comprobar el arnés de aislamiento
+
+**Tipo/tamaño:** A / M. **Depende de:** P0-04. **Verificación:** V2.
+
+**Entrega y aceptación:** Rol de prueba NOBYPASSRLS y dos empresas/dos sucursales; distinguir acceso de propietario y runtime; una prueba de escritura/lectura ajena falla sin alterar datos ajenos.
+
+#### P0-05 — Coordinar los frentes bancario y contable
+
+**Tipo/tamaño:** R / S. **Depende de:** P0-03. **Verificación:** D.
+
+**Entrega y aceptación:** Registrar responsables/estado de FC-12 y circuito bancario, contratos compartidos y evidencias reutilizables; ninguna tarea duplica trabajo ni supone que un cambio local está desplegado.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 1. Corrección y recuperación del consumo de ventas
+
+Entradas de código/documentación: `lib/services/sales-ingest-service.ts`, `lib/services/theoretical-consumption-service.ts`, `pruebas focalizadas de consumo`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### INV-01.a — Definir identidad y revisión de venta consumida
+
+**Tipo/tamaño:** I / P. **Depende de:** P0-03, SEC-00. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Contrato por empresa/sucursal/fuente/producto/fecha y revisión; cantidad previa y consumo aplicado son reconstruibles; caracterizar datos existentes antes del backfill.
+
+Descomposición de ejecución (2026-11-11), materializada en el mapa P0-03:
+
+- **INV-01.a1**, I/M, V1: contrato puro y caracterización. `sale-consumption-contract.ts`, su prueba unitaria y ficha de contrato/datos. Hereda P0-03 y SEC-00. Identidad separada de receta, día civil, cantidades exactas y revisión previa explícita; sin backfill supuesto.
+- **INV-01.a2**, I/M, V1,V2: persistencia append-only, cadena y aislamiento. Depende de INV-01.a1 además de las dependencias heredadas. Archivos de implementación: `lib/db/schema.ts`, migración generada 0137, journal, snapshot y `sale-consumption-identity-db.test.ts`. Evidencia y actualización documental son un incremento separado. Probar dos empresas/sucursales, grants runtime, antes reconstruible, inmutabilidad y rollback. No sustituye la aplicación de stock de INV-01.b.
+
+El padre cierra con ambos hijos acreditados. La instalación en main se registra separadamente: aceptar V2 en la rama aislada no afirma despliegue operativo.
+
+#### INV-01.b — Aplicar venta y diferencial de consumo atómicamente
+
+**Tipo/tamaño:** I / P. **Depende de:** INV-01.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** 10→12 descuenta 2; 12→8 devuelve 4 según la asignación original; repetir no mueve stock; cambio de receta revierte/aplica con procedencia; insuficiencia deja toda la revisión sin aplicar.
+
+Descomposición de ejecución para respetar el límite de archivos, materializada en el mapa:
+
+- **INV-01.b1**, I/M, V1: planificador exacto del diferencial y su prueba (`sale-consumption-delta.ts`, `sale-consumption-delta.test.ts`). Depende de INV-01.a. Devolución limitada a asignación original, sin mutar el head; receta cambiada exige revertir/aplicar.
+- **INV-01.b2a**, I/M, V1,V2: políticas de lectura por empresa y privilegios mínimos del catálogo usado por el snapshot. Depende de INV-01.a; preparación exigida por b2 tras comprobar catálogo real sin RLS/permisos. Scope previsto: schema raíz, SQL/migración generada, journal, snapshot y prueba SQL de permisos/aislamiento (cinco archivos). Tablas recipes, recipe_items, inventory_items, unit_conversions; lectura de columnas necesarias, sin DML; sin contexto no lee, empresa ajena no lee, dos sucursales propias comparten catálogo. Verificar compatibilidad de conexiones actuales antes de FORCE RLS. No sustituye seguridad de escrituras de SEC-05.inventario/recetas.
+- **INV-01.b2**, I/M, V1,V2: snapshot de servidor, demanda racional y lectura acotada (`sale-consumption-snapshot.ts`, `sale-consumption-reader.ts`, sus pruebas unitaria e integración). Depende de INV-01.a e INV-01.b2a. Subrecetas, unidades/rendimiento, huella estable al roundtrip JSONB y datos congelados. V2 exige lector con rol runtime y alcance entre empresas; la prueba dueña de caracterización no lo sustituye. Los permisos/migración que se descubran se abren como hijo específico y dependencia, sin bajar esta puerta. Runtime de aplicación de stock corresponde además a b3 y SEC-05.inventario.
+- **INV-01.b3a**, I/M, V1,V2: persistir ingreso nullable por revisión, RLS y privilegios mínimos de aplicación sobre inventory_batches, inventory_movements y sales_entries. Depende de INV-01.a y b2a. Archivos: schema raíz, SQL 0139 generado, journal, snapshot y `sale-consumption-application-schema-db.test.ts` (cinco). NULL identifica histórico sin evidencia monetaria; no backfill ni default cero. Runtime puede actualizar saldo de lotes propios, insertar movimientos propios y proyectar ventas propias; sin crear/borrar lotes, reescribir movimientos ni borrar ventas. Probar dos empresas/tres sucursales, denegaciones reales y rollback. Mantener compatibilidad dueña sin atribuir cierre de SEC-05.
+- **INV-01.b3**, I/M, V1,V2: writer transaccional (`sale-consumption-service.ts` y pruebas focales de aplicación). Depende de INV-01.a, b1, b2 y b3a. Reservas/devoluciones y procedencia reales, venta agregada e ingreso y revisión en la misma transacción; insuficiencia revierte todo; reintento no mueve stock. Histórico sin consumo/ingreso demostrado o proyección discordante requiere recuperación explícita, nunca adopción silenciosa.
+- **INV-01.b4a**, I/M, V1: normalización y agrupación exacta de importación. Depende de INV-01.a y b3. Archivos: `sale-consumption-contract.ts`, `sales-ingest-pure.ts`, `sales-ingest-plan.ts`, `sales-ingest-revisions.test.ts`. Cero para anular; fecha civil real; precisión/rango sin redondeo silencioso; clave de producto separada de receta; agrupar cantidades exactas; un grupo inválido no se aplica parcialmente. Ingreso ausente permanece null, no se inventa cero.
+- **INV-01.b4b**, I/M, V1,V2: conectar ingestión al writer y conservar importaciones de cantidad sin importe con ingreso no reportado. Depende de INV-01.a, b3 y b4a. Scope: servicio de ingestión, writer, sus pruebas unitarias/integración (máximo cinco archivos; subdividir si excede). Resolver receta bajo el mismo contexto runtime; no convertir NULL en cero canónico ni adoptar consumo previo no demostrado. La proyección legada de ingreso conocido debe declarar cobertura incompleta cuando corresponda.
+- **INV-01.b4**, I/M, V1,V2: conectar captura manual y fronteras bulk/smart-link al writer único, con errores y pruebas de alcance. Depende de INV-01.a, b3 y b4b. Archivos concretos se fijan al abrir cada frontera, subdividiendo si excede cinco. No mantener segundo camino de venta/consumo separados. La aceptación visible API/UI sigue en INV-01.d.
+
+[Registro y límites](../tasks/evidencia/2026-11-11/INV-01.b/README.md). El padre no se acepta hasta acreditar todos los hijos; ninguna fila se acepta por el planificador o el snapshot aislados.
+
+#### INV-01.c — Recuperar fallos y carreras
+
+**Tipo/tamaño:** I / M. **Depende de:** INV-01.b. **Verificación:** V2.
+
+**Entrega y aceptación:** Fallo entre venta y consumo revierte ambos; dos revisiones concurrentes no duplican movimientos; una venta antigua sin consumo se detecta y repara solo con evidencia suficiente.
+
+#### INV-01.d — Aceptar corrección y anulación por API/UI
+
+**Tipo/tamaño:** A / M. **Depende de:** INV-01.c. **Verificación:** V3.
+
+**Entrega y aceptación:** Importar, repetir, corregir y anular muestran saldos y errores explicables; usuario sin alcance y otra empresa no pueden modificar ni ver el recorrido.
+
+#### INV-02 — Definir quién consume cada receta
+
+**Tipo/tamaño:** I / M. **Depende de:** INV-01.c. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Cada versión declara consumo de insumos por venta o consumo del producto elaborado; fijar regla por vigencia y evitar cambiar el significado de movimientos históricos.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 2. Nómina calculada y explicable
+
+Entradas de código/documentación: `lib/services/payroll-service.ts`, `lib/services/fiscal-service.ts`, `lib/services/labor-cost-service.ts`, `pruebas de nómina`, `schema/migración solo si necesaria`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### NOM-01 — Fijar unidad salarial y vigencias
+
+**Tipo/tamaño:** I / M. **Depende de:** P0-03, SEC-00. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Sueldo diario/período, moneda, vigencias y calendario explícitos; cambios no recalculan períodos aprobados; datos incompletos producen causa visible.
+
+#### NOM-02.a — Calcular base desde asistencia aprobada
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-01. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Período con asistencia, falta y festivo tiene desglose verificable; distinguir asistencia pendiente y aprobada; fechas se interpretan en la zona operativa definida.
+
+#### NOM-02.b — Incorporar horas extra aprobadas
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Horas elegibles generan importe por regla vigente y autorización; período sin horas extra da cero justificado; rechazos y duplicados no aumentan pago.
+
+#### NOM-02.c1 — Incorporar vacaciones y permisos
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Saldos, fechas, autorización y concepto salarial quedan enlazados; ausencia de dato no se convierte en vacaciones pagadas ni falta automática.
+
+#### NOM-02.c2 — Incorporar bonos e incidencias
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Conceptos aprobados con importe y tratamiento explícitos entran una sola vez; cambios posteriores invalidan el borrador afectado.
+
+#### NOM-02.d1 — Calcular ISR ordinario
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Tablas/versiones y fecha de vigencia con fuente oficial registrada; casos de frontera contrastados con un oráculo independiente; falta de configuración impide aprobar.
+
+#### NOM-02.d2 — Calcular deducción obrera de seguridad social
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Bases, días y reglas vigentes explican cada deducción; conceptos y límites parametrizados con fuentes oficiales; sin base no se simula deducción cero.
+
+#### NOM-02.d3 — Aplicar préstamos y descuentos autorizados
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Cuota autorizada conserva saldo e historial; repetir período no cobra dos veces; cancelación o ajuste deja trazabilidad y reglas de límite.
+
+#### NOM-02.e — Sustituir la carga patronal fija del 35%
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-01, NOM-02.d2. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Cálculo patronal tiene bases, vigencias y conceptos; un estimado conserva etiqueta y no acredita costo medido; nómina y costo laboral usan el mismo resultado.
+
+#### NOM-06 — Bloquear resultados incompletos
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.b, NOM-02.c1, NOM-02.c2, NOM-02.d1, NOM-02.d2, NOM-02.d3, NOM-02.e. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** Cada cero tiene causa válida; la ausencia de datos bloquea aprobación/timbrado con mensaje recuperable; no usar ausencia de un literal de código como prueba de cálculo correcto.
+
+#### NOM-03 — Aprobar un snapshot inmutable
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-06. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Aprobación congela entradas/reglas/importes y actor; modificar una entrada invalida el borrador; carrera entre editar y aprobar no publica una versión obsoleta.
+
+#### NOM-04.a — Unificar recibos y exportación
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-03. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** Recibo y exportación toman el mismo snapshot/versionado; sumas y neto coinciden; reexportar no recalcula asistencia.
+
+#### NOM-04.b — Aceptar timbrado con FiscalAPI existente
+
+**Tipo/tamaño:** A / M. **Depende de:** NOM-04.a. **Verificación:** V1,V2,V3.
+
+**Entrega y aceptación:** Mismo snapshot alimenta CFDI; sandbox cubre éxito, rechazo y reintento idempotente; guardar UUID/estado y dejar explícito si no se pudo validar el proveedor.
+
+#### NOM-05 — Enlazar obligación neta con tesorería
+
+**Tipo/tamaño:** I / M. **Depende de:** NOM-04.a, BAN-04. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Una obligación por empleado/período aprobado; pago parcial, repetición y conciliación conservan neto/saldo; CFDI y pago mantienen estados independientes.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 3. Banca, comisiones y coordinación con FC-12
+
+Entradas de código/documentación: `lib/services/bank-statement-service.ts`, `lib/services/commission-service.ts`, `lib/services/accounting/settlement-adapter.ts`, `components/finance`, `pruebas bancarias/contables`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### SEC-05.tesoreria — Aceptar RLS y privilegios de tesorería
+
+**Tipo/tamaño:** A / M. **Depende de:** SEC-00, P0-05. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Inventariar tablas bancarias y pagos; probar HTTP/job con rol runtime, dos empresas y alcances; ampliar solo políticas/privilegios faltantes.
+
+#### BAN-01 — Aceptar cuentas e importación bancaria
+
+**Tipo/tamaño:** A / M. **Depende de:** SEC-05.tesoreria. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Cuenta de empresa correcta, datos bancarios protegidos y archivo real anonimizado o sandbox identificado; reimportación no duplica; errores por línea son visibles.
+
+#### BAN-04 — Aceptar matching de egresos
+
+**Tipo/tamaño:** A / M. **Depende de:** BAN-01. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Confirmar, repetir y deshacer cruce sin hecho contable conserva obligación/pago/movimiento; carreras dan resultado único; confirmación manual y conciliación bancaria se distinguen.
+
+#### BAN-05 — Completar identidad de ingresos esperados
+
+**Tipo/tamaño:** I / M. **Depende de:** BAN-01, INV-01.c. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Corte/terminal/agregador conservan fuente, fecha, bruto, comisión, neto esperado y cuenta destino; no equiparar venta, liquidación y depósito; ambigüedad permanece pendiente.
+
+#### BAN-06.a — Aceptar conciliación de depósitos existente
+
+**Tipo/tamaño:** A / M. **Depende de:** BAN-05, P0-05. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Sugerir no confirma; confirmación valida destino/neto/empresa y es idempotente; depósito agrupado no soportado queda pendiente explícito, sin inventar un vínculo.
+
+#### BAN-06.b — Resolver corrección auditada de un depósito contabilizado
+
+**Tipo/tamaño:** I / M. **Depende de:** BAN-06.a, AUD-02. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Reutilizar el contrato de reversa de FC-12 si ya existe; en otro caso agregar corrección con actor/motivo/versiones; nunca borrar el hecho contable ni liberar saldo dos veces.
+
+#### FIN-06.a — Separar importe reportado y conciliado
+
+**Tipo/tamaño:** I / M. **Depende de:** BAN-06.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Declarar procedencia del importe y estado de conciliación por separado; pendiente/discrepante/confirmado y comisión documentada cero tienen etiquetas coherentes en API y P&L.
+
+#### FIN-06.b — Aceptar comisiones e ingresos por canal
+
+**Tipo/tamaño:** A / M. **Depende de:** FIN-06.a, BAN-06.b. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Tarifa estimada, comisión reportada y comisión conciliada se distinguen; neto/bruto/IVA/diferencia cuadran según fuente; un dato faltante no se presenta como costo firme.
+
+#### FIN-01 — Distinguir saldo conciliado de caja proyectada
+
+**Tipo/tamaño:** I / M. **Depende de:** BAN-04, BAN-06.a. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** UI declara fecha, cuenta y fuente del saldo; si no existe ancla bancaria no calcula un saldo absoluto aparente; proyección permanece identificada como estimación.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 4. Evidencia, excepciones y aprobaciones
+
+Entradas de código/documentación: `lib/services/evidence-store.ts`, `lib/services/exception-service.ts`, `lib/services/audit-service.ts`, `app/dashboard/exceptions/page.tsx`, `APIs y pruebas del recorrido`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### AUD-02 — Hacer obligatoria la auditoría crítica
+
+**Tipo/tamaño:** I / M. **Depende de:** SEC-00, P0-03. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Inventario de acciones críticas; motivo obligatorio según acción y auditoría en la misma transacción; fallo al auditar revierte mutación; conservar usos no críticos explícitos.
+
+#### EVI-02.a — Añadir sujetos de evidencia
+
+**Tipo/tamaño:** I / M. **Depende de:** SEC-00. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** INVOICE/PAYMENT/EXCEPTION se validan contra entidad, empresa y sucursal; adjunto a entidad ajena se rechaza; no perder contratos de evidencia actuales.
+
+#### EVI-02.b — Conectar evidencia al recorrido visible
+
+**Tipo/tamaño:** I / M. **Depende de:** EVI-02.a. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Alta/lectura/baja lógica desde cada documento conserva autor/procedencia; dos empresas no acceden al archivo ni metadatos ajenos; reinicio conserva acceso autorizado.
+
+#### EXC-01 — Aceptar persistencia canónica de excepciones
+
+**Tipo/tamaño:** A / M. **Depende de:** SEC-00. **Verificación:** V2.
+
+**Entrega y aceptación:** Migración aplicable a base aislada; unicidad, RLS y rollback acreditados; ninguna prueba depende solo de mocks.
+
+#### EXC-02 — Aceptar sync legacy → canónico
+
+**Tipo/tamaño:** A / M. **Depende de:** EXC-01. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Repetir sync no duplica; comparar conteos/identidades y bandera reversible; salida del feed legacy declara el estado canónico cuando exista.
+
+#### EXC-03.a — Probar lifecycle concurrente
+
+**Tipo/tamaño:** A / M. **Depende de:** EXC-02, AUD-02. **Verificación:** V2.
+
+**Entrega y aceptación:** Dos acciones simultáneas no pisan estado; verificador distinto de resolvedor; transición inválida no deja cambio ni auditoría parcial.
+
+#### EXC-03.b — Probar job recuperable de SLA
+
+**Tipo/tamaño:** A / M. **Depende de:** EXC-03.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Reloj controlado y caída/reintento no duplican escalamiento; respetar empresa y estado terminal; reutilizar reglas unitarias ya existentes.
+
+#### EXC-05 — Conectar acciones canónicas en la UI
+
+**Tipo/tamaño:** I / M. **Depende de:** EXC-02, EXC-03.a. **Verificación:** V3.
+
+**Entrega y aceptación:** Asignar/iniciar/resolver/verificar/cerrar/reabrir llaman APIs autorizadas; UI refleja capacidades y conflicto concurrente; el feed no acredita una acción inexistente.
+
+#### EXC-04.merma — Completar excepción de merma
+
+**Tipo/tamaño:** I / M. **Depende de:** EXC-03.b, INV-04. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Umbral/versionado/owner y cierre con evidencia; evento repetido no crea otra excepción para el mismo hecho.
+
+#### EXC-04.presupuesto — Completar excepción de presupuesto
+
+**Tipo/tamaño:** I / M. **Depende de:** EXC-03.b. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Gasto fuera de presupuesto conserva regla y responsable; autorización y cierre auditados; repetición no duplica.
+
+#### EXC-04.ausencia — Completar excepción de ausencia
+
+**Tipo/tamaño:** I / M. **Depende de:** EXC-03.b, NOM-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Falta aprobada se distingue de asistencia pendiente; detección y regularización conservan responsable e historial.
+
+#### EXC-04.banco — Completar excepción bancaria
+
+**Tipo/tamaño:** I / M. **Depende de:** EXC-03.b, BAN-04, BAN-06.a. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Pago/depósito pendiente o discrepante conserva fuente y antigüedad; conciliación resuelve con trazabilidad sin ocultar una diferencia.
+
+#### APR-01 — Alinear aprobación de documentos
+
+**Tipo/tamaño:** I / P. **Depende de:** AUD-02, NOM-03, BAN-04. **Verificación:** V1,V2,V3.
+
+**Entrega y aceptación:** OC/OS/gasto/pago/nómina declaran versión aprobada y autoridad; cambio material invalida aprobación; mantener especializaciones existentes.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 5. Producción, conteos y costos de inventario
+
+Entradas de código/documentación: `lib/services/production-service.ts`, `lib/services/theoretical-consumption-service.ts`, `lib/db/schema`, `APIs de inventario`, `pruebas de producción/conteos`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### PROD-00 — Rastrear modelos y consumidores de producción
+
+**Tipo/tamaño:** R / S. **Depende de:** INV-02. **Verificación:** D.
+
+**Entrega y aceptación:** Mapa production_orders/results/plans/batches y consumidores reales; decidir modelo fuente y compatibilidad sin eliminar históricos por inferencia.
+
+#### PROD-01.a — Crear lote de producto terminado
+
+**Tipo/tamaño:** I / M. **Depende de:** PROD-00. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Cierre crea cantidad/unidad/costo/caducidad y vínculo al resultado; consumo de ingredientes y alta terminada comparten transacción; sin insumos no hay stock ficticio.
+
+#### PROD-01.b — Consumir elaborado sin descontar dos veces
+
+**Tipo/tamaño:** I / M. **Depende de:** PROD-01.a. **Verificación:** V2.
+
+**Entrega y aceptación:** Vender subreceta consume su lote terminado según INV-02; genealogía llega a ingredientes; dos cierres/reintentos no duplican lotes ni movimientos.
+
+#### PROD-02 — Unificar planificación y ejecución visible
+
+**Tipo/tamaño:** I / M. **Depende de:** PROD-01.b. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Prep list, orden, resultado y hold time usan el modelo acordado; UI muestra saldo/caducidad/procedencia; legado se conserva con migración controlada si hace falta.
+
+#### REC-03A — Revalidar lotes con anomalía histórica
+
+**Tipo/tamaño:** R / M. **Depende de:** P0-04, SEC-00. **Verificación:** V2.
+
+**Entrega y aceptación:** Dry-run por lote en copia aislada clasifica evidencia suficiente/ambigua; no asumir cuatro lotes ni fabricar saldos.
+
+#### REC-03B — Aceptar protocolo de corrección histórica
+
+**Tipo/tamaño:** A / M. **Depende de:** REC-03A, AUD-02. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Conteo, unidad, actor, motivo y aprobación separada; repetición no duplica ajuste; lotes ambiguos permanecen retenidos; aplicar datos operativos solo al lote respaldado.
+
+#### INV-03 — Completar conteo → revisión → ajuste
+
+**Tipo/tamaño:** I / M. **Depende de:** PROD-02, AUD-02. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Actores distintos, versión revisada y ajuste único; conteo obsoleto no pisa saldo nuevo; lotes heredados afectados siguen protocolo REC-03B.
+
+#### INV-04 — Congelar costo y varianza del período
+
+**Tipo/tamaño:** I / M. **Depende de:** INV-03. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Snapshot tiene fuentes, unidades, versión y reglas de cierre/reapertura; lectura histórica no recalcula contra costo actual.
+
+#### INV-05 — Aceptar PAR/min-max y snapshots
+
+**Tipo/tamaño:** A / M. **Depende de:** INV-03. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Capturar parámetros por sucursal, leerlos y demostrar efecto en reporte; faltantes, cambios y alcance tienen resultados visibles.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 6. Operación, mantenimiento, delivery y cumplimiento
+
+Entradas de código/documentación: `lib/services/equipment-service.ts`, `lib/inngest/functions`, `templates`, `APIs/UI del módulo descubierto`, `pruebas focalizadas`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### OPE-00 — Rastrear writers y recorridos operativos
+
+**Tipo/tamaño:** R / S. **Depende de:** P0-03. **Verificación:** D.
+
+**Entrega y aceptación:** Localizar escritura de recurrencias, generadores, delivery y planes correctivos con CodeGraph; clasificar implementado/parcial/no localizado y fijar archivos concretos antes de programar.
+
+#### OPE-01.a — Completar configuración de recurrencias
+
+**Tipo/tamaño:** I / M. **Depende de:** OPE-00, SEC-00. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** API/UI autorizadas escriben frecuencia, zona, responsable y vigencia; fechas inválidas y sucursal ajena se rechazan; reutilizar writer si se localiza.
+
+#### OPE-01.b — Generar órdenes de forma durable
+
+**Tipo/tamaño:** I / M. **Depende de:** OPE-01.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Clave por programación/ocurrencia evita duplicados; caída y reintento no pierden ni repiten orden; cierre y siguiente ocurrencia siguen una regla explícita.
+
+#### OPE-02 — Completar historial de mantenimiento
+
+**Tipo/tamaño:** I / M. **Depende de:** OPE-01.b. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** Downtime/costo/reincidencia y recomendación reparar/reemplazar son explicables por equipo; sin historial no se inventa recomendación.
+
+#### OPE-03.aceite — Completar medición de aceite
+
+**Tipo/tamaño:** I / M. **Depende de:** OPE-00. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** Lectura/unidad/límite vigente y recambio con responsable; fuera de rango genera acción; historial conserva mediciones y evidencia.
+
+#### OPE-03.cocina — Aceptar rutina de cocina
+
+**Tipo/tamaño:** A / M. **Depende de:** OPE-00. **Verificación:** V3.
+
+**Entrega y aceptación:** Estación/responsable/ejecución/verificación y evidencia reales; plantilla sola no acredita cumplimiento.
+
+#### OPE-03.salon — Aceptar rutina de salón/counter
+
+**Tipo/tamaño:** A / M. **Depende de:** OPE-00. **Verificación:** V3.
+
+**Entrega y aceptación:** Asignación y ejecución con pendientes verificables; rechazo y evidencia ausente se muestran sin cierre falso.
+
+#### OPE-03.gerente — Aceptar checklist del gerente
+
+**Tipo/tamaño:** A / M. **Depende de:** OPE-00. **Verificación:** V3.
+
+**Entrega y aceptación:** Checklist ejecutado enlaza evidencia y acciones; gerente no acredita otra sucursal; ejecución incompleta permanece pendiente.
+
+#### OPE-03.handoff — Completar entrega de turno
+
+**Tipo/tamaño:** I / M. **Depende de:** OPE-00. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Pendientes conservan origen y responsable; receptor acepta explícitamente; reintento no pierde ni duplica pendientes.
+
+#### OPE-04 — Capturar disponibilidad delivery
+
+**Tipo/tamaño:** I / M. **Depende de:** OPE-00. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** Primera entrega manual registra canal/online-offline/motivo/actor/hora y alerta por umbral; no afirmar control remoto de plataforma sin integración verificada.
+
+#### CMP-01 — Cerrar planes correctivos con historial
+
+**Tipo/tamaño:** I / M. **Depende de:** OPE-00, EXC-03.a, EVI-02.b. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Acción, evidencia y verificador habilitan cierre; reapertura conserva historia; excepción y plan no se cierran mutuamente sin verificar criterios.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 7. Finanzas históricas, centros de costo y canales
+
+Entradas de código/documentación: `lib/services/pnl-service.ts`, `lib/services/treasury-service.ts`, `lib/services/sales-ingest-service.ts`, `APIs/UI de finanzas`, `pruebas del módulo`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### FIN-02.a — Fijar contrato de cierre financiero
+
+**Tipo/tamaño:** I / M. **Depende de:** P0-03, AUD-02. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Estados borrador/cerrado/reabierto con versión y motivo; cerrar dos veces no duplica; definir datos faltantes que bloquean o declaran provisionalidad.
+
+#### FIN-03.a — Completar imputación a centro de costo
+
+**Tipo/tamaño:** I / M. **Depende de:** FIN-02.a. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Cada fuente conserva centro explícito o categoría sin imputar; validar empresa/vigencia; no inferir centro por nombre o cuenta bancaria.
+
+#### FIN-03.b — Reportar P&L por centro de costo
+
+**Tipo/tamaño:** I / M. **Depende de:** FIN-03.a. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** Centros más sin imputar cuadran con sucursal; conservar cobertura/procedencia/comisiones/caja chica; no prorratear sin regla declarada.
+
+#### FIN-04 — Completar solicitud de pago trazable
+
+**Tipo/tamaño:** I / M. **Depende de:** BAN-04, APR-01. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Reutilizar solicitud/corrida si cubre el contrato; solicitud tiene obligación, aprobación, saldo y estado independiente de ejecución; repetición no duplica deuda.
+
+#### FIN-05 — Aceptar presupuestos y períodos
+
+**Tipo/tamaño:** A / M. **Depende de:** FIN-02.a. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Alta, consumo, cierre y reapertura por empresa/período se demuestran; gasto rechazado no consume presupuesto; cambios conservan versiones.
+
+#### FIN-02.b — Leer P&L congelado
+
+**Tipo/tamaño:** I / M. **Depende de:** FIN-02.a, FIN-03.b, INV-04, NOM-05, FIN-06.b. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Período cerrado mantiene valores/fuentes pese a cambios operativos; reapertura crea versión auditable; costo laboral usa resultado consistente con snapshot aprobado.
+
+#### FIN-07 — Definir indicadores económicos
+
+**Tipo/tamaño:** I / P. **Depende de:** FIN-02.b. **Verificación:** V1,V3.
+
+**Entrega y aceptación:** Food cost/prime cost/contribution/unit economics declaran fórmula/base/unidad/procedencia; oráculos independientes y datos ausentes verifican resultado y límites.
+
+#### INT-01 — Versionar mapeo de canal a receta/SKU
+
+**Tipo/tamaño:** I / M. **Depende de:** INV-02. **Verificación:** V1,V2.
+
+**Entrega y aceptación:** Identidad por fuente/canal/producto y vigencia; SKU ambiguo queda pendiente; una nueva versión no remapea consumos históricos.
+
+#### INT-02 — Completar importación por fuente disponible
+
+**Tipo/tamaño:** I / P. **Depende de:** INT-01, INV-01.d. **Verificación:** V1,V2,V3.
+
+**Entrega y aceptación:** Por formato disponible: importar/repetir/corregir/anular con errores por fila; conservar archivo/fuente; API del proveedor solo entra si está disponible y autorizada.
+
+#### INT-03 — Aceptar corte → mix → settlement → depósito
+
+**Tipo/tamaño:** A / M. **Depende de:** INT-02, FIN-06.b. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Cada etapa conserva su propia identidad/fecha/importe; repetir no duplica ingreso ni consumo; diferencias y depósitos ambiguos quedan gestionables.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+### 8. Seguridad restante, aceptación y despliegue
+
+Entradas de código/documentación: `lib/db/schema`, `lib/rbac`, `lib/branch-scope.ts`, `tests/integration`, `tests/e2e y evidencia por fila`. Elegir solo el subconjunto del ticket; descubrir el archivo exacto cuando sea una ubicación orientativa.
+
+#### SEC-05.nomina — Aceptar aislamiento de nómina
+
+**Tipo/tamaño:** A / M. **Depende de:** SEC-00, NOM-03. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** HTTP y jobs con rol runtime no leen/escriben nómina ajena; validar políticas heredadas de 0123 y permisos; ampliar solo brechas demostradas.
+
+#### SEC-05.inventario — Completar aislamiento de inventario
+
+**Tipo/tamaño:** I / M. **Depende de:** SEC-00, INV-01.c. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Items/lotes/movimientos con empresa/sucursal y rol runtime; denegación de lecturas y escrituras laterales; conservar recorridos FEFO.
+
+#### SEC-05.resto — Completar aislamiento por dominio
+
+**Tipo/tamaño:** I / P. **Depende de:** SEC-00, SEC-05.tesoreria, SEC-05.nomina, SEC-05.inventario. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Matriz organización/compras/mantenimiento/proyecciones; subdividir por dominio y tablas antes de ejecutar; cada lote prueba runtime y jobs, no solo dueño.
+
+#### PER-01 — Demostrar ocho perfiles
+
+**Tipo/tamaño:** A / P. **Depende de:** SEC-05.resto. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Director/operaciones/supervisor/gerente/finanzas/compras/RH/colaborador completan acciones permitidas y reciben denegaciones; probar alcance y menú/API coherentes sin asumir ocho roles nuevos.
+
+#### VAL-01.M01-M17 — Aceptar cada módulo y sus filas
+
+**Tipo/tamaño:** A / P. **Depende de:** P0-03. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Instanciar una ficha por módulo con IDs de filas, tareas terminadas, casos normal/vacío/error y alcance; una fila fallida baja de estado y abre tarea explícita.
+
+#### VAL-01.transversal — Aceptar recorridos transversales
+
+**Tipo/tamaño:** A / P. **Depende de:** INT-03, PER-01, CMP-01, EXC-04.merma, EXC-04.presupuesto, EXC-04.ausencia, EXC-04.banco. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Ventas/canales, ocho perfiles y los siete casos transversales identificados en la matriz tienen recorrido y evidencia individual; no sustituirlos por conteos de archivos.
+
+#### OPS-03 — Aplicar lotes revisados al entorno identificado
+
+**Tipo/tamaño:** A / P. **Depende de:** P0-04. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Instanciar por lote estable, solo después de aceptación y revisión SQL; respaldo/compatibilidad/verificación posterior; no borrar datos ni marcar despliegue por tener SQL local.
+
+#### VAL-02 — Ejecutar piloto, carga y restauración
+
+**Tipo/tamaño:** A / P. **Depende de:** VAL-01.M01-M17, VAL-01.transversal. **Verificación:** V2,V3.
+
+**Entrega y aceptación:** Probar 3/8/15 sucursales con objetivos medidos de latencia/errores fijados antes de correr; restauración verificada; datos sintéticos identificados y aceptación operativa real separada.
+
+#### VAL-03 — Cerrar trazabilidad de las 239 filas
+
+**Tipo/tamaño:** A / S. **Depende de:** VAL-02. **Verificación:** D.
+
+**Entrega y aceptación:** Todas las filas tienen evidencia válida o pendiente explícito; pendientes externos no cuentan como completos; registrar entorno y lotes realmente desplegados.
+
+**Puerta del frente:** todos los hijos requeridos aceptados, evidencia enlazada y filas afectadas actualizadas. Si un rastreo descubre trabajo ya completo, ejecutar aceptación y documentarlo; si descubre una brecha nueva, abrir hijo sin maquillar estados.
+
+## 6. Equivalencias con el plan anterior
+
+Los IDs padre siguientes siguen siendo referencias válidas para trazabilidad, pero no se ejecutan como tickets adicionales.
+
+| Referencia anterior | Destino actual |
+|---|---|
+| INV-01 | INV-01.a, INV-01.b, INV-01.c, INV-01.d |
+| NOM-02.c | NOM-02.c1, NOM-02.c2 |
+| NOM-02.d | NOM-02.d1, NOM-02.d2, NOM-02.d3 |
+| NOM-04 | NOM-04.a, NOM-04.b |
+| BAN-01/04 | BAN-01 y BAN-04; BAN-04 es el hito de aceptación de egresos |
+| BAN-06 | BAN-06.a, BAN-06.b |
+| FIN-06 | FIN-06.a, FIN-06.b |
+| FIN-03 | FIN-03.a, FIN-03.b |
+| EVI-02 | EVI-02.a, EVI-02.b |
+| PROD-01 | PROD-01.a, PROD-01.b; precedidos por PROD-00 |
+| OPE-01 | OPE-01.a, OPE-01.b; precedidos por OPE-00 |
+| OPS-02.tesoreria | SEC-05.tesoreria; depende de SEC-00, no de BAN-04 |
+| OPS-02.nomina / inventario | SEC-05.nomina / SEC-05.inventario |
+| OPS-02.* | Sustituir por el dominio explícito y su preparación SEC-00; no conservar comodines en dependencias |
+| REC-03A / REC-03B | Definidos en este plan; REC-03B solo condiciona aplicación a lotes históricos afectados |
+| VAL-01.M01–M17 | Padre VAL-01.M01-M17; instanciar hijos según módulos e IDs reales de la matriz |
+
+`SEC-05.resto` depende explícitamente de los tres dominios nombrados, nunca de sí mismo. BAN-01 depende de la preparación/aceptación RLS y BAN-04 depende de BAN-01: se elimina el ciclo tesorería ↔ banca.
+
+La validación por módulo requiere P0-03 **y todas las tareas asignadas a sus filas**. El mapa generado en P0-03 materializa esas dependencias por hijo; el padre VAL-01.M01-M17 no permite saltarlas. OPS-03 también requiere la aceptación de cada lote concreto, además de P0-04.
+
+## 7. Decisiones, supuestos y límites externos
+
+| Tema | Supuesto de trabajo / tarea que lo resuelve | Qué queda pendiente si falta |
+|---|---|---|
+| FiscalAPI | Se conserva proveedor integrado; revisar configuración sin exponer secretos en NOM-04.b. | Solo aceptación externa de timbrado; no bloquea cálculo/snapshot/exportación. |
+| Banco/formato | Reutilizar parser y fuentes disponibles; identificar archivo real anonimizado o sandbox en BAN-01. | Aceptación bancaria externa; no fabricar evidencia con CSV generado. |
+| Canales | Primero formatos disponibles con identidad estable; API de proveedor es ampliación posterior según acceso. | Aceptación de cada fuente no disponible; no afirmar integración remota. |
+| Delivery | Primera entrega manual con historial/alertas. Integración que cambie estado en plataforma requiere contrato posterior. | Automatización remota fuera de esta primera entrega. |
+| Perfiles | Probar ocho perfiles mediante capacidades existentes; no crear ocho roles por defecto. | PER-01 documenta cualquier restricción que requiera decisión de producto. |
+| Colaborador | Mantener mínimo privilegio y comprobar tareas/instrucciones/evidencia; no ampliar acceso por inferencia. | Restricciones específicas se registran en P0-03/PER-01 antes de cambiar permisos. |
+| Comisiones | Procedencia del importe y conciliación son dimensiones distintas. | FIN-06.a resuelve representación y compatibilidad, sin rebautizar históricos sin respaldo. |
+| Datos/piloto | Usar sintéticos identificados para pruebas; validar existencia de entorno/cliente al programar piloto. | Aceptación operativa real permanece pendiente; no se presupone que existan 8 sucursales reales. |
+| FC-12 en curso | Referenciar [plan contable](../tasks/finanzas-contabilidad/plan.md) y [circuito bancario](../tasks/plan.md). | P0-05 resuelve integración y propiedad del cambio; no duplicar ni marcar trabajo ajeno como propio. |
+
+## 8. Estimación y puntos de control
+
+No se ratifica la cifra anterior de 175–217 días-persona: la investigación no estimó todo el sistema y varios frentes ya tienen código. Tampoco se promete un calendario total a partir de 86 entradas que incluyen padres por subdividir.
+
+- **Primer hito de planificación:** P0 y mapa de 239 filas. Al cerrarlo, estimar cada hijo en horas de implementación, prueba y aceptación; separar esperas externas.
+- **Primer hito funcional:** INV-01 completo, con rollback/reintento/corrección/anulación probados.
+- **Segundo hito funcional:** una nómina explicable desde asistencia hasta snapshot/recibo, con carga patronal y deducciones trazables; declarar timbrado externo aparte.
+- **Tercer hito funcional:** egreso e ingreso conciliados, comisiones con procedencia y corrección contable aceptada.
+- **Hitos siguientes:** stock terminado, excepciones/operación, cierre financiero y perfiles por módulo.
+- Reestimar después de P0, de la primera entrega funcional y de cada rastreo. S/M delimitan el trabajo; no son estimaciones de duración garantizadas.
+
+## 9. Entregables y cierre
+
+1. Este plan revisado y su checklist sincronizado, sin alterar los planes activos de banca/contabilidad.
+2. Matriz nueva con delta y mapa de las 239 filas, generados durante P0; no se inventan como parte de esta redacción.
+3. Manifiesto de migraciones por entorno y evidencia por hijo ejecutado.
+4. Resultados de V1/V2/V3, correcciones y pendientes externos explícitos.
+5. Puerta final: todas las filas aceptadas o pendientes identificados; no presentar cierre total mientras existan pendientes exigibles.
+
+Esta entrega es planificación. No ejecuta migraciones, no implementa servicios, no marca aceptación y no despliega.

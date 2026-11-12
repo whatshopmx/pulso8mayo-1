@@ -1,0 +1,121 @@
+{
+  "recordedAt": "2026-11-12T04:42:10.863Z",
+  "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+  "state": "aceptado V1,V2 en rama aislada",
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "test": "br-round-voice-belheola",
+    "main": "br-steep-frog-bet3a8l6",
+    "mainMigration137": "PENDING"
+  },
+  "checks": {
+    "unit": {
+      "newContract": 27,
+      "traceabilityAndManifest": 20,
+      "exit": 0
+    },
+    "salesAccess": {
+      "passed": 4,
+      "exit": 0
+    },
+    "integration": {
+      "identity": 7,
+      "harnessRegression": 4,
+      "exit": 0
+    },
+    "typescript": {
+      "exit": 0
+    },
+    "lint": {
+      "exit": 0,
+      "errors": 0,
+      "existingWarnings": 3
+    },
+    "build": {
+      "command": "pnpm.cmd run build",
+      "nodeOptions": "--use-system-ca --max-old-space-size=4096",
+      "exit": 0,
+      "pages": 443
+    }
+  },
+  "migration": {
+    "file": "drizzle/0137_inv01a_sale_consumption_identity.sql",
+    "sha256": "9c19af085fec854334211d3ff068fa464be63616c84ed4d3b17d5da7a40e2016",
+    "status": "APPLIED",
+    "when": 1794435136067,
+    "requiresReview": false,
+    "missingColumns": 0,
+    "missingIndexes": 0,
+    "command": "pnpm.cmd db:migrate con DATABASE_URL/MIGRATION_DATABASE_URL de la rama aislada",
+    "exit": 0
+  },
+  "preserved": [
+    {
+      "file": "lib/services/sales-ingest-service.ts",
+      "sha256": "ce0f696236319a460be8a1819891d366e6ce8d669d85feb68da2540785bc86f8",
+      "unchanged": true
+    },
+    {
+      "file": "lib/services/theoretical-consumption-service.ts",
+      "sha256": "8d6de8f1f9dba4f4de5fcd3fd488d3e89721010b2b32febab81749e4cdede101",
+      "unchanged": true
+    },
+    {
+      "file": "lib/services/accounting/settlement-adapter.ts",
+      "sha256": "8b505e204fdf2139b1891252b8f02d0bb88021c337a223b4bb5bae4290384568",
+      "unchanged": true
+    },
+    {
+      "file": "tasks/finanzas-contabilidad/todo.md",
+      "sha256": "e8b6257024f8d00c5c209edfd9fb7ec138526216422c09f2bc2dcf7bd04c417a",
+      "unchanged": true
+    },
+    {
+      "file": "drizzle/0136_fc12_settlements.sql",
+      "sha256": "25d34d7ca047982b1e09be33c394b2827ea193a5469e1e7eaf6a806c8ad45c18",
+      "unchanged": true
+    }
+  ],
+  "files": [
+    {
+      "file": "lib/services/sale-consumption-contract.ts",
+      "sha256": "5d9e289b7c6cb84c3ee90bd8f70247c1637e3d5ec5915487521b8a8859386aa5"
+    },
+    {
+      "file": "lib/services/__tests__/sale-consumption-contract.test.ts",
+      "sha256": "60770623529ca396ad0c8dce052043ba74bbebfb09134783705b05b33ff152bd"
+    },
+    {
+      "file": "lib/db/schema.ts",
+      "sha256": "a76dce49217e53f39a1b459ce8be04b8556acf526b95a3047cd59e4e0eef7e85"
+    },
+    {
+      "file": "drizzle/0137_inv01a_sale_consumption_identity.sql",
+      "sha256": "9c19af085fec854334211d3ff068fa464be63616c84ed4d3b17d5da7a40e2016"
+    },
+    {
+      "file": "drizzle/meta/_journal.json",
+      "sha256": "a9e8b63cd5418bae919075bc93c17a7f62d75194237ef5a1944110756b3f5160"
+    },
+    {
+      "file": "drizzle/meta/0137_snapshot.json",
+      "sha256": "d673a527c4b30bd94090493f721cd20d9dd75f39a5b4ec50d370319d813bb072"
+    },
+    {
+      "file": "tests/integration/sale-consumption-identity-db.test.ts",
+      "sha256": "ba4d15b406642be828ed26df8cd24836dbc94b8468c5df427f13c52a70761694"
+    }
+  ],
+  "limits": [
+    "Sin cambios en writers legacy ni aplicación real de stock",
+    "Snapshots de asignaciones sintéticos; referencias reales se validan en INV-01.b",
+    "Sin backfill ni aplicación de 0137 en main",
+    "Sin aceptación API/UI de INV-01.d; FC-12 no modificado por este ticket"
+  ],
+  "review": {
+    "checks": "correctitud, legibilidad, arquitectura, seguridad y rendimiento",
+    "missingHead": "reproducción funcional falló; se corrigió y el caso adicional pasó",
+    "integrationGuard": "servidor de pruebas distinto del operativo; sin endpoint privado fijo",
+    "sql": "aditivo, sin backfill; no se editó 0137 después de aplicarla"
+  }
+}

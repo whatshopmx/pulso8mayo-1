@@ -1,0 +1,8 @@
+
+C:\Users\david\pulso29\lib\db\schema.ts
+  13:26  warning  'session' is defined but never used        @typescript-eslint/no-unused-vars
+  13:45  warning  'verifications' is defined but never used  @typescript-eslint/no-unused-vars
+  13:60  warning  'magicLinks' is defined but never used     @typescript-eslint/no-unused-vars
+
+✖ 3 problems (0 errors, 3 warnings)
+

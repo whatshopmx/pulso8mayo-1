@@ -1,0 +1,19 @@
+{
+  "inspectedAt": "2026-11-11T20:20:18.469Z",
+  "source": "Neon list_projects/list_postgres_endpoints contrastados con configuración local; sin credenciales",
+  "test": {
+    "project": "young-morning-64801087",
+    "branch": "br-restless-sea-b4hfm7mi",
+    "name": "pulso-cierre-isolated-20261017"
+  },
+  "operational": {
+    "source": ".env DATABASE_URL",
+    "project": null,
+    "status": "UNVERIFIED: endpoint no localizado por Neon search; no inferir proyecto por nombre"
+  },
+  "operationalHostDiffers": true,
+  "distinctProjects": null,
+  "testDatabase": "neondb",
+  "operationalDatabase": "neondb",
+  "environmentOverridePresent": false
+}

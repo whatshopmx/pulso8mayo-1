@@ -1,0 +1,21 @@
+# INV-01.b3a — Ingreso por revisión y mínimo runtime de aplicación
+
+Estado: **código implementado y V2 comprobada; aceptación pendiente del checkpoint global**. HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más diff local. Cinco archivos: schema raíz, migración 0139, journal, snapshot 0139 y `tests/integration/sale-consumption-application-schema-db.test.ts`.
+
+0139 añade `sales_consumption_revisions.total_revenue` integer nullable, sin DEFAULT ni backfill. NULL representa un hecho en formato anterior sin ingreso demostrado; no equivale a cero. CHECK rechaza ingreso negativo y el trigger append-only previo impide reescribirlo incluso al dueño. El writer nuevo exige centavos explícitos no negativos y acotados a integer, y rechaza heads con ingreso desconocido.
+
+RLS en lotes/movimientos/ventas usa empresa y sucursal del contexto. Lotes se vinculan a empresa de sucursal y artículo; movimientos validan además lote/artículo/sucursal al insertar; ventas verifican empresa de sucursal y receta. Los permisos runtime permiten leer las columnas necesarias, actualizar solo saldo/fecha del lote, insertar movimientos y proyectar cantidad/ingreso/fecha de ventas. Sin creación/borrado de lotes, reescritura de movimientos ni borrado de ventas. Como b2a, no se aplica FORCE a las tablas legacy: el aislamiento del runtime no cierra los writers dueños/SEC-05.
+
+## Evidencia
+
+Cuatro pruebas SQL nuevas con dos empresas/tres sucursales y runtime NOBYPASSRLS. Primero fallaron contra 0138 por RLS/privilegios ausentes y columna inexistente. Con 0139 pasan: lectura sin filtro respeta contexto, actualización de lote lateral no afecta filas, INSERT con lote/receta ajenos y DELETE/reescrituras reales reciben 42501; NULL de formato previo y 200 centavos se conservan, -1 falla 23514, UPDATE de bitácora falla para runtime y para dueño. Todos los fixtures se revierten y su ausencia se comprueba después.
+
+Generación: `pnpm.cmd db:generate --name inv01b_application_scope`, exit 0. Revisión 0138→0139: solo políticas/RLS en inventory_batches, inventory_movements y sales_entries, más columna/CHECK de ingreso en la bitácora; sin otros cambios de snapshot, índices, FK o enums. SQL aditivo sin DROP ni DML de datos; se añadieron concesiones mínimas al generado.
+
+Aplicación: [launcher](migrate-isolated.cjs.txt) exige tag/hash y host de rama aislada antes de `pnpm.cmd db:migrate`, exit 0. Proyecto `soft-cloud-50478212`, rama `br-round-voice-belheola`; journal real confirma SHA256 `adcd6dda1408584323d4444b9c82d606e00ddd94940b5a7124549f44311ab7f2`, fecha `1794488694351`. Main `br-steep-frog-bet3a8l6` conserva 0136 (`1793745547475`): **0137–0139 pendientes en main**, sin despliegue supuesto.
+
+Comando específico: `NODE_OPTIONS=--use-system-ca`, `pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-schema-db.test.ts --maxWorkers 1 --pool threads`, 4/4 exit 0. Regresión focal de contrato/diferencial/snapshot/trazabilidad/manifiesto: 85/85 exit 0. TypeScript y lint exit 0 (schema conserva tres advertencias de imports previos). El cierre conjunto con b3 se registra al terminar pruebas/build.
+
+Checkpoint actual: **85 unitarias focales y 33 SQL**, exit 0 (12 writer, 4 schema, 5 catálogo, 1 snapshot, 7 identidad, 4 arnés). Lint sin errores. El tsc global anterior pasó antes de los cambios concurrentes FC-13; el tipo scoped actual del writer con el target original pasó. **Build global final exit 1** por literales BigInt de `accounting/purchase-contract.ts` aparecido durante la validación, no por el SQL o writer de este hijo. [Fallo íntegro pertinente](../INV-01.b3/global-build-failure.txt), [resultados](results.json). No se marca aceptado ni se cierra el checkpoint con ese fallo; repetir controles globales cuando cambie el archivo contable. 0140 apareció en el journal después del lote; no fue aplicada aquí y el launcher aborta si se intenta ejecutar con ese tag posterior sin revisar.
+
+Los INSERT del writer enumeran columnas explícitamente: Drizzle incluye DEFAULT de otras columnas al usar `.values`, y concederlas para hacer pasar el test habría ampliado privilegios innecesariamente. No se modifican 0137/0138 aplicadas. Las pruebas no conceden DML a tablas desde fixtures.

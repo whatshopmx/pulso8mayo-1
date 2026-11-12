@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-11-11T21:40:31.115Z",
+  "project": "soft-cloud-50478212",
+  "branch": "br-steep-frog-bet3a8l6",
+  "transport": "WebSocket Pool, pooled DATABASE_URL de .env",
+  "tls": "system CA, verification enabled",
+  "rows": [
+    {
+      "role": "neondb_owner",
+      "companies": 0,
+      "users": 0,
+      "branches": 0
+    }
+  ],
+  "exit": 0
+}

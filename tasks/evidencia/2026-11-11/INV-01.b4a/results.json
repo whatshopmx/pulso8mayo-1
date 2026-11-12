@@ -1,0 +1,24 @@
+{
+  "task": "INV-01.b4a",
+  "date": "2026-11-12",
+  "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+  "environment": "Windows local; pure functions; no DB access",
+  "state": "código implementado",
+  "checks": [
+    { "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts", "exit": 0, "files": 6, "tests": 103 },
+    { "command": "pnpm.cmd exec eslint lib/services/sales-ingest-pure.ts lib/services/sales-ingest-plan.ts lib/services/__tests__/sales-ingest-revisions.test.ts", "exit": 0 },
+    { "command": "pnpm.cmd exec tsc --noEmit --skipLibCheck --target es2017 --module esnext --moduleResolution bundler lib/services/sales-ingest-pure.ts lib/services/sales-ingest-plan.ts lib/services/__tests__/sales-ingest-revisions.test.ts", "exit": 0, "scope": "Affected files only; does not replace global tsc" },
+    { "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts", "exit": 0, "rows": 239, "children": 72, "errors": 0 },
+    { "command": "git diff --check", "exit": 0 }
+  ],
+  "unsuccessfulAttempts": [
+    { "check": "focused regression during parallel verification", "exit": 1, "reason": "Node native OOM; subsequent sequential run passed 103 tests" },
+    { "check": "first build", "exit": 1, "reason": "No diagnostic output during memory pressure" },
+    { "check": "second build", "exit": 1, "workerExit": 134, "reason": "Compilation passed (5.6min). Global TypeScript exhausted Node heap near 2089 MB; output recovered during process cleanup. No global pass claimed." },
+    { "check": "last traceability rerun after documentation-only edits", "exit": 1, "reason": "uv_os_get_passwd returned ENOMEM; earlier validation of the updated map/matrix/checklist passed 239 rows with zero errors" },
+    { "check": "global tsc --noEmit", "exit": 1, "reason": "Interrupted without diagnostic output to release resources" },
+    { "check": "full unit suite", "exit": 1, "reason": "Interrupted without final test summary during memory pressure; no suite-wide pass claimed" }
+  ],
+  "pending": ["global verification", "b3 dependency acceptance", "writer integration in b4b", "operational acceptance of row 11.11"],
+  "notApplicable": { "V2": "Pure phase with no database writes", "V3": "No new HTTP/UI boundary in this child" }
+}

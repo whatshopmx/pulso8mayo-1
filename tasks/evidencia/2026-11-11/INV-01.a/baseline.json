@@ -1,0 +1,29 @@
+{
+  "capturedAt": "2026-11-12T04:04:03.573Z",
+  "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
+  "status": " M drizzle/meta/_journal.json\n M lib/db/schema.ts\n M lib/db/schema/accounting.ts\n M lib/services/__tests__/bank-statement-service.test.ts\n M lib/services/__tests__/commission-audit.test.ts\n M lib/services/accounting/account-service.ts\n M lib/services/accounting/event-service.ts\n M lib/services/bank-statement-service.ts\n M lib/services/commission-service.ts\n M scripts/migration-manifest.ts\n M sistemainvestigacion17oct.md\n M tasks/finanzas-contabilidad/plan.md\n M tasks/finanzas-contabilidad/todo.md\n M tests/integration/accounting/expense-payment.test.ts\n M tests/unit/finance/accounting-preparation-http.test.ts\n M tests/unit/migration-manifest.test.ts\n?? .claude/settings.local.json\n?? app/api/finance/accounting/gateway-links/route.ts\n?? docs/2026-11-11-investigacion-plan-faltantes.md\n?? docs/matriz-cumplimiento-sistema-2026-11-11.csv\n?? drizzle/0136_fc12_settlements.sql\n?? drizzle/0137_inv01a_sale_consumption_identity.sql\n?? drizzle/meta/0136_snapshot.json\n?? drizzle/meta/0137_snapshot.json\n?? lib/services/__tests__/sale-consumption-contract.test.ts\n?? lib/services/accounting/settlement-adapter.ts\n?? lib/services/sale-consumption-contract.ts\n?? plans/2026-11-11-plan-implementacion-faltantes.md\n?? scripts/validate-faltantes.ts\n?? tasks/evidencia/2026-11-11/CHECKPOINT-0/README.md\n?? tasks/evidencia/2026-11-11/CHECKPOINT-0/build-exit.txt\n?? tasks/evidencia/2026-11-11/CHECKPOINT-0/build.log\n?? tasks/evidencia/2026-11-11/CHECKPOINT-0/results.json\n?? tasks/evidencia/2026-11-11/CHECKPOINT-0/review.json\n?? tasks/evidencia/2026-11-11/NEON-NEW/README.md\n?? tasks/evidencia/2026-11-11/NEON-NEW/baseline-ledger.sql\n?? tasks/evidencia/2026-11-11/NEON-NEW/baseline.json\n?? tasks/evidencia/2026-11-11/NEON-NEW/connection-check.json\n?? tasks/evidencia/2026-11-11/NEON-NEW/initial-schema.sql\n?? tasks/evidencia/2026-11-11/P0-01/README.md\n?? tasks/evidencia/2026-11-11/P0-01/baseline.json\n?? tasks/evidencia/2026-11-11/P0-02/README.md\n?? tasks/evidencia/2026-11-11/P0-03/README.md\n?? tasks/evidencia/2026-11-11/P0-04/README.md\n?? tasks/evidencia/2026-11-11/P0-04/identity.json\n?? tasks/evidencia/2026-11-11/P0-04/migration-manifest.json\n?? tasks/evidencia/2026-11-11/P0-04/new-main-catalog.json\n?? tasks/evidencia/2026-11-11/P0-04/new-test-catalog.json\n?? tasks/evidencia/2026-11-11/P0-04/test-catalog.json\n?? tasks/evidencia/2026-11-11/P0-05/README.md\n?? tasks/evidencia/2026-11-11/SEC-00/README.md\n?? tasks/evidencia/2026-11-11/SEC-00/exit.txt\n?? tasks/evidencia/2026-11-11/SEC-00/integration.log\n?? tasks/mapa-implementacion-faltantes.json\n?? tasks/todo-implementacion-faltantes.md\n?? tests/integration/accounting/settlements.test.ts\n?? tests/integration/isolation-harness-db.test.ts\n?? tests/integration/sale-consumption-identity-db.test.ts\n?? tests/unit/faltantes-traceability.test.ts",
+  "diffSha256": "66ef9f2555a14aec35f77ce0857ef9dff3f01f334ff6e28702cb8f5388388011",
+  "unmodifiedByThisTicket": [
+    {
+      "file": "lib/services/sales-ingest-service.ts",
+      "sha256": "ce0f696236319a460be8a1819891d366e6ce8d669d85feb68da2540785bc86f8"
+    },
+    {
+      "file": "lib/services/theoretical-consumption-service.ts",
+      "sha256": "8d6de8f1f9dba4f4de5fcd3fd488d3e89721010b2b32febab81749e4cdede101"
+    },
+    {
+      "file": "lib/services/accounting/settlement-adapter.ts",
+      "sha256": "8b505e204fdf2139b1891252b8f02d0bb88021c337a223b4bb5bae4290384568"
+    },
+    {
+      "file": "tasks/finanzas-contabilidad/todo.md",
+      "sha256": "e8b6257024f8d00c5c209edfd9fb7ec138526216422c09f2bc2dcf7bd04c417a"
+    },
+    {
+      "file": "drizzle/0136_fc12_settlements.sql",
+      "sha256": "25d34d7ca047982b1e09be33c394b2827ea193a5469e1e7eaf6a806c8ad45c18"
+    }
+  ],
+  "scope": "INV-01.a; captura renovada después de introducir pruebas y schema locales, al retomar la aplicación aislada de 0137. El momento de aplicación se acredita por el journal de la base. FC-12 y writers legacy preservados. Sin secretos."
+}

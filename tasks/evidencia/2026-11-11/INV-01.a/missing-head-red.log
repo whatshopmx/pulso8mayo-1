@@ -1,0 +1,38 @@
+pnpm.cmd : (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to 
+become the default in a future major version of Vite:
+En línea: 2 Carácter: 1
++ pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool= ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((!) Your Vite c...ersion of Vite::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` 
+in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+ ❯ lib/services/__tests__/sale-consumption-contract.test.ts (27 tests | 1 failed) 60ms
+     × un estado previo desconocido o incompleto no se convierte en consumo cero 13ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  lib/services/__tests__/sale-consumption-contract.test.ts > INV-01.a1: identidad y revisión de venta consumida > 
+un estado previo desconocido o incompleto no se convierte en consumo cero
+AssertionError: expected [Function] to throw an error
+ ❯ lib/services/__tests__/sale-consumption-contract.test.ts:46:73
+     44|   });
+     45|   it("un estado previo desconocido o incompleto no se convierte en con…
+     46|     expect(() => nextSaleConsumptionRevision(undefined as never, "12")…
+       |                                                                         ^
+     47|     expect(() => nextSaleConsumptionRevision({ revision: 1 } as never,…
+     48|     expect(() => nextSaleConsumptionRevision({ revision: 1, quantitySo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 26 passed (27)
+   Start at  04:17:41
+   Duration  1.51s (transform 155ms, setup 0ms, import 297ms, tests 60ms, environment 0ms)
+

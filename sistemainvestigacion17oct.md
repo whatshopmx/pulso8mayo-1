@@ -1,7 +1,7 @@
 Mapa completo de módulos de Pulso par
 1. Organización y configuración del grupo
    - Empresa: datos generales de la compañía, configuración fiscal/operativa y parámetros globales.
-   - Sucursales: altas, bajas, ubicación, horarios, responsables y configuración individual de las 8 unidades.
+   - Sucursales: altas, bajas, ubicación, horarios, responsables y configuración individual de las  unidades.
    - Usuarios: acceso de empleados, gerentes, supervisores, administración y dirección.
    - Roles y permisos: define quién puede ver, capturar, aprobar, modificar o pagar.
    - Operating Config: políticas particulares del grupo: tolerancias, targets, límites, autorizaciones, etc.

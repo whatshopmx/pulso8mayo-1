@@ -1,0 +1,11 @@
+Command: pnpm.cmd run build
+Compiled successfully in 5.6min
+Running TypeScript ...
+[4948] Mark-Compact 2035.8 (2088.8) -> 2028.2 (2089.0) MB
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+Next.js build worker exited with code: 134 and signal: null
+[ELIFECYCLE] Command failed with exit code 134.
+
+Last documentation validator retry:
+SystemError [ERR_SYSTEM_ERROR]: uv_os_get_passwd returned ENOMEM (not enough memory)
+Earlier validation of the updated checklist/map/matrix: exit 0, 239 rows, 72 children, 12 accepted tasks, zero errors.
