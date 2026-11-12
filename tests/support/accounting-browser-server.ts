@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 
 /** Real P&L components/CSS; only Next Link and HTTP/session boundaries are substituted. */
-export async function startAccountingBrowserServer(mode:"pnl"|"journals"|"settings"="pnl",fixture?:(url:string,res:{setHeader:(key:string,value:string)=>void;end:(body:string)=>void})=>boolean) {
+export async function startAccountingBrowserServer(mode:"pnl"|"journals"|"settings"|"bank-accounts"="pnl",fixture?:(url:string,res:{setHeader:(key:string,value:string)=>void;end:(body:string)=>void})=>boolean) {
   const requireVite = createRequire(require.resolve("vitest/package.json"));
   const { createServer } = await import(pathToFileURL(requireVite.resolve("vite")).href);
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
@@ -16,6 +16,7 @@ export async function startAccountingBrowserServer(mode:"pnl"|"journals"|"settin
   `], { cwd: root, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
   const virtual: Record<string, string> = {
     "\0accounting-link": `import React from 'react'; export default ({children,...props})=>React.createElement('a',props,children);`,
+    "\0accounting-session": `export const useSession=()=>({session:{user:{role:window.__bankRole||'ADMIN'}}});`,
     "\0accounting-style.css": styles,
     "\0accounting-entry.tsx": `import '/accounting-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
       import {PnlBranchTable} from '@/components/finance/pnl-branch-table'; import {TooltipProvider} from '@/components/ui/tooltip';
@@ -36,12 +37,18 @@ export async function startAccountingBrowserServer(mode:"pnl"|"journals"|"settin
   if(mode==="settings") virtual["\0accounting-entry.tsx"]=`import '/accounting-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
     import {AccountingSettings} from '@/components/finance/accounting-settings';
     createRoot(document.getElementById('root')).render(React.createElement('main',null,React.createElement(AccountingSettings)));`;
+  if(mode==="bank-accounts") virtual["\0accounting-entry.tsx"]=`import '/accounting-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
+    import BankAccounts from '@/app/dashboard/finance/settings/bank-accounts/page';
+    createRoot(document.getElementById('root')).render(React.createElement('main',null,React.createElement(BankAccounts)));`;
   const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", `accounting-vite-${process.pid}`),
     esbuild: { jsx: "automatic" }, css: { postcss: { plugins: [] } },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },
     optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui",
-      "@radix-ui/react-tooltip", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge", "date-fns"] },
-    resolve: { alias: [{ find: /^next\/link$/, replacement: "\0accounting-link" }, { find: "@", replacement: root }] },
+      "@radix-ui/react-tooltip", "@radix-ui/react-slot", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-select", "sonner",
+      "class-variance-authority", "clsx", "tailwind-merge", "date-fns"] },
+    resolve: { dedupe: ["react", "react-dom"], alias: [{ find: /^next\/link$/, replacement: "\0accounting-link" },
+      ...(mode==="bank-accounts"?[{find:/^@\/hooks\/use-session$/,replacement:"\0accounting-session"}]:[]),
+      { find: "@", replacement: root }] },
     plugins: [{ name: "accounting-browser", enforce: "pre",
       resolveId(id: string) {
         if (Object.hasOwn(virtual, id)) return id;

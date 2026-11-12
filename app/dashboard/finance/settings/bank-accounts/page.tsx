@@ -38,6 +38,7 @@ import { useSession } from "@/hooks/use-session";
 import { roleIsAtLeast } from "@/lib/permissions";
 import { BANXICO_BANK_CODES } from "@/lib/banking/clabe";
 import { Landmark, Plus, Loader2 } from "lucide-react";
+import { BankAccountAccountingLink } from "@/components/finance/bank-account-accounting-link";
 
 /**
  * Catálogo de cuentas bancarias propias — de dónde sale el dinero.
@@ -363,7 +364,7 @@ export default function CompanyBankAccountsPage() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-5 px-1 text-[10px] text-muted-foreground"
+                                                            className="h-6 px-1 text-xs text-muted-foreground"
                                                             onClick={() =>
                                                                 setAnchorDialog({
                                                                     accountId: a.id,
@@ -406,15 +407,18 @@ export default function CompanyBankAccountsPage() {
                                             </TableCell>
                                             {canEdit && (
                                                 <TableCell className="text-right">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleDeactivate(a.id, a.label)
-                                                        }
-                                                    >
-                                                        Dar de baja
-                                                    </Button>
+                                                    <div className="flex flex-wrap justify-end gap-2">
+                                                        <BankAccountAccountingLink bank={a} />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleDeactivate(a.id, a.label)
+                                                            }
+                                                        >
+                                                            Dar de baja
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             )}
                                         </TableRow>
