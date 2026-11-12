@@ -10,6 +10,8 @@
 // Formato: genérico con mapeo manual de columnas (OQ1 resuelta 2026-08-23 —
 // sin presets por POS). Delimitador se detecta entre `,` `;` y tab.
 
+import { normalizeSaleProductKey, soldQuantity, validateSaleDay } from "./sale-consumption-contract";
+
 /** Mapeo columna-del-archivo → campo normalizado. Los valores son el texto
  *  exacto del encabezado tal como viene en el CSV (trim incluido). */
 export interface SalesColumnMapping {
@@ -21,6 +23,8 @@ export interface SalesColumnMapping {
   saleDate?: string;
   /** Ingreso total en unidades de moneda ("$1,234.50"); se guarda en centavos. */
   totalRevenue?: string;
+  /** Clave opaca estable del producto, independiente de su receta. */
+  productKey?: string;
 }
 
 export interface NormalizedSaleRow {
@@ -28,6 +32,8 @@ export interface NormalizedSaleRow {
   rowNumber: number;
   recipeRef: string;
   quantitySold: number;
+  /** Identificador opaco del producto en el origen, si es distinto de la referencia de receta. */
+  productKey?: string;
   /** Día local de la sucursal, `YYYY-MM-DD`. */
   saleDay: string;
   totalRevenueCents: number | null;
@@ -38,7 +44,17 @@ export interface SalesRowError {
   message: string;
 }
 
-const DAY_RE = /^\d{4}-\d{2}-\d{2}/;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
+
+/** Valida el texto antes de convertirlo: Number no puede probar precisión. */
+function exactDecimal(raw: string): string {
+  let value = raw.trim().replace(/^\$\s*/, "");
+  if (/^\d{1,3}(?:,\d{3})+\.\d{1,2}$/.test(value)) value = value.replace(/,/g, "");
+  else if (/^\d{1,3}(?:\.\d{3})+,\d{1,2}$/.test(value)) value = value.replace(/\./g, "").replace(",", ".");
+  else if (/^\d+(?:[.,]\d{1,2})?$/.test(value)) value = value.replace(",", ".");
+  else throw new Error("Decimal inválido");
+  return soldQuantity(value);
+}
 
 /**
  * Divide un CSV (RFC4180 simplificado: comillas dobles, `""` escapada,
@@ -155,9 +171,13 @@ export function normalizeNumber(raw: string): number | null {
 export function normalizeDay(raw: string, fallbackDay?: string): string | null {
   if (raw == null) return null;
   const s = String(raw).trim();
-  if (s === "") return fallbackDay ?? null;
+  if (s === "") {
+    try { return validateSaleDay(fallbackDay); } catch { return null; }
+  }
 
-  if (DAY_RE.test(s)) return s.slice(0, 10);
+  if (DAY_RE.test(s)) {
+    try { return validateSaleDay(s.slice(0, 10)); } catch { return null; }
+  }
 
   const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (m) {
@@ -168,12 +188,7 @@ export function normalizeDay(raw: string, fallbackDay?: string): string | null {
     if (mm > 12 && dd <= 12) {
       [dd, mm] = [mm, dd];
     }
-    return `${m[3]}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
-  }
-
-  const parsed = new Date(s);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
+    try { return validateSaleDay(`${m[3]}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`); } catch { return null; }
   }
 
   return null;
@@ -241,11 +256,18 @@ export function buildRows(
   const idxQty = indexOf(mapping.quantitySold);
   const idxDate = indexOf(mapping.saleDate);
   const idxRevenue = indexOf(mapping.totalRevenue);
+  const idxProduct = indexOf(mapping.productKey);
+  const blocked = new Set<string>();
+  const blockedProducts = new Set<string>();
+  const rowKey = (ref: string, day: string) => JSON.stringify([ref.trim(), day]);
 
-  if (idxRecipe === -1 || idxQty === -1) {
+  if (idxRecipe === -1 || idxQty === -1 || (mapping.totalRevenue && idxRevenue === -1) || (mapping.saleDate && idxDate === -1) || (mapping.productKey && idxProduct === -1)) {
     const missing = [
       idxRecipe === -1 ? `"${mapping.recipeRef}"` : undefined,
       idxQty === -1 ? `"${mapping.quantitySold}"` : undefined,
+      mapping.totalRevenue && idxRevenue === -1 ? `"${mapping.totalRevenue}"` : undefined,
+      mapping.saleDate && idxDate === -1 ? `"${mapping.saleDate}"` : undefined,
+      mapping.productKey && idxProduct === -1 ? `"${mapping.productKey}"` : undefined,
     ].filter(Boolean);
     return {
       rows,
@@ -263,35 +285,52 @@ export function buildRows(
     const qtyRaw = cells[idxQty] ?? "";
     const dayRaw = idxDate >= 0 ? cells[idxDate] ?? "" : "";
     const revenueRaw = idxRevenue >= 0 ? cells[idxRevenue] ?? "" : "";
+    const productKey = idxProduct >= 0 ? cells[idxProduct] ?? "" : recipeRef;
 
-    if (recipeRef === "" && qtyRaw === "") continue; // fila basura
+    if (cells.every(cell => cell === "")) continue;
 
-    const quantitySold = normalizeNumber(qtyRaw);
-    if (recipeRef === "") {
-      errors.push({ rowNumber, message: "Producto/receta vacía" });
+    let quantitySold: number;
+    try { normalizeSaleProductKey(recipeRef); normalizeSaleProductKey(productKey); } catch {
+      errors.push({ rowNumber, message: "Producto/receta o clave inválidos" });
+      blockedProducts.add(productKey);
       continue;
     }
-    if (quantitySold === null || quantitySold <= 0) {
-      errors.push({ rowNumber, message: `Cantidad inválida: "${qtyRaw}"` });
-      continue;
-    }
-
     const saleDay = normalizeDay(dayRaw, options?.defaultDay);
-    if (!saleDay) {
+    try { validateSaleDay(saleDay); } catch {
       errors.push({ rowNumber, message: `Fecha inválida: "${dayRaw}"` });
+      blockedProducts.add(productKey);
       continue;
     }
-
-    const revenue = idxRevenue >= 0 ? normalizeNumber(revenueRaw) : null;
+    try { quantitySold = Number(exactDecimal(qtyRaw)); } catch {
+      errors.push({ rowNumber, message: `Cantidad inválida: "${qtyRaw}"; usa hasta dos decimales sin redondeo.` });
+      blocked.add(rowKey(productKey, saleDay)); continue;
+    }
+    let totalRevenueCents: number | null = null;
+    if (idxRevenue >= 0 && revenueRaw.trim() !== "") {
+      try {
+        totalRevenueCents = Number(exactDecimal(revenueRaw).replace(".", ""));
+        if (totalRevenueCents > 2147483647) throw new Error("range");
+      } catch {
+        errors.push({ rowNumber, message: `Importe inválido: "${revenueRaw}"; usa centavos completos y un importe no negativo.` });
+        blocked.add(rowKey(productKey, saleDay)); continue;
+      }
+    }
 
     rows.push({
       rowNumber,
       recipeRef,
       quantitySold,
       saleDay,
-      totalRevenueCents: revenue != null ? Math.round(revenue * 100) : null,
+      totalRevenueCents,
+      ...(idxProduct >= 0 ? { productKey } : {}),
     });
   }
 
-  return { rows, errors };
+  const accepted = rows.filter(row => {
+    const productKey = row.productKey ?? row.recipeRef;
+    if (!blockedProducts.has(productKey) && !blocked.has(rowKey(productKey, row.saleDay))) return true;
+    errors.push({ rowNumber: row.rowNumber, message: "Otra línea de este producto/día es inválida; no se aplica un total parcial." });
+    return false;
+  });
+  return { rows: accepted, errors };
 }
