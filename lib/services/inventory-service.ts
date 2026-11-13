@@ -802,6 +802,11 @@ export class InventoryService {
         .from(inventoryTransferItems)
         .where(eq(inventoryTransferItems.transferId, transferId));
 
+      if (items && (new Set(items.map(item => item.id)).size !== items.length
+        || items.some(item => !transferItems.some(line => line.id === item.id)))) {
+        throw ApiError.badRequest("Las partidas recibidas deben pertenecer a esta transferencia y no repetirse.");
+      }
+
       // Update transfer status
       const [updatedTransfer] = await tx.update(inventoryTransfers)
       .set({
@@ -809,8 +814,9 @@ export class InventoryService {
         receivedBy,
         receivedAt: new Date(),
       })
-      .where(eq(inventoryTransfers.id, transferId))
+      .where(and(eq(inventoryTransfers.id, transferId), eq(inventoryTransfers.status, 'IN_TRANSIT')))
       .returning();
+      if (!updatedTransfer) throw ApiError.conflict("La transferencia ya fue recibida; recarga su estado.");
 
       // Increase stock in destination branch
       for (const item of transferItems) {
@@ -822,12 +828,14 @@ export class InventoryService {
           ? Number(items.find(i => i.id === item.id)?.receivedQuantity ?? shippedQty)
           : shippedQty;
 
-        if (receivedQtyRaw > shippedQty) {
-          throw new Error(`Received quantity (${receivedQtyRaw}) cannot be greater than shipped quantity (${shippedQty}) for item ID ${item.itemId}`);
+        // Transfer line quantities are integer columns. Reject unsupported
+        // fractions instead of silently rounding physical inventory.
+        if (!Number.isSafeInteger(receivedQtyRaw) || receivedQtyRaw < 0 || receivedQtyRaw > shippedQty) {
+          throw ApiError.badRequest("La cantidad recibida debe ser un entero entre cero y la cantidad enviada.");
         }
 
-        const wasteQty = Math.max(0, Math.round(shippedQty - receivedQtyRaw));
-        const receivedQty = Math.round(receivedQtyRaw);
+        const wasteQty = shippedQty - receivedQtyRaw;
+        const receivedQty = receivedQtyRaw;
 
         // Get source batch if available
         const sourceBatch = item.batchId ? await tx.select()
@@ -901,14 +909,9 @@ export class InventoryService {
         }
 
         // Update received quantity in DB
-        if (items) {
-          const transferItem = items.find(i => i.id === item.id);
-          if (transferItem) {
-            await tx.update(inventoryTransferItems)
-            .set({ receivedQuantity: transferItem.receivedQuantity })
-            .where(eq(inventoryTransferItems.id, item.id));
-          }
-        }
+        await tx.update(inventoryTransferItems)
+          .set({ receivedQuantity: receivedQty })
+          .where(eq(inventoryTransferItems.id, item.id));
       }
 
       return updatedTransfer;
