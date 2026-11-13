@@ -1,9 +1,9 @@
 {
   "task": "FC-14",
-  "technicalStatus": "VERIFIED_RELEASE_AWAITING_DEPLOYMENT",
+  "technicalStatus": "VERIFIED_AND_ACTIVE_IN_NETLIFY",
   "closedOn": "2026-11-13",
   "operationalMigrationApplied": true,
-  "deployed": false,
+  "deployed": true,
   "featureFlag": "ACCOUNTING_INVENTORY_ENABLED",
   "featureFlagDefault": false,
   "migration": "0142_fc14_inventory_valuation",
@@ -89,17 +89,28 @@
   "dependentPackage": "INTEGRATED_IN_GIT",
   "testBoundary": "Synthetic schemas in a test database checked distinct from the operational database",
   "limits": [
-    "Netlify database migrated with owner authorization; .env and local flags unchanged. Deployment/activation await live verification.",
+    "Netlify database migrated and live flags verified. .env and its separate empty database were not changed. The demo ledger catalog/rules/opening still require setup.",
     "No retrospective valuation or replacement of missing original costs with current prices",
     "Sources without an eligible actor retain an immutable pending valuation without an invented outbox actor",
     "No certification of FC-20 or FC-21"
   ],
   "operationalTarget": "ep-dawn-scene-ayy93r15.c-5.us-east-2.aws.neon.tech",
-  "activationStatus": "AWAITING_NETLIFY_VARIABLE_AND_DEPLOYMENT",
+  "activationStatus": "ACTIVE_IN_NETLIFY",
   "integrationCommits": [
     "dce8b74",
     "82fa91b",
     "f13efea",
     "a816208"
-  ]
+  ],
+  "activatedAt": "2026-11-13T14:41:48.486Z",
+  "runtimeFlags": {
+    "postingEnabled": true,
+    "inventoryEnabled": true
+  },
+  "ci": {
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/whatshopmx/pulso8mayo-1/actions/runs/43444115653"
+  },
+  "liveEvidence": "fc14-netlify-live-2026-11-13.json"
 }

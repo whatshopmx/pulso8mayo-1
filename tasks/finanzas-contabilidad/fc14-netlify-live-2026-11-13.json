@@ -1,0 +1,26 @@
+{
+  "at": "2026-11-13T14:41:48.486Z",
+  "origin": "https://pulso-horeca.netlify.app",
+  "scope": "Demo sign-in and read-only service checks; no journals or inventory changes",
+  "loginStatus": 200,
+  "preparationStatus": 200,
+  "postingEnabled": true,
+  "inventoryEnabled": true,
+  "ledgerAccounts": 0,
+  "costCenters": 5,
+  "pnlStatus": 200,
+  "pnlSucceeded": true,
+  "branches": 3,
+  "detailStatus": 200,
+  "detailSucceeded": true,
+  "valuation": "CURRENT_ITEM_COST",
+  "detailTotalMatches": true,
+  "detailSourceMatches": true,
+  "pushedSourceCommit": "f8f03aa5b82cc0a429d6b2d185ab55479ff2941f",
+  "ci": {
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/whatshopmx/pulso8mayo-1/actions/runs/43444115653"
+  },
+  "limit": "Runtime flag and behavior verified; Netlify does not expose an independent deployment SHA through these responses. Ledger catalog/rules/opening remain unconfigured."
+}
