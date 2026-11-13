@@ -26,14 +26,16 @@
 //     ingesta de POS llena `daily_sales_cuts` (totales por turno/canal), no
 //     venta a nivel platillo. Esa vía no existe hoy.
 //
-// Limitación declarada: `inventory_movements` no guarda el costo del momento,
-// así que el costo se valoriza AL MOMENTO DEL CÁLCULO contra `inventory_items`.
-// Recalcular un período pasado puede dar un número distinto si el costo del ítem
-// cambió — por eso la Fase 3.3 congela el resultado en `pnl_snapshots`.
+// FC-14: con ACCOUNTING_INVENTORY_ENABLED=1 se usa la valoración original
+// inmutable de cada movimiento capturado. Los movimientos anteriores conservan
+// el cálculo al costo actual y se identifican como heredados. No se reconstruye
+// un costo histórico a partir del catálogo actual.
 
 import { db } from "@/lib/db";
-import { branches, companies, inventoryItems, inventoryMovements } from "@/lib/db/schema";
+import { accountingInventoryValuations, branches, companies, inventoryItems, inventoryMovements } from "@/lib/db/schema";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { isInventoryValuationEnabled } from "./accounting/inventory-contract";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 
 export type FoodCostSource =
   | "CONSUMPTION" // movimientos USAGE + WASTE valorizados
@@ -58,6 +60,10 @@ export interface BranchFoodCost {
    * `average_cost` y se valorizó con `last_cost`. Degrada la confianza.
    */
   usedCostFallback: boolean;
+  /** Captured movements whose original cost remains unknown; never revalued from today's catalog. */
+  frozenUncostedLines?: number;
+  frozenLines?: number;
+  legacyLines?: number;
   /** % de días del período con al menos un movimiento de consumo registrado. */
   coveragePercent: number;
   note: string;
@@ -86,6 +92,10 @@ interface MovementAggregate {
   /** Cantidad de líneas donde AVERAGE_COST tuvo que caer a `last_cost`. */
   avgFallbackLines: number;
   distinctDays: number;
+  frozenCount: number;
+  frozenUncostedCount: number;
+  frozenFallbackCount: number;
+  legacyCount: number;
 }
 
 /**
@@ -142,30 +152,49 @@ export async function getFoodCostByBranch(
   //
   // `quantity_change` es negativo en USAGE/WASTE y positivo en RECEIVING, así
   // que se toma el valor absoluto para costear.
-  const qty = sql<number>`ABS(${inventoryMovements.quantityChange})`;
+  const frozen = isInventoryValuationEnabled();
+  const qty = frozen ? sql<number>`CASE WHEN ${inventoryMovements.type}::text='USAGE' THEN -${inventoryMovements.quantityChange} ELSE ABS(${inventoryMovements.quantityChange}) END`
+    : sql<number>`ABS(${inventoryMovements.quantityChange})`;
   const avgPreferred = sql<number>`COALESCE(${inventoryItems.averageCost}, ${inventoryItems.lastCost}, 0)`;
   const lastPreferred = sql<number>`COALESCE(${inventoryItems.lastCost}, ${inventoryItems.averageCost}, 0)`;
+  const capturedAmount = sql<number>`COALESCE(${accountingInventoryValuations.amountCents},0)
+    * CASE WHEN ${accountingInventoryValuations.kind}='USAGE_RETURN' THEN -1 ELSE 1 END`;
+  const valued = (cost: typeof avgPreferred) => frozen ? sql<number>`CASE WHEN ${accountingInventoryValuations.movementId} IS NOT NULL
+    THEN ${capturedAmount} ELSE ${qty}*${cost} END` : sql<number>`${qty}*${cost}`;
 
-  const aggregates: MovementAggregate[] = await db
-    .select({
-      branchId: inventoryMovements.branchId,
-      type: sql<string>`${inventoryMovements.type}::text`,
-      avgPreferredCents: sql<number>`COALESCE(SUM(${qty} * ${avgPreferred}), 0)`,
-      lastPreferredCents: sql<number>`COALESCE(SUM(${qty} * ${lastPreferred}), 0)`,
-      uncostedLines: sql<number>`COUNT(*) FILTER (WHERE ${inventoryItems.lastCost} IS NULL AND ${inventoryItems.averageCost} IS NULL)`,
-      avgFallbackLines: sql<number>`COUNT(*) FILTER (WHERE ${inventoryItems.averageCost} IS NULL AND ${inventoryItems.lastCost} IS NOT NULL)`,
-      distinctDays: sql<number>`COUNT(DISTINCT DATE(${inventoryMovements.timestamp}))`,
-    })
-    .from(inventoryMovements)
-    .innerJoin(inventoryItems, eq(inventoryItems.id, inventoryMovements.itemId))
-    .where(
-      and(
-        inArray(inventoryMovements.branchId, branchIds),
-        gte(inventoryMovements.timestamp, periodStart),
-        lte(inventoryMovements.timestamp, periodEnd),
-      ),
-    )
-    .groupBy(inventoryMovements.branchId, inventoryMovements.type);
+  const aggregate = async (source: Pick<typeof db, "select">): Promise<MovementAggregate[]> => {
+    const query = source
+      .select({
+        branchId: inventoryMovements.branchId,
+        type: sql<string>`${inventoryMovements.type}::text`,
+        avgPreferredCents: sql<number>`COALESCE(SUM(${valued(avgPreferred)}),0)`,
+        lastPreferredCents: sql<number>`COALESCE(SUM(${valued(lastPreferred)}),0)`,
+        uncostedLines: frozen ? sql<number>`COUNT(*) FILTER (WHERE CASE WHEN ${accountingInventoryValuations.movementId} IS NOT NULL
+          THEN ${accountingInventoryValuations.amountCents} IS NULL ELSE ${inventoryItems.lastCost} IS NULL AND ${inventoryItems.averageCost} IS NULL END)`
+          : sql<number>`COUNT(*) FILTER (WHERE ${inventoryItems.lastCost} IS NULL AND ${inventoryItems.averageCost} IS NULL)`,
+        avgFallbackLines: frozen ? sql<number>`COUNT(*) FILTER (WHERE CASE WHEN ${accountingInventoryValuations.movementId} IS NOT NULL
+          THEN ${accountingInventoryValuations.costingMethod}='LAST_COST_FALLBACK' ELSE ${inventoryItems.averageCost} IS NULL AND ${inventoryItems.lastCost} IS NOT NULL END)`
+          : sql<number>`COUNT(*) FILTER (WHERE ${inventoryItems.averageCost} IS NULL AND ${inventoryItems.lastCost} IS NOT NULL)`,
+        distinctDays: sql<number>`COUNT(DISTINCT DATE(${inventoryMovements.timestamp}))`,
+        frozenCount: frozen ? sql<number>`COUNT(${accountingInventoryValuations.movementId})` : sql<number>`0`,
+        frozenUncostedCount: frozen ? sql<number>`COUNT(*) FILTER (WHERE ${accountingInventoryValuations.movementId} IS NOT NULL AND ${accountingInventoryValuations.amountCents} IS NULL)` : sql<number>`0`,
+        frozenFallbackCount: frozen ? sql<number>`COUNT(*) FILTER (WHERE ${accountingInventoryValuations.costingMethod}='LAST_COST_FALLBACK')` : sql<number>`0`,
+        legacyCount: frozen ? sql<number>`COUNT(*) FILTER (WHERE ${accountingInventoryValuations.movementId} IS NULL)` : sql<number>`COUNT(*)`,
+      })
+      .from(inventoryMovements)
+      .innerJoin(inventoryItems, eq(inventoryItems.id, inventoryMovements.itemId));
+    const joined = frozen ? query.leftJoin(accountingInventoryValuations, and(eq(accountingInventoryValuations.movementId, inventoryMovements.id),
+      eq(accountingInventoryValuations.companyId, companyId))) : query;
+    return await joined.where(
+        and(
+          inArray(inventoryMovements.branchId, branchIds),
+          gte(inventoryMovements.timestamp, periodStart),
+          lte(inventoryMovements.timestamp, periodEnd),
+        ),
+      )
+      .groupBy(inventoryMovements.branchId, inventoryMovements.type);
+  };
+  const aggregates = frozen ? await withCompanyContext({ companyId }, aggregate) : await aggregate(db);
 
   const byBranch = new Map<string, Map<string, MovementAggregate>>();
   for (const a of aggregates) {
@@ -192,19 +221,22 @@ export async function getFoodCostByBranch(
     const receiving = rows?.get("RECEIVING");
 
     const consumptionRows = [usage, waste].filter(Boolean) as MovementAggregate[];
+    const frozenLines = consumptionRows.reduce((n, a) => n + Number(a.frozenCount ?? 0), 0);
+    const frozenUncostedLines = consumptionRows.reduce((n, a) => n + Number(a.frozenUncostedCount ?? 0), 0);
+    const legacyLines = consumptionRows.reduce((n, a) => n + Number(a.legacyCount ?? 0), 0);
     const uncosted = consumptionRows.reduce((n, a) => n + Number(a.uncostedLines), 0);
     const avgFallback =
       costingMethod === "AVERAGE_COST"
         ? consumptionRows.reduce((n, a) => n + Number(a.avgFallbackLines), 0)
-        : 0;
+        : frozen ? consumptionRows.reduce((n, a) => n + Number(a.frozenFallbackCount ?? 0), 0) : 0;
 
     const fallbackNote =
       avgFallback > 0
         ? ` ${avgFallback} línea(s) sin costo promedio capturado se valorizaron con el último costo.`
         : "";
     const uncostedNote =
-      uncosted > 0
-        ? ` ${uncosted} línea(s) de ítems sin costo alguno quedaron en $0: captura su costo para que el número cierre.`
+      uncosted > frozenUncostedLines
+        ? ` ${uncosted - frozenUncostedLines} línea(s) ${frozen ? "heredada(s) " : ""}de ítems sin costo alguno quedaron en $0: captura su costo para que el número cierre.`
         : "";
 
     // --- Escalón 1: CONSUMPTION ------------------------------------------
@@ -223,10 +255,13 @@ export async function getFoodCostByBranch(
         source: "CONSUMPTION" as const,
         costingMethod,
         usedCostFallback: avgFallback > 0,
+        ...(frozen ? { frozenLines, frozenUncostedLines, legacyLines } : {}),
         coveragePercent: Math.min(100, Math.round((daysWithMovements / periodDays) * 100)),
         note:
           `Consumo real de inventario (${daysWithMovements} de ${periodDays} días con movimientos), ` +
-          `valorizado a ${costingMethod === "AVERAGE_COST" ? "costo promedio" : "último costo"}.` +
+          (frozen ? `${frozenLines} movimiento(s) con valoración original congelada; ${legacyLines} heredado(s) al costo actual.`
+            : `valorizado a ${costingMethod === "AVERAGE_COST" ? "costo promedio" : "último costo"}.`) +
+          (frozenUncostedLines ? ` ${frozenUncostedLines} movimiento(s) siguen sin valor original; se excluyen del importe y la cifra es parcial.` : "") +
           `${wasteCents > 0 ? " La merma se reporta en su propio renglón." : ""}` +
           `${fallbackNote}${uncostedNote}`,
       };

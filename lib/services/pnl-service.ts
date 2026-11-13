@@ -243,7 +243,7 @@ export async function getPnLByBranch(
       foodCost = line(
         food.foodCostCents,
         baseCents,
-        food.usedCostFallback && foodSource === "MEASURED" ? "DERIVED" : foodSource,
+        (food.usedCostFallback || (food.frozenUncostedLines ?? 0) > 0) && foodSource === "MEASURED" ? "DERIVED" : foodSource,
         food.coveragePercent,
         food.note,
       );
@@ -252,9 +252,9 @@ export async function getPnLByBranch(
           ? line(
               food.wasteCents,
               baseCents,
-              "MEASURED",
+              (food.frozenUncostedLines ?? 0) > 0 ? "DERIVED" : "MEASURED",
               food.coveragePercent,
-              food.wasteCents > 0
+              (food.frozenUncostedLines ?? 0) > 0 ? food.note : food.wasteCents > 0
                 ? "Merma registrada en inventario, valorizada al costo de la sucursal."
                 : "Sin merma registrada en el período. Si hubo desperdicio y no se capturó, este cero no es real.",
             )

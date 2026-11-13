@@ -100,9 +100,12 @@ export function PnlSourceDetail({ branchId, branchName, line, expected, period, 
           {(data.totalCents !== expected.cents || data.source !== expected.source || data.coveragePercent !== expected.coveragePercent) &&
             <p role="status" className="text-sm text-warning-text">La cifra o su cobertura cambió desde que cargaste Resultados. Este detalle muestra la consulta actual; actualiza Resultados para compararlos.</p>}
           {"valuation" in data && <p className="text-sm text-muted-foreground">
-            Valoración al costo actual del artículo; no es un costo histórico congelado.
+            {data.valuation === "FROZEN_MOVEMENT_COST" ? "Valoración original congelada de los movimientos. Las devoluciones restan el valor del consumo original."
+              : data.valuation === "MIXED_FROZEN_AND_CURRENT" ? "Combina movimientos con valor original congelado y movimientos anteriores al costo actual del artículo."
+                : "Valoración al costo actual del artículo; no es un costo histórico congelado."}
             {data.basis === "PURCHASES" && " Las compras se usan como aproximación del consumo."}
             {data.uncostedLines > 0 && ` Hay ${data.uncostedLines} movimientos sin costo capturado.`}
+            {data.frozenUncostedLines > 0 && " La cifra es parcial: los movimientos sin valor original se excluyen del importe y no se recalculan con precios actuales."}
           </p>}
           {calculation && <div className="space-y-2 text-sm">
             <h4 className="font-medium">Cómo se calcula</h4><p className="max-w-prose text-muted-foreground">{calculation.note}</p>
@@ -124,7 +127,7 @@ export function PnlSourceDetail({ branchId, branchName, line, expected, period, 
                 <p className="font-medium">{item.label}</p>
                 <p className="text-muted-foreground">{item.date} · {statuses[item.status] ?? item.status}</p>
                 {item.costCenter && <p className="text-muted-foreground">{item.costCenter.code} · {item.costCenter.name}</p>}
-                {"quantity" in item && <p className="text-muted-foreground">Cantidad: {item.quantity} · Costo unitario: {formatCents(item.unitCostCents)}</p>}
+                {"quantity" in item && <p className="text-muted-foreground">Cantidad: {item.quantity} · Costo unitario: {item.unitCostCents == null ? "sin costo original" : formatCents(item.unitCostCents)}</p>}
                 <p className="break-all text-xs text-muted-foreground">Referencia: {item.id}</p>
                 {line === "operatingExpenses" && <Link className="text-primary underline underline-offset-4"
                   href={`/dashboard/finance/expenses?focus=${encodeURIComponent(item.id)}`}>Abrir gasto y evidencia autorizada</Link>}

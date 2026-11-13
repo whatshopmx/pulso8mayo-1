@@ -9,7 +9,7 @@ const row = (cents = 10000) => ({ cents, source: "MEASURED", coveragePercent: 10
 const branch = { branchId, branchName: "Centro", sales: row(116000), foodCost: row(), waste: row(), labor: row(),
   operatingExpenses: row(), commissions: row(), pettyCash: row(), operatingProfit: row(), weakestLine: "MEASURED" };
 
-async function prepare(page: Page, options: { denied?: boolean; failOnce?: boolean; empty?: boolean } = {}) {
+async function prepare(page: Page, options: { denied?: boolean; failOnce?: boolean; empty?: boolean; valuation?: string; missingOriginalCost?: boolean } = {}) {
   const queries: URLSearchParams[] = [];
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -27,11 +27,14 @@ async function prepare(page: Page, options: { denied?: boolean; failOnce?: boole
     const pageNumber = Number(url.searchParams.get("page"));
     const derived = ["labor", "commissions", "operatingProfit"].includes(line);
     const items = options.empty || derived ? [] : [{ id: `synthetic-${pageNumber}`, date: "2026-10-15", label: "Movimiento sintético",
-      cents: pageNumber === 1 ? 8000 : 2000, status: "APPROVED", costCenter: null }];
+      cents: pageNumber === 1 ? 8000 : 2000, status: "APPROVED", costCenter: null,
+      ...(options.valuation ? { quantity: "1.0000", unitCostCents: options.missingOriginalCost ? null : 8000 } : {}) }];
     return route.fulfill({ json: { success: true, data: { branchId, line, period, page: pageNumber, pageSize: 25,
       totalCount: options.empty || derived ? 0 : 26, totalCents: options.empty ? 0 : 10000,
       hasMore: !options.empty && !derived && pageNumber === 1, source: options.empty ? "NO_DATA" : "MEASURED", coveragePercent: options.empty ? 0 : 100,
-      items, ...(derived ? { basis: "CALCULATION", calculation: { kind: "PROFIT_BRIDGE", cents: 10000,
+      items, ...(options.valuation ? { valuation: options.valuation, basis: "CONSUMPTION",
+        uncostedLines: options.missingOriginalCost ? 1 : 0, frozenUncostedLines: options.missingOriginalCost ? 1 : 0 } : {}),
+      ...(derived ? { basis: "CALCULATION", calculation: { kind: "PROFIT_BRIDGE", cents: 10000,
         note: "Cálculo sintético", components: [{ key: "salesBase", label: "Venta base", cents: 12000, source: "MEASURED" },
           { key: "cost", label: "Costo", cents: -2000, source: "MEASURED" }] } } : {}),
     } } });
@@ -54,6 +57,21 @@ test("opens with keyboard, preserves filters through pages, and restores focus",
     .toEqual([[branchId, "2026-10-01", "2026-10-31", "1"], [branchId, "2026-10-01", "2026-10-31", "2"]]);
   await panel.getByRole("button", { name: "Cerrar detalle" }).click(); await expect(trigger).toBeFocused();
   expect(errors).toEqual([]);
+});
+
+test("explains frozen valuation and discloses a missing original cost", async ({ page }) => {
+  const { errors } = await prepare(page, { valuation: "FROZEN_MOVEMENT_COST", missingOriginalCost: true });
+  await page.getByRole("button", { name: "Ver detalle de food cost de Centro" }).click();
+  await expect(page.getByText(/Valoración original congelada de los movimientos/)).toBeVisible();
+  await expect(page.getByText(/La cifra es parcial/)).toBeVisible();
+  await expect(page.getByText(/Costo unitario: sin costo original/)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("distinguishes mixed valuation from a fully frozen history", async ({ page }) => {
+  await prepare(page, { valuation: "MIXED_FROZEN_AND_CURRENT" });
+  await page.getByRole("button", { name: "Ver detalle de food cost de Centro" }).click();
+  await expect(page.getByText(/Combina movimientos con valor original congelado/)).toBeVisible();
 });
 
 test("retry keeps filters and switching line resets pagination", async ({ page }) => {
