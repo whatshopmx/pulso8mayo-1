@@ -1,10 +1,11 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, check, date, foreignKey, index, integer, jsonb, pgPolicy, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgPolicy, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { companies, branches } from "./core";
 import { users } from "./auth";
 import { costCenters } from "./service-orders";
 import { companyBankAccounts } from "./treasury";
 import { terminalAcquirerEnum } from "./finance";
+import { inventoryMovements } from "../schema";
 
 // Ledger structure only. Operational classification remains in cost_centers;
 // bank numbers/purpose remain in company_bank_accounts. No default mappings.
@@ -353,7 +354,9 @@ export const accountingEvents = pgTable("accounting_events", {
     OR (${table.sourceType} = 'RECEIVING_REPORT' AND ${table.eventType} = 'PURCHASE_RECEIVED')
     OR (${table.sourceType} = 'PURCHASE_INVOICE' AND ${table.eventType} = 'PURCHASE_INVOICED')
     OR (${table.sourceType} = 'PURCHASE_CREDIT' AND ${table.eventType} = 'PURCHASE_CREDITED')
-    OR (${table.sourceType} = 'INVOICE_PAYMENT' AND ${table.eventType} = 'INVOICE_PAID')`),
+    OR (${table.sourceType} = 'INVOICE_PAYMENT' AND ${table.eventType} = 'INVOICE_PAID')
+    OR (${table.sourceType} = 'INVENTORY_MOVEMENT' AND ${table.eventType} IN
+      ('INVENTORY_USED','INVENTORY_USAGE_RETURNED','INVENTORY_WASTED','INVENTORY_SHIPPED','INVENTORY_RECEIVED','INVENTORY_TRANSIT_WASTED'))`),
   check("accounting_events_version_check", sql`${table.sourceVersion} >= 1
     AND (${table.sourceType} = 'DAILY_SALES_CUT' OR ${table.sourceVersion} = 1)`),
   check("accounting_events_attempts_check", sql`${table.attempts} >= 0`),
@@ -385,6 +388,38 @@ export const accountingPurchaseFacts = pgTable("accounting_purchase_facts", {
   check("accounting_purchase_facts_reference_check", sql`length(btrim(${table.documentReference})) BETWEEN 1 AND 200`),
   check("accounting_purchase_facts_snapshot_check", sql`jsonb_typeof(${table.snapshot}) = 'object'`),
   pgPolicy("accounting_purchase_facts_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
+/** Captured by the physical movement trigger, including pending costs. Never revalues legacy rows. */
+export const accountingInventoryValuations = pgTable("accounting_inventory_valuations", {
+  movementId: uuid("movement_id").primaryKey().references(() => inventoryMovements.id),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  branchId: uuid("branch_id").notNull().references(() => branches.id),
+  itemId: uuid("item_id").notNull(),
+  batchId: uuid("batch_id"),
+  referenceId: text("reference_id"),
+  kind: text("kind", { enum: ["USAGE", "USAGE_RETURN", "WASTE", "TRANSFER_OUT", "TRANSFER_IN", "TRANSFER_WASTE"] }).notNull(),
+  quantity: numeric("quantity", { precision: 12, scale: 4 }).notNull(),
+  unitCostCents: bigint("unit_cost_cents", { mode: "number" }),
+  amountCents: bigint("amount_cents", { mode: "number" }),
+  costingMethod: text("costing_method").notNull(),
+  originalMovementId: uuid("original_movement_id"),
+  accountingDate: date("accounting_date").notNull(),
+  actorId: text("actor_id").references(() => users.id),
+  pendingReason: text("pending_reason"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  index("accounting_inventory_company_idx").on(table.companyId, table.branchId, table.accountingDate, table.movementId),
+  index("accounting_inventory_original_idx").on(table.companyId, table.originalMovementId),
+  index("accounting_inventory_reference_idx").on(table.companyId, table.referenceId, table.itemId),
+  check("accounting_inventory_kind_check", sql`${table.kind} IN ('USAGE','USAGE_RETURN','WASTE','TRANSFER_OUT','TRANSFER_IN','TRANSFER_WASTE')`),
+  check("accounting_inventory_quantity_check", sql`${table.quantity} <> 0`),
+  check("accounting_inventory_amount_check", sql`${table.amountCents} IS NULL OR ${table.amountCents} BETWEEN 0 AND 9007199254740991`),
+  check("accounting_inventory_cost_check", sql`${table.unitCostCents} IS NULL OR ${table.unitCostCents} BETWEEN 0 AND 9007199254740991`),
+  check("accounting_inventory_pending_check", sql`${table.amountCents} IS NOT NULL OR ${table.pendingReason} IS NOT NULL`),
+  pgPolicy("accounting_inventory_tenant", { for: "all", to: "public",
     using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
     withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
 ]).enableRLS();
