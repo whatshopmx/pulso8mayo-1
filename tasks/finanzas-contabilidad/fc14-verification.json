@@ -1,0 +1,31 @@
+{
+  "task": "FC-14",
+  "technicalStatus": "VERIFIED_LOCALLY",
+  "closedOn": "2026-11-13",
+  "operationalMigrationApplied": false,
+  "deployed": false,
+  "featureFlag": "ACCOUNTING_INVENTORY_ENABLED",
+  "featureFlagDefault": false,
+  "migration": "0142_fc14_inventory_valuation",
+  "precedingConcurrentMigration": "0141_inv01b_import_recipe_name",
+  "checkpoints": {
+    "inventoryFinal": { "passed": 23, "exitCode": 0, "log": ".tmp/fc14-rls-read-final.log" },
+    "detailRegression": { "passed": 22, "exitCode": 0, "log": ".tmp/fc14-final-integration.log" },
+    "browser": { "passed": 8, "exitCode": 0, "log": ".tmp/fc14-browser.log" },
+    "financeAfterFinalRlsChange": { "passed": 226, "files": 19, "exitCode": 0, "log": ".tmp/fc14-finance-rls.log" },
+    "generalBeforeFinalRlsChange": { "passed": 2573, "skipped": 1, "todo": 1, "files": 208, "exitCode": 0, "log": ".tmp/fc14-all-unit.log" },
+    "globalLintBeforeFinalRlsChange": { "errors": 0, "warnings": 2435, "exitCode": 0, "log": ".tmp/fc14-global-lint.log" },
+    "finalChangedFilesLint": { "errors": 0, "warnings": 0, "exitCode": 0, "log": ".tmp/fc14-lint-rls.log" },
+    "finalTypecheck": { "exitCode": 0, "log": ".tmp/fc14-types-rls.log" },
+    "finalBuild": { "exitCode": 0, "log": ".tmp/fc14-build-final.log" }
+  },
+  "independentLocalCommits": ["ee87eae", "fddc05d"],
+  "dependentPackage": "LOCAL_UNCOMMITTED_PENDING_INTEGRATION_OF_CONCURRENT_0141",
+  "testBoundary": "Synthetic schemas in a test database checked distinct from the operational database",
+  "limits": [
+    "No operational database migration or environment flag change",
+    "No retrospective valuation or replacement of missing original costs with current prices",
+    "Sources without an eligible actor retain an immutable pending valuation without an invented outbox actor",
+    "No certification of FC-20 or FC-21"
+  ]
+}
