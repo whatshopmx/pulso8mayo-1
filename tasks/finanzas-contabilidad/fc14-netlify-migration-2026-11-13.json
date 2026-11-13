@@ -1,0 +1,3265 @@
+{
+  "at": "2026-11-13T13:51:10.633Z",
+  "target": {
+    "host": "ep-dawn-scene-ayy93r15.c-5.us-east-2.aws.neon.tech",
+    "role": "neondb_owner",
+    "database": "neondb"
+  },
+  "migrations": [
+    {
+      "tag": "0135_fc_preparation_permissions",
+      "when": 1793710000000,
+      "hash": "c9dc23f8d0be58b4d3adf47d09c1694fc019a42618ddde465774bf4e0e3f2675"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "when": 1793745547475,
+      "hash": "25d34d7ca047982b1e09be33c394b2827ea193a5469e1e7eaf6a806c8ad45c18"
+    },
+    {
+      "tag": "0137_inv01a_sale_consumption_identity",
+      "when": 1794435136067,
+      "hash": "9c19af085fec854334211d3ff068fa464be63616c84ed4d3b17d5da7a40e2016"
+    },
+    {
+      "tag": "0138_inv01b_recipe_reader",
+      "when": 1794487594765,
+      "hash": "a48f2fcf5de0f2d92d7325c6fa3e024b0b2b54210abf64842133c11b5bad474e"
+    },
+    {
+      "tag": "0139_inv01b_application_scope",
+      "when": 1794488694351,
+      "hash": "adcd6dda1408584323d4444b9c82d606e00ddd94940b5a7124549f44311ab7f2"
+    },
+    {
+      "tag": "0140_fc13_purchases",
+      "when": 1794490259952,
+      "hash": "564690877933bbdae39cf9e669425a0f42f8e411b0a095db5395282d5371171a"
+    },
+    {
+      "tag": "0141_inv01b_import_recipe_name",
+      "when": 1794495394749,
+      "hash": "8f1a13f2765bd5b1d66ebf3e3c014f63d740910eb955b94792bb9de0a059a8b0"
+    },
+    {
+      "tag": "0142_fc14_inventory_valuation",
+      "when": 1794540240577,
+      "hash": "51eb5f1b63bfca8a170774ffde0359965af464facb7bf4937fb8b5bf118b120e"
+    }
+  ],
+  "appliedAtomically": true,
+  "rehearsalRolledBack": true,
+  "existingDataUnchanged": true,
+  "noHistoricalBackfill": true,
+  "existingRowsBefore": {
+    "company_bank_accounts": {
+      "rows": 1,
+      "digest": "f492c1dbe6650e3c6499cff5181cbdcd"
+    },
+    "operating_expenses": {
+      "rows": 3,
+      "digest": "c1d8b44e7ba1060a8486e725543b6bcb"
+    },
+    "invoices": {
+      "rows": 3,
+      "digest": "f1c81d1de6983ca5ed9d1e5c01085eb1"
+    },
+    "cost_centers": {
+      "rows": 5,
+      "digest": "07f49fb09ec46a68907534c97b0a4d83"
+    },
+    "folio_counters": {
+      "rows": 6,
+      "digest": "b3ed61018cdc71ddab0a3591cc190863"
+    },
+    "performance_review_criteria": {
+      "rows": 8,
+      "digest": "76bfd790b29bc9d6cc0e01c6d427c052"
+    },
+    "equipment_maintenance_history": {
+      "rows": 8,
+      "digest": "9cf7b6ff914e405f6f7530c2322d9468"
+    },
+    "production_ingredients": {
+      "rows": 9,
+      "digest": "50219e6c5961f40b3bed429d9737229b"
+    },
+    "inventory_snapshots": {
+      "rows": 21,
+      "digest": "45bbb729414f1f5ecab7c009009a119c"
+    },
+    "sessions": {
+      "rows": 27,
+      "digest": "d77710c409282abccb539d4add7979d2"
+    },
+    "temperature_logs": {
+      "rows": 26,
+      "digest": "019eb5297be5b4b876bd1d550125eb96"
+    },
+    "workflow_schedules": {
+      "rows": 27,
+      "digest": "57cd43129d2605fe912b6a1ee8446c53"
+    },
+    "inventory_items": {
+      "rows": 30,
+      "digest": "12df1083e98ebc14b880eafb6e0db527"
+    },
+    "branch_budgets": {
+      "rows": 30,
+      "digest": "1ff469024a3a85c51f91201236b617a9"
+    },
+    "performance_review_responses": {
+      "rows": 32,
+      "digest": "41341c9ff955f2f57ef3397be98ed5d4"
+    },
+    "inventory_price_history": {
+      "rows": 40,
+      "digest": "c8eef7c3b7adb2ffd0a3008e40fb8652"
+    },
+    "inventory_audit_log": {
+      "rows": 56,
+      "digest": "0666f653005bc075341a85c51848d6e6"
+    },
+    "inventory_batches": {
+      "rows": 78,
+      "digest": "3700ddd877f99ac6a9d96b9bde4b1175"
+    },
+    "break_logs": {
+      "rows": 103,
+      "digest": "27ce1206c8d2474bcf8745506061bc77"
+    },
+    "daily_sales_cuts": {
+      "rows": 93,
+      "digest": "64b5e5f5439db901a8915d9fdae699fc"
+    },
+    "shift_sessions": {
+      "rows": 104,
+      "digest": "954157c09f5f957d117fb0b15f508713"
+    },
+    "planned_shifts": {
+      "rows": 104,
+      "digest": "d1596a91c1b4a43ba316a40e5f08b2c6"
+    },
+    "inventory_movements": {
+      "rows": 143,
+      "digest": "ed42b8a5936a8db752fc082ebace278f"
+    },
+    "workflow_templates": {
+      "rows": 31,
+      "digest": "b352f6d5cd3bb88fbd68bf6073fba5ae"
+    },
+    "employee_profiles": {
+      "rows": 7,
+      "digest": "57bc37b316862aee9bbd0c9938aaa085"
+    },
+    "compliance_service_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branches": {
+      "rows": 3,
+      "digest": "50a4f7353275eb1b56eddafe5f8f8ca2"
+    },
+    "incidents": {
+      "rows": 6,
+      "digest": "84c1d808a5aa54849aa766f88cf3687c"
+    },
+    "tpv_shift_batches": {
+      "rows": 186,
+      "digest": "159e8714f4d50d1ba926641e4c76ae5d"
+    },
+    "kpi_snapshot_logs": {
+      "rows": 3,
+      "digest": "ccb03b00223f7f22957b186791ff9865"
+    },
+    "report_templates": {
+      "rows": 4,
+      "digest": "c3ecb0742c6ed8e5951e6d39eb524c6c"
+    },
+    "performance_reviews": {
+      "rows": 4,
+      "digest": "41827cae77787c6a00b80e5272154be3"
+    },
+    "employee_offboarding": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_bank_accounts": {
+      "rows": 6,
+      "digest": "7faaeb3d63e2e751f445cd3a50876b85"
+    },
+    "payee_bank_accounts": {
+      "rows": 13,
+      "digest": "f4d749d3efc52ccac3cf14402df4e613"
+    },
+    "employee_contracts": {
+      "rows": 7,
+      "digest": "9ebba7954163b14f01c5de685747d65f"
+    },
+    "service_providers": {
+      "rows": 3,
+      "digest": "a15ccadd69a4a2371271e62e3087607a"
+    },
+    "service_orders": {
+      "rows": 3,
+      "digest": "182b5afac39112e065798eb4d4314268"
+    },
+    "branch_equipments": {
+      "rows": 22,
+      "digest": "3c2cf2929fb122b5cf5a949cf8d54402"
+    },
+    "accounting_journals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "account": {
+      "rows": 8,
+      "digest": "966f6660d67abbdc0c8d301a35ea232b"
+    },
+    "purchase_orders": {
+      "rows": 4,
+      "digest": "9f0cc0877e82211cc45f990f799cb028"
+    },
+    "exceptions": {
+      "rows": 18,
+      "digest": "89fc2a67dcf64384731a605331200add"
+    },
+    "equipment_warranties": {
+      "rows": 4,
+      "digest": "bf782e47d2ce9ac303d087327f41fb54"
+    },
+    "employee_documents": {
+      "rows": 23,
+      "digest": "73012fabb8fba4aad5a82c35e9315ad4"
+    },
+    "extinguisher_inspections": {
+      "rows": 6,
+      "digest": "8df0523c42b01aee26bbec03d28e38bd"
+    },
+    "shift_approvals": {
+      "rows": 2,
+      "digest": "6cad20a6a945659780dcf113fb13e565"
+    },
+    "inventory_waste": {
+      "rows": 7,
+      "digest": "455be870a81e48b7347eac90d2149af2"
+    },
+    "gateway_transactions": {
+      "rows": 14,
+      "digest": "b0123fdddf61fec0916fa2c455507ad2"
+    },
+    "employee_training": {
+      "rows": 7,
+      "digest": "dd18dbff3598798a1a5a7d0998c6d8a0"
+    },
+    "branch_compliance_services": {
+      "rows": 8,
+      "digest": "b917f8d78b604888c16ed2ec8641a757"
+    },
+    "shift_change_requests": {
+      "rows": 2,
+      "digest": "91dd33ff74a97431341b0f9a28434eee"
+    },
+    "report_execution_history": {
+      "rows": 3,
+      "digest": "7506417e4d8c01327ae50d1b4cc97232"
+    },
+    "operational_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_requests": {
+      "rows": 3,
+      "digest": "c19179d1aa695e7195d6ccd21447adce"
+    },
+    "employee_communications": {
+      "rows": 3,
+      "digest": "0cdb6fa09c68fca056569681fd8c8ab3"
+    },
+    "employee_audit_logs": {
+      "rows": 17,
+      "digest": "10154d895470dc3633cce83b6ea774a7"
+    },
+    "inventory_transfers": {
+      "rows": 2,
+      "digest": "e0fb0aea2605326ee98bb06b31626621"
+    },
+    "equipment_alerts": {
+      "rows": 3,
+      "digest": "70c67a58c90ddcb8d97129091565ba5d"
+    },
+    "employee_onboarding": {
+      "rows": 7,
+      "digest": "93269a7ba5bb2f0440c438a48a4227bf"
+    },
+    "domain_events": {
+      "rows": 18,
+      "digest": "026623db1499a96336c682f90b60cadf"
+    },
+    "compliance_alerts": {
+      "rows": 4,
+      "digest": "ed1ddff0fd8bf58275c299683927391a"
+    },
+    "cfdi_recibidos": {
+      "rows": 2,
+      "digest": "c7109a7b8f90f44282110d6fd7148c91"
+    },
+    "remediation_actions": {
+      "rows": 3,
+      "digest": "3aa40cf1f4063ffdd723266e441c2bf0"
+    },
+    "receiving_reports": {
+      "rows": 2,
+      "digest": "ad0375af7672cb1dc97a437152a0f641"
+    },
+    "policy_overrides": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_run_items": {
+      "rows": 2,
+      "digest": "4d5cb71d815de4938205ccdc01992eac"
+    },
+    "payment_approvals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "nom035_action_plans": {
+      "rows": 1,
+      "digest": "1a85dbd88dc6024f600778f79fc9281b"
+    },
+    "imss_files": {
+      "rows": 7,
+      "digest": "d9ea639e3609821e30e1de9803804551"
+    },
+    "equipment_maintenance_schedules": {
+      "rows": 6,
+      "digest": "d10fb6328909a1fed053014b9d56c2aa"
+    },
+    "equipment_catalog": {
+      "rows": 12,
+      "digest": "0c6c81384245219138b84e53c2a30634"
+    },
+    "corporate_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "civil_protection_drills": {
+      "rows": 3,
+      "digest": "de709ab2917e8cd3b98e5c98392ad372"
+    },
+    "performance_goals": {
+      "rows": 5,
+      "digest": "74f3de918f1c3b1804c23556380ce890"
+    },
+    "kpi_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "exit_checklist_items": {
+      "rows": 4,
+      "digest": "9f7b8f6396f1f8e2bcf1093a3fa07101"
+    },
+    "cfdi_nomina_timbrados": {
+      "rows": 3,
+      "digest": "72b79fc20aef4a4d40e7e12ead955069"
+    },
+    "accounting_sales_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "vacation_requests": {
+      "rows": 3,
+      "digest": "aa83eb357c149b9be2d28090ae2aee90"
+    },
+    "production_results": {
+      "rows": 3,
+      "digest": "3e86c6228ab01df699583dc029c1c5c6"
+    },
+    "expense_payments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_benefits": {
+      "rows": 10,
+      "digest": "e186f2c3774e9131757aae2f5bdc1ee8"
+    },
+    "credit_notes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "bank_transactions": {
+      "rows": 12,
+      "digest": "04742a3d297d4c43a355bf4efa1eec51"
+    },
+    "recipe_versions": {
+      "rows": 7,
+      "digest": "f44e8bf9220d2df749f6bb2d051d2c52"
+    },
+    "whatsapp_sessions": {
+      "rows": 1,
+      "digest": "2eede842aadfaf30f462c3fd6b8e6798"
+    },
+    "whatsapp_messages": {
+      "rows": 14,
+      "digest": "1183de690bd9ae1a4bac423b756e0a19"
+    },
+    "supplier_claims": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "petty_cash_transactions": {
+      "rows": 2,
+      "digest": "a62275150bb780228891c68680b2b0be"
+    },
+    "accounting_events": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "onboarding_steps": {
+      "rows": 35,
+      "digest": "a731979e718b94ac7b406a4ec52cac14"
+    },
+    "kpi_definitions": {
+      "rows": 10,
+      "digest": "574ed8556d31f0775edceb319579284d"
+    },
+    "accounting_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "users": {
+      "rows": 8,
+      "digest": "9b4a0373d45d4ea881d8fbd53b21bea7"
+    },
+    "recurring_payables": {
+      "rows": 8,
+      "digest": "370755d1f97509476d5dd4dbe71d7aa3"
+    },
+    "recurring_contracts": {
+      "rows": 2,
+      "digest": "ec36456e6c4596ac942aec58dbf6449d"
+    },
+    "branch_terminals": {
+      "rows": 6,
+      "digest": "e019b9b4e04f853cbb9e21528cfda0ab"
+    },
+    "vacation_accruals": {
+      "rows": 40,
+      "digest": "38aab80a4a8be6f72828ed186e51eac8"
+    },
+    "saved_searches": {
+      "rows": 3,
+      "digest": "b31b045b8292fc71b29736ad290941f3"
+    },
+    "requisitions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "invoice_lines": {
+      "rows": 4,
+      "digest": "573b86726057dc63d834e25ff57c1df7"
+    },
+    "production_orders": {
+      "rows": 6,
+      "digest": "6d0029eff20fbbb855248732b4a748d6"
+    },
+    "playbook_versions": {
+      "rows": 2,
+      "digest": "ef07526f292e8ff30f75a7054be2217d"
+    },
+    "payroll_payslips": {
+      "rows": 9,
+      "digest": "64d676836c660b63d52c63b59cf272b3"
+    },
+    "message_templates": {
+      "rows": 3,
+      "digest": "d32a69d520d69282b5b89fa943343480"
+    },
+    "imss_movements": {
+      "rows": 9,
+      "digest": "b9f14d0cf0ba5346de0a5047c939a392"
+    },
+    "salary_history": {
+      "rows": 7,
+      "digest": "6c8cf1a1993247bf423bfb3b0950d00e"
+    },
+    "workflow_completion_outbox": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tenant_operating_config": {
+      "rows": 1,
+      "digest": "e37c3a7319b56dc202e0daf3c3f7d4a9"
+    },
+    "shift_templates": {
+      "rows": 4,
+      "digest": "def7ea813903e170f28b510f63028290"
+    },
+    "pnl_snapshots": {
+      "rows": 3,
+      "digest": "839a463933bd3874dcb21c354583c37f"
+    },
+    "inventory_alerts": {
+      "rows": 8,
+      "digest": "41487b7774377bf309358c9bfc71cc36"
+    },
+    "data_consents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_compliance_rules": {
+      "rows": 1,
+      "digest": "7698193342d3a14f11031a3edbb16dd5"
+    },
+    "arco_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "suppliers": {
+      "rows": 6,
+      "digest": "02e2f014a4c53b6ae854f1b14ad914ed"
+    },
+    "payment_runs": {
+      "rows": 1,
+      "digest": "f096c3ba51403d6b0936947cddc589e5"
+    },
+    "break_reminder_logs": {
+      "rows": 4,
+      "digest": "ae235758ed842c06d797c683dbe96e9c"
+    },
+    "production_plan_items": {
+      "rows": 3,
+      "digest": "8603c42a3dbb90ec4a5d71f407bfcc62"
+    },
+    "pos_mapping_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_assignments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_aguinaldo_dispersiones": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cost_records": {
+      "rows": 12,
+      "digest": "94f2d1fb42353f0c9a4488569fe20979"
+    },
+    "electronic_registry_readiness": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_conversation_states": {
+      "rows": 3,
+      "digest": "3a24325cddc43f1b51419ea06112950c"
+    },
+    "session": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_knowledge_graph": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_training_records": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "playbook_publications": {
+      "rows": 6,
+      "digest": "a9cd96dd180bdd7aa5496a671ba8f605"
+    },
+    "channel_commission_rates": {
+      "rows": 2,
+      "digest": "b5c47cf82007b0385e77f6482b1dc80a"
+    },
+    "approval_requests": {
+      "rows": 2,
+      "digest": "46ea06fe725ba423be135c22a2b64768"
+    },
+    "stock_counts": {
+      "rows": 21,
+      "digest": "4927506946841ec53fc83d615a908dd4"
+    },
+    "labor_law_calendar_rules": {
+      "rows": 11,
+      "digest": "19a7480df86d67841df29cc68c42013b"
+    },
+    "config_change_logs": {
+      "rows": 3,
+      "digest": "114f810720a19fc48b2b77d55dc96398"
+    },
+    "recipes": {
+      "rows": 7,
+      "digest": "f015dc4567a87974da27405a17a646d8"
+    },
+    "event_triggers": {
+      "rows": 3,
+      "digest": "55d663e0c89601380a69ddbf1b84aa43"
+    },
+    "companies": {
+      "rows": 1,
+      "digest": "d624ee24a9a28e1ad7442ea1db2a636e"
+    },
+    "aggregator_settlements": {
+      "rows": 3,
+      "digest": "787e2dbed04d7f56c1a5b386f35a409b"
+    },
+    "accounting_source_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "data_access_logs": {
+      "rows": 344,
+      "digest": "b3489e27af5ea213b5c4bde734ac8b33"
+    },
+    "sales_entries": {
+      "rows": 465,
+      "digest": "afbb931c7f7ea57baf135b3bf9befca1"
+    },
+    "inventory_periods": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "receiving_report_items": {
+      "rows": 4,
+      "digest": "ac8809d85331093dc1f42a8511800e54"
+    },
+    "psychosocial_surveys": {
+      "rows": 4,
+      "digest": "d8cfb186a8936444c985cceadb4fc15d"
+    },
+    "morning_briefs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_history": {
+      "rows": 21,
+      "digest": "7a86b888634e2d7edb267895e8f56765"
+    },
+    "executive_decisions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_cut_cashiers": {
+      "rows": 3,
+      "digest": "260e282a30c883fd55444480584233f1"
+    },
+    "propina_asignaciones": {
+      "rows": 3,
+      "digest": "15678e6b421a85fc10efb7ff97047150"
+    },
+    "payees": {
+      "rows": 13,
+      "digest": "0ad8beb4a5bf32cea80438ebbf0b3acc"
+    },
+    "schedule_configs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "subscription_tiers": {
+      "rows": 3,
+      "digest": "ce9bb214a06c5a99e47c6050d8608cd7"
+    },
+    "service_order_quotes": {
+      "rows": 3,
+      "digest": "6ae706399baedff8239fda5d5a226c50"
+    },
+    "service_order_evidence": {
+      "rows": 2,
+      "digest": "4130706b638716e7ba41ecced729b593"
+    },
+    "production_plans": {
+      "rows": 3,
+      "digest": "f8e04bd98d2ceb47f858c734247b3c29"
+    },
+    "accounting_journal_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_delegation_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_order_items": {
+      "rows": 8,
+      "digest": "79c57005e7f283d0c784d88de077315e"
+    },
+    "holidays": {
+      "rows": 11,
+      "digest": "e0dc7580105a82a4781e720bd7c16e02"
+    },
+    "forecast_results": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_transfer_items": {
+      "rows": 5,
+      "digest": "ca8d38216aeb15b6fb0cca81764efa0f"
+    },
+    "accounting_opening_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_runs": {
+      "rows": 2,
+      "digest": "d2a61a1bf5da37295ba9b974b41c7c3f"
+    },
+    "accounting_openings": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_types": {
+      "rows": 3,
+      "digest": "1f529d097c52bc20672a25d3e464066a"
+    },
+    "accounting_rule_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "verifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "propinas": {
+      "rows": 3,
+      "digest": "7ced59b765b67ae3657757cb7403769d"
+    },
+    "company_subscriptions": {
+      "rows": 1,
+      "digest": "9996673737d1602915c059edbf5e80cc"
+    },
+    "supplier_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "privacy_notices": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cash_flow_assumptions": {
+      "rows": 1,
+      "digest": "8954bb7ae3a671bc1ecd0a7eeca8801b"
+    },
+    "requisition_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "magic_links": {
+      "rows": 3,
+      "digest": "0fb6eebe8feb3af40a0fea0b583a4581"
+    },
+    "financial_periods": {
+      "rows": 1,
+      "digest": "02f8013aab6cd418bd165e22ac684f6f"
+    },
+    "approval_matrix_rules": {
+      "rows": 6,
+      "digest": "ab56006e09e1b226387f5ab250d30680"
+    },
+    "leave_balances": {
+      "rows": 4,
+      "digest": "02ad358eca9bb8df5ef79d00a9d9dc13"
+    },
+    "storage_locations": {
+      "rows": 11,
+      "digest": "c7ca49eab3695f3f13f09569bcd347f7"
+    },
+    "workflow_assignments": {
+      "rows": 617,
+      "digest": "51c6112aa95eb9ca0474e950b3639c19"
+    },
+    "evidence": {
+      "rows": 1300,
+      "digest": "15cc179f0fbf6dbb5d1f256943ab8ca0"
+    },
+    "workflow_instances": {
+      "rows": 617,
+      "digest": "f3ddcec39530dbc740e3d6fc59280df0"
+    },
+    "tenant_keys": {
+      "rows": 1,
+      "digest": "570ebc5de5486544ff17ef78dc280099"
+    },
+    "communication_read_receipts": {
+      "rows": 2,
+      "digest": "06377eee63d427ea0766e153b5962fa9"
+    },
+    "petty_cash_funds": {
+      "rows": 1,
+      "digest": "767a9da6feefb7c84e166ecf782bfd5b"
+    },
+    "recipe_items": {
+      "rows": 30,
+      "digest": "438273a6cd0c832d28b95e09e1d4b638"
+    },
+    "inventory_expiration_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notification_preferences": {
+      "rows": 7,
+      "digest": "4fa30074bdfb1cdad55aa4b468725598"
+    },
+    "expense_authorization_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "unit_conversions": {
+      "rows": 9,
+      "digest": "1afefa9653f49fad98484e396df50711"
+    },
+    "workflow_instance_steps": {
+      "rows": 6862,
+      "digest": "f3e111375db397429e8d51fe458dab2d"
+    }
+  },
+  "existingRowsAfter": {
+    "company_bank_accounts": {
+      "rows": 1,
+      "digest": "f492c1dbe6650e3c6499cff5181cbdcd"
+    },
+    "operating_expenses": {
+      "rows": 3,
+      "digest": "c1d8b44e7ba1060a8486e725543b6bcb"
+    },
+    "invoices": {
+      "rows": 3,
+      "digest": "f1c81d1de6983ca5ed9d1e5c01085eb1"
+    },
+    "cost_centers": {
+      "rows": 5,
+      "digest": "07f49fb09ec46a68907534c97b0a4d83"
+    },
+    "folio_counters": {
+      "rows": 6,
+      "digest": "b3ed61018cdc71ddab0a3591cc190863"
+    },
+    "performance_review_criteria": {
+      "rows": 8,
+      "digest": "76bfd790b29bc9d6cc0e01c6d427c052"
+    },
+    "equipment_maintenance_history": {
+      "rows": 8,
+      "digest": "9cf7b6ff914e405f6f7530c2322d9468"
+    },
+    "production_ingredients": {
+      "rows": 9,
+      "digest": "50219e6c5961f40b3bed429d9737229b"
+    },
+    "inventory_snapshots": {
+      "rows": 21,
+      "digest": "45bbb729414f1f5ecab7c009009a119c"
+    },
+    "sessions": {
+      "rows": 27,
+      "digest": "d77710c409282abccb539d4add7979d2"
+    },
+    "temperature_logs": {
+      "rows": 26,
+      "digest": "019eb5297be5b4b876bd1d550125eb96"
+    },
+    "workflow_schedules": {
+      "rows": 27,
+      "digest": "57cd43129d2605fe912b6a1ee8446c53"
+    },
+    "inventory_items": {
+      "rows": 30,
+      "digest": "12df1083e98ebc14b880eafb6e0db527"
+    },
+    "branch_budgets": {
+      "rows": 30,
+      "digest": "1ff469024a3a85c51f91201236b617a9"
+    },
+    "performance_review_responses": {
+      "rows": 32,
+      "digest": "41341c9ff955f2f57ef3397be98ed5d4"
+    },
+    "inventory_price_history": {
+      "rows": 40,
+      "digest": "c8eef7c3b7adb2ffd0a3008e40fb8652"
+    },
+    "inventory_audit_log": {
+      "rows": 56,
+      "digest": "0666f653005bc075341a85c51848d6e6"
+    },
+    "inventory_batches": {
+      "rows": 78,
+      "digest": "3700ddd877f99ac6a9d96b9bde4b1175"
+    },
+    "break_logs": {
+      "rows": 103,
+      "digest": "27ce1206c8d2474bcf8745506061bc77"
+    },
+    "daily_sales_cuts": {
+      "rows": 93,
+      "digest": "64b5e5f5439db901a8915d9fdae699fc"
+    },
+    "shift_sessions": {
+      "rows": 104,
+      "digest": "954157c09f5f957d117fb0b15f508713"
+    },
+    "planned_shifts": {
+      "rows": 104,
+      "digest": "d1596a91c1b4a43ba316a40e5f08b2c6"
+    },
+    "inventory_movements": {
+      "rows": 143,
+      "digest": "ed42b8a5936a8db752fc082ebace278f"
+    },
+    "workflow_templates": {
+      "rows": 31,
+      "digest": "b352f6d5cd3bb88fbd68bf6073fba5ae"
+    },
+    "employee_profiles": {
+      "rows": 7,
+      "digest": "57bc37b316862aee9bbd0c9938aaa085"
+    },
+    "compliance_service_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branches": {
+      "rows": 3,
+      "digest": "50a4f7353275eb1b56eddafe5f8f8ca2"
+    },
+    "incidents": {
+      "rows": 6,
+      "digest": "84c1d808a5aa54849aa766f88cf3687c"
+    },
+    "tpv_shift_batches": {
+      "rows": 186,
+      "digest": "159e8714f4d50d1ba926641e4c76ae5d"
+    },
+    "kpi_snapshot_logs": {
+      "rows": 3,
+      "digest": "ccb03b00223f7f22957b186791ff9865"
+    },
+    "report_templates": {
+      "rows": 4,
+      "digest": "c3ecb0742c6ed8e5951e6d39eb524c6c"
+    },
+    "performance_reviews": {
+      "rows": 4,
+      "digest": "41827cae77787c6a00b80e5272154be3"
+    },
+    "employee_offboarding": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_bank_accounts": {
+      "rows": 6,
+      "digest": "7faaeb3d63e2e751f445cd3a50876b85"
+    },
+    "payee_bank_accounts": {
+      "rows": 13,
+      "digest": "f4d749d3efc52ccac3cf14402df4e613"
+    },
+    "employee_contracts": {
+      "rows": 7,
+      "digest": "9ebba7954163b14f01c5de685747d65f"
+    },
+    "service_providers": {
+      "rows": 3,
+      "digest": "a15ccadd69a4a2371271e62e3087607a"
+    },
+    "service_orders": {
+      "rows": 3,
+      "digest": "182b5afac39112e065798eb4d4314268"
+    },
+    "branch_equipments": {
+      "rows": 22,
+      "digest": "3c2cf2929fb122b5cf5a949cf8d54402"
+    },
+    "accounting_journals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "account": {
+      "rows": 8,
+      "digest": "966f6660d67abbdc0c8d301a35ea232b"
+    },
+    "purchase_orders": {
+      "rows": 4,
+      "digest": "9f0cc0877e82211cc45f990f799cb028"
+    },
+    "exceptions": {
+      "rows": 18,
+      "digest": "89fc2a67dcf64384731a605331200add"
+    },
+    "equipment_warranties": {
+      "rows": 4,
+      "digest": "bf782e47d2ce9ac303d087327f41fb54"
+    },
+    "employee_documents": {
+      "rows": 23,
+      "digest": "73012fabb8fba4aad5a82c35e9315ad4"
+    },
+    "extinguisher_inspections": {
+      "rows": 6,
+      "digest": "8df0523c42b01aee26bbec03d28e38bd"
+    },
+    "shift_approvals": {
+      "rows": 2,
+      "digest": "6cad20a6a945659780dcf113fb13e565"
+    },
+    "inventory_waste": {
+      "rows": 7,
+      "digest": "455be870a81e48b7347eac90d2149af2"
+    },
+    "gateway_transactions": {
+      "rows": 14,
+      "digest": "b0123fdddf61fec0916fa2c455507ad2"
+    },
+    "employee_training": {
+      "rows": 7,
+      "digest": "dd18dbff3598798a1a5a7d0998c6d8a0"
+    },
+    "branch_compliance_services": {
+      "rows": 8,
+      "digest": "b917f8d78b604888c16ed2ec8641a757"
+    },
+    "shift_change_requests": {
+      "rows": 2,
+      "digest": "91dd33ff74a97431341b0f9a28434eee"
+    },
+    "report_execution_history": {
+      "rows": 3,
+      "digest": "7506417e4d8c01327ae50d1b4cc97232"
+    },
+    "operational_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_requests": {
+      "rows": 3,
+      "digest": "c19179d1aa695e7195d6ccd21447adce"
+    },
+    "employee_communications": {
+      "rows": 3,
+      "digest": "0cdb6fa09c68fca056569681fd8c8ab3"
+    },
+    "employee_audit_logs": {
+      "rows": 17,
+      "digest": "10154d895470dc3633cce83b6ea774a7"
+    },
+    "inventory_transfers": {
+      "rows": 2,
+      "digest": "e0fb0aea2605326ee98bb06b31626621"
+    },
+    "equipment_alerts": {
+      "rows": 3,
+      "digest": "70c67a58c90ddcb8d97129091565ba5d"
+    },
+    "employee_onboarding": {
+      "rows": 7,
+      "digest": "93269a7ba5bb2f0440c438a48a4227bf"
+    },
+    "domain_events": {
+      "rows": 18,
+      "digest": "026623db1499a96336c682f90b60cadf"
+    },
+    "compliance_alerts": {
+      "rows": 4,
+      "digest": "ed1ddff0fd8bf58275c299683927391a"
+    },
+    "cfdi_recibidos": {
+      "rows": 2,
+      "digest": "c7109a7b8f90f44282110d6fd7148c91"
+    },
+    "remediation_actions": {
+      "rows": 3,
+      "digest": "3aa40cf1f4063ffdd723266e441c2bf0"
+    },
+    "receiving_reports": {
+      "rows": 2,
+      "digest": "ad0375af7672cb1dc97a437152a0f641"
+    },
+    "policy_overrides": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_run_items": {
+      "rows": 2,
+      "digest": "4d5cb71d815de4938205ccdc01992eac"
+    },
+    "payment_approvals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "nom035_action_plans": {
+      "rows": 1,
+      "digest": "1a85dbd88dc6024f600778f79fc9281b"
+    },
+    "imss_files": {
+      "rows": 7,
+      "digest": "d9ea639e3609821e30e1de9803804551"
+    },
+    "equipment_maintenance_schedules": {
+      "rows": 6,
+      "digest": "d10fb6328909a1fed053014b9d56c2aa"
+    },
+    "equipment_catalog": {
+      "rows": 12,
+      "digest": "0c6c81384245219138b84e53c2a30634"
+    },
+    "corporate_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "civil_protection_drills": {
+      "rows": 3,
+      "digest": "de709ab2917e8cd3b98e5c98392ad372"
+    },
+    "performance_goals": {
+      "rows": 5,
+      "digest": "74f3de918f1c3b1804c23556380ce890"
+    },
+    "kpi_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "exit_checklist_items": {
+      "rows": 4,
+      "digest": "9f7b8f6396f1f8e2bcf1093a3fa07101"
+    },
+    "cfdi_nomina_timbrados": {
+      "rows": 3,
+      "digest": "72b79fc20aef4a4d40e7e12ead955069"
+    },
+    "accounting_sales_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "vacation_requests": {
+      "rows": 3,
+      "digest": "aa83eb357c149b9be2d28090ae2aee90"
+    },
+    "production_results": {
+      "rows": 3,
+      "digest": "3e86c6228ab01df699583dc029c1c5c6"
+    },
+    "expense_payments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_benefits": {
+      "rows": 10,
+      "digest": "e186f2c3774e9131757aae2f5bdc1ee8"
+    },
+    "credit_notes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "bank_transactions": {
+      "rows": 12,
+      "digest": "04742a3d297d4c43a355bf4efa1eec51"
+    },
+    "accounting_inventory_valuations": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipe_versions": {
+      "rows": 7,
+      "digest": "f44e8bf9220d2df749f6bb2d051d2c52"
+    },
+    "whatsapp_sessions": {
+      "rows": 1,
+      "digest": "2eede842aadfaf30f462c3fd6b8e6798"
+    },
+    "whatsapp_messages": {
+      "rows": 14,
+      "digest": "1183de690bd9ae1a4bac423b756e0a19"
+    },
+    "supplier_claims": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "petty_cash_transactions": {
+      "rows": 2,
+      "digest": "a62275150bb780228891c68680b2b0be"
+    },
+    "accounting_events": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "onboarding_steps": {
+      "rows": 35,
+      "digest": "a731979e718b94ac7b406a4ec52cac14"
+    },
+    "kpi_definitions": {
+      "rows": 10,
+      "digest": "574ed8556d31f0775edceb319579284d"
+    },
+    "accounting_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "users": {
+      "rows": 8,
+      "digest": "9b4a0373d45d4ea881d8fbd53b21bea7"
+    },
+    "sales_consumption_revisions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recurring_payables": {
+      "rows": 8,
+      "digest": "370755d1f97509476d5dd4dbe71d7aa3"
+    },
+    "recurring_contracts": {
+      "rows": 2,
+      "digest": "ec36456e6c4596ac942aec58dbf6449d"
+    },
+    "branch_terminals": {
+      "rows": 6,
+      "digest": "e019b9b4e04f853cbb9e21528cfda0ab"
+    },
+    "vacation_accruals": {
+      "rows": 40,
+      "digest": "38aab80a4a8be6f72828ed186e51eac8"
+    },
+    "saved_searches": {
+      "rows": 3,
+      "digest": "b31b045b8292fc71b29736ad290941f3"
+    },
+    "requisitions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "invoice_lines": {
+      "rows": 4,
+      "digest": "573b86726057dc63d834e25ff57c1df7"
+    },
+    "production_orders": {
+      "rows": 6,
+      "digest": "6d0029eff20fbbb855248732b4a748d6"
+    },
+    "playbook_versions": {
+      "rows": 2,
+      "digest": "ef07526f292e8ff30f75a7054be2217d"
+    },
+    "payroll_payslips": {
+      "rows": 9,
+      "digest": "64d676836c660b63d52c63b59cf272b3"
+    },
+    "message_templates": {
+      "rows": 3,
+      "digest": "d32a69d520d69282b5b89fa943343480"
+    },
+    "imss_movements": {
+      "rows": 9,
+      "digest": "b9f14d0cf0ba5346de0a5047c939a392"
+    },
+    "salary_history": {
+      "rows": 7,
+      "digest": "6c8cf1a1993247bf423bfb3b0950d00e"
+    },
+    "workflow_completion_outbox": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tenant_operating_config": {
+      "rows": 1,
+      "digest": "e37c3a7319b56dc202e0daf3c3f7d4a9"
+    },
+    "shift_templates": {
+      "rows": 4,
+      "digest": "def7ea813903e170f28b510f63028290"
+    },
+    "pnl_snapshots": {
+      "rows": 3,
+      "digest": "839a463933bd3874dcb21c354583c37f"
+    },
+    "inventory_alerts": {
+      "rows": 8,
+      "digest": "41487b7774377bf309358c9bfc71cc36"
+    },
+    "data_consents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_compliance_rules": {
+      "rows": 1,
+      "digest": "7698193342d3a14f11031a3edbb16dd5"
+    },
+    "arco_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "suppliers": {
+      "rows": 6,
+      "digest": "02e2f014a4c53b6ae854f1b14ad914ed"
+    },
+    "payment_runs": {
+      "rows": 1,
+      "digest": "f096c3ba51403d6b0936947cddc589e5"
+    },
+    "break_reminder_logs": {
+      "rows": 4,
+      "digest": "ae235758ed842c06d797c683dbe96e9c"
+    },
+    "production_plan_items": {
+      "rows": 3,
+      "digest": "8603c42a3dbb90ec4a5d71f407bfcc62"
+    },
+    "pos_mapping_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_assignments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_aguinaldo_dispersiones": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_purchase_facts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cost_records": {
+      "rows": 12,
+      "digest": "94f2d1fb42353f0c9a4488569fe20979"
+    },
+    "electronic_registry_readiness": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_conversation_states": {
+      "rows": 3,
+      "digest": "3a24325cddc43f1b51419ea06112950c"
+    },
+    "session": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_knowledge_graph": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_training_records": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "playbook_publications": {
+      "rows": 6,
+      "digest": "a9cd96dd180bdd7aa5496a671ba8f605"
+    },
+    "channel_commission_rates": {
+      "rows": 2,
+      "digest": "b5c47cf82007b0385e77f6482b1dc80a"
+    },
+    "approval_requests": {
+      "rows": 2,
+      "digest": "46ea06fe725ba423be135c22a2b64768"
+    },
+    "stock_counts": {
+      "rows": 21,
+      "digest": "4927506946841ec53fc83d615a908dd4"
+    },
+    "labor_law_calendar_rules": {
+      "rows": 11,
+      "digest": "19a7480df86d67841df29cc68c42013b"
+    },
+    "config_change_logs": {
+      "rows": 3,
+      "digest": "114f810720a19fc48b2b77d55dc96398"
+    },
+    "recipes": {
+      "rows": 7,
+      "digest": "f015dc4567a87974da27405a17a646d8"
+    },
+    "accounting_gateway_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "event_triggers": {
+      "rows": 3,
+      "digest": "55d663e0c89601380a69ddbf1b84aa43"
+    },
+    "companies": {
+      "rows": 1,
+      "digest": "d624ee24a9a28e1ad7442ea1db2a636e"
+    },
+    "aggregator_settlements": {
+      "rows": 3,
+      "digest": "787e2dbed04d7f56c1a5b386f35a409b"
+    },
+    "accounting_source_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "data_access_logs": {
+      "rows": 344,
+      "digest": "b3489e27af5ea213b5c4bde734ac8b33"
+    },
+    "sales_entries": {
+      "rows": 465,
+      "digest": "afbb931c7f7ea57baf135b3bf9befca1"
+    },
+    "inventory_periods": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "receiving_report_items": {
+      "rows": 4,
+      "digest": "ac8809d85331093dc1f42a8511800e54"
+    },
+    "psychosocial_surveys": {
+      "rows": 4,
+      "digest": "d8cfb186a8936444c985cceadb4fc15d"
+    },
+    "morning_briefs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_history": {
+      "rows": 21,
+      "digest": "7a86b888634e2d7edb267895e8f56765"
+    },
+    "executive_decisions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_cut_cashiers": {
+      "rows": 3,
+      "digest": "260e282a30c883fd55444480584233f1"
+    },
+    "propina_asignaciones": {
+      "rows": 3,
+      "digest": "15678e6b421a85fc10efb7ff97047150"
+    },
+    "payees": {
+      "rows": 13,
+      "digest": "0ad8beb4a5bf32cea80438ebbf0b3acc"
+    },
+    "schedule_configs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "subscription_tiers": {
+      "rows": 3,
+      "digest": "ce9bb214a06c5a99e47c6050d8608cd7"
+    },
+    "service_order_quotes": {
+      "rows": 3,
+      "digest": "6ae706399baedff8239fda5d5a226c50"
+    },
+    "service_order_evidence": {
+      "rows": 2,
+      "digest": "4130706b638716e7ba41ecced729b593"
+    },
+    "production_plans": {
+      "rows": 3,
+      "digest": "f8e04bd98d2ceb47f858c734247b3c29"
+    },
+    "accounting_journal_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_delegation_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_order_items": {
+      "rows": 8,
+      "digest": "79c57005e7f283d0c784d88de077315e"
+    },
+    "holidays": {
+      "rows": 11,
+      "digest": "e0dc7580105a82a4781e720bd7c16e02"
+    },
+    "forecast_results": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_transfer_items": {
+      "rows": 5,
+      "digest": "ca8d38216aeb15b6fb0cca81764efa0f"
+    },
+    "accounting_opening_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_consumption_identities": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_runs": {
+      "rows": 2,
+      "digest": "d2a61a1bf5da37295ba9b974b41c7c3f"
+    },
+    "accounting_openings": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_types": {
+      "rows": 3,
+      "digest": "1f529d097c52bc20672a25d3e464066a"
+    },
+    "accounting_rule_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "verifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "propinas": {
+      "rows": 3,
+      "digest": "7ced59b765b67ae3657757cb7403769d"
+    },
+    "company_subscriptions": {
+      "rows": 1,
+      "digest": "9996673737d1602915c059edbf5e80cc"
+    },
+    "supplier_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "privacy_notices": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cash_flow_assumptions": {
+      "rows": 1,
+      "digest": "8954bb7ae3a671bc1ecd0a7eeca8801b"
+    },
+    "requisition_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "magic_links": {
+      "rows": 3,
+      "digest": "0fb6eebe8feb3af40a0fea0b583a4581"
+    },
+    "financial_periods": {
+      "rows": 1,
+      "digest": "02f8013aab6cd418bd165e22ac684f6f"
+    },
+    "approval_matrix_rules": {
+      "rows": 6,
+      "digest": "ab56006e09e1b226387f5ab250d30680"
+    },
+    "leave_balances": {
+      "rows": 4,
+      "digest": "02ad358eca9bb8df5ef79d00a9d9dc13"
+    },
+    "storage_locations": {
+      "rows": 11,
+      "digest": "c7ca49eab3695f3f13f09569bcd347f7"
+    },
+    "workflow_assignments": {
+      "rows": 617,
+      "digest": "51c6112aa95eb9ca0474e950b3639c19"
+    },
+    "unit_conversions": {
+      "rows": 9,
+      "digest": "1afefa9653f49fad98484e396df50711"
+    },
+    "expense_authorization_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notification_preferences": {
+      "rows": 7,
+      "digest": "4fa30074bdfb1cdad55aa4b468725598"
+    },
+    "inventory_expiration_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipe_items": {
+      "rows": 30,
+      "digest": "438273a6cd0c832d28b95e09e1d4b638"
+    },
+    "petty_cash_funds": {
+      "rows": 1,
+      "digest": "767a9da6feefb7c84e166ecf782bfd5b"
+    },
+    "communication_read_receipts": {
+      "rows": 2,
+      "digest": "06377eee63d427ea0766e153b5962fa9"
+    },
+    "tenant_keys": {
+      "rows": 1,
+      "digest": "570ebc5de5486544ff17ef78dc280099"
+    },
+    "evidence": {
+      "rows": 1300,
+      "digest": "15cc179f0fbf6dbb5d1f256943ab8ca0"
+    },
+    "workflow_instances": {
+      "rows": 617,
+      "digest": "f3ddcec39530dbc740e3d6fc59280df0"
+    },
+    "workflow_instance_steps": {
+      "rows": 6862,
+      "digest": "f3e111375db397429e8d51fe458dab2d"
+    }
+  },
+  "historyBefore": [
+    {
+      "id": 1,
+      "hash": "0000_mixed_arclight",
+      "created_at": "1784815642393"
+    },
+    {
+      "id": 2,
+      "hash": "0001_solid_blonde_phantom",
+      "created_at": "1784815702393"
+    },
+    {
+      "id": 3,
+      "hash": "0002_melodic_silverclaw",
+      "created_at": "1784815762393"
+    },
+    {
+      "id": 4,
+      "hash": "0003_sudden_mister_fear",
+      "created_at": "1784815822393"
+    },
+    {
+      "id": 5,
+      "hash": "0004_secret_vance_astro",
+      "created_at": "1784815882393"
+    },
+    {
+      "id": 6,
+      "hash": "0005_cuddly_unus",
+      "created_at": "1784815942393"
+    },
+    {
+      "id": 7,
+      "hash": "0006_faithful_sumo",
+      "created_at": "1784816002393"
+    },
+    {
+      "id": 8,
+      "hash": "0007_add_manager_invite_token",
+      "created_at": "1784816062393"
+    },
+    {
+      "id": 9,
+      "hash": "0008_simple_wolf_cub",
+      "created_at": "1784816122393"
+    },
+    {
+      "id": 10,
+      "hash": "ee29b14779321d9e1e0a0b1b714a2d6206fdb8f5046bca58a0c56cccec7b7779",
+      "created_at": "1784905189002"
+    },
+    {
+      "id": 11,
+      "hash": "8e2ccacf85ba36cfba324832261ab80f8c4adcd442d636a0d375ee87a972c247",
+      "created_at": "1784906575993"
+    },
+    {
+      "id": 12,
+      "hash": "795eaf9f3a82c65efd23984bfbde1c19ad5000522844b81ec642882594dcb2b8",
+      "created_at": "1784906986760"
+    },
+    {
+      "id": 13,
+      "hash": "6e2f0113eb4ba8478df09f9438d2bf7ae5bc2fbeb8b461cce07759f16697f68d",
+      "created_at": "1784985645668"
+    },
+    {
+      "id": 14,
+      "hash": "cdf2686ae56c36bc57c4d77186d824e0b2c18670c4adbb13a11dbb18b41b3011",
+      "created_at": "1785005432837"
+    },
+    {
+      "id": 15,
+      "hash": "c205e53dd65f509317bff639b8767dc41d3e9ad0a61846b033704cd20c249d07",
+      "created_at": "1785155152194"
+    },
+    {
+      "id": 16,
+      "hash": "52c4ce9756daa5cd16b5320602c3f7d2973ee6653dc56db99db62e02dfe86544",
+      "created_at": "1785155599220"
+    },
+    {
+      "id": 17,
+      "hash": "28d0e1ceb207b0f362d5dd2b18a56763e7bad42a1240f287ee07228af4b11014",
+      "created_at": "1785155655420"
+    },
+    {
+      "id": 18,
+      "hash": "f2e86b12fb4fe7659fa0457f3359d67c6c54b80c42b1aeef6c4ca180bb9aa7cc",
+      "created_at": "1785160757418"
+    },
+    {
+      "id": 19,
+      "hash": "02fb1350f3ce8c7e22f46f0f376038b1dd243d33f864a2eca7dd7923ce9c2853",
+      "created_at": "1785209010727"
+    },
+    {
+      "id": 20,
+      "hash": "22ad15dcf3db469b4e2fb75164bd8adf664e69a454bffd58fe4f3f8bf7a44f94",
+      "created_at": "1785251787256"
+    },
+    {
+      "id": 21,
+      "hash": "8bf6c3cfcd0447cc0cc6507df581c26cf5be0f6b1b2320f8b12f4f30c9e24073",
+      "created_at": "1785253105889"
+    },
+    {
+      "id": 22,
+      "hash": "c8713d45602abfbd0dbb739bd32e50696203ebcef7f4dff8c5c72f7b5829a1be",
+      "created_at": "1785716676483"
+    },
+    {
+      "id": 23,
+      "hash": "d2ca478db62466b5f1fca6ccd85e292773405b2cb40919ea26395ec9c4761f55",
+      "created_at": "1785723666237"
+    },
+    {
+      "id": 24,
+      "hash": "91b7d2eba56823ab182c75b7c5c19f11f4b133d0c8fb6ef320cc3a6b85406d10",
+      "created_at": "1785731101332"
+    },
+    {
+      "id": 25,
+      "hash": "09bd0a49c26db621682993a8993e8cf731d7bb351ea950e116bb3f414dbb459f",
+      "created_at": "1785731721404"
+    },
+    {
+      "id": 26,
+      "hash": "702cbb70f57110d21c75f3a32c0d2b1e03188d3249146de1c47817ee977d1246",
+      "created_at": "1785761034446"
+    },
+    {
+      "id": 27,
+      "hash": "2b10fa68978bc593c972b9c09b8d928e1cabc3bd2a2c987870e8cdb161ca26b6",
+      "created_at": "1785766837906"
+    },
+    {
+      "id": 28,
+      "hash": "95df46f2dca5feba0014147814f1928dd55054f375c931ca9e2de3a759014829",
+      "created_at": "1785864755469"
+    },
+    {
+      "id": 29,
+      "hash": "fba04366f2ef807adae2a8afc894167da5280f8ed9967ebc2a68c24a87666e01",
+      "created_at": "1785875436325"
+    },
+    {
+      "id": 30,
+      "hash": "9ec51bb27806fb0d3f5e17979b6a0d886fc0780553a4eef32c4753053f6507d6",
+      "created_at": "1785877886523"
+    },
+    {
+      "id": 31,
+      "hash": "00eceeac5e1ebcd6da8dcee8934e3e1c4682b8dae387ac68edf1bc827b7a1399",
+      "created_at": "1785955997211"
+    },
+    {
+      "id": 32,
+      "hash": "840fe498f4278d7804d1aa6e18dc6aedb431bce1cae7e5a0c9a26190478f6291",
+      "created_at": "1785959220110"
+    },
+    {
+      "id": 33,
+      "hash": "532eeaca2a605e91f9bade564c9cd3b9fa449fcab42ef904fb7ea8c933e431bb",
+      "created_at": "1785960912829"
+    },
+    {
+      "id": 78,
+      "hash": "ea02449a1118793bd018a3bb030514ce6a4ae989539f1e23e9264a431c4d3f64",
+      "created_at": "1785960912829"
+    },
+    {
+      "id": 34,
+      "hash": "20d5696419c96c1a2b893488fdd0605194a361d63e30797198a835e94abae35b",
+      "created_at": "1785960952526"
+    },
+    {
+      "id": 35,
+      "hash": "c61df18a37b2b434f6640bfa58722a20f03455512b717d9d46a3d7f47b376e5d",
+      "created_at": "1785961105235"
+    },
+    {
+      "id": 36,
+      "hash": "78c0e81b357a3303f7063c24850f25a9f0041c202e5eb90d2c602a246ecaf748",
+      "created_at": "1786031904384"
+    },
+    {
+      "id": 79,
+      "hash": "880eb35d2cb56297e8d295ba0675bd8742c3683db11388ec2af5ced17bdf6fb6",
+      "created_at": "1786031904384"
+    },
+    {
+      "id": 37,
+      "hash": "dd0819d87972f640c9b55bdf1bbadf1184af0fb2f60b1140e0eb9f317f3d90d4",
+      "created_at": "1786051189302"
+    },
+    {
+      "id": 38,
+      "hash": "6a4c84e8dccadb94d7ef5e0df5106579fcae705cf2692d658d4708306bfee7c3",
+      "created_at": "1786111597033"
+    },
+    {
+      "id": 80,
+      "hash": "0293aa027097a66c167760ca7d200531bf2340713a7f093655dfa456cbf16e13",
+      "created_at": "1786111597033"
+    },
+    {
+      "id": 39,
+      "hash": "1bc231d41f1b9fac77e0f0e2b6a847fbbcafcbaf94358fe648cf8790fed259ef",
+      "created_at": "1786150938231"
+    },
+    {
+      "id": 81,
+      "hash": "a5f3ef166d2404610f48c8421e4112f4d1300cd07fd93b76aa015faecf5f7a2a",
+      "created_at": "1786150938231"
+    },
+    {
+      "id": 41,
+      "hash": "2c29ea77cdfea1601d5217871f6d03bb1635e1318119f8bbe791c73ee1689158",
+      "created_at": "1786197611355"
+    },
+    {
+      "id": 82,
+      "hash": "036906f8f7659b3dd9deaa63116e29e4e9fffff53c8026124005752bf4c55bf8",
+      "created_at": "1786197611355"
+    },
+    {
+      "id": 42,
+      "hash": "0685353b0ec29fa61de4a8ad96300c5d51d8f5e679a77e0cf37994843d944af7",
+      "created_at": "1786198857644"
+    },
+    {
+      "id": 43,
+      "hash": "a522ae4f808e54f037594dd146875b2ed5f65f39f4706ab3182ef10a78eb48fd",
+      "created_at": "1786245446777"
+    },
+    {
+      "id": 83,
+      "hash": "9cac608f36296fd6b27853fadedbd7608bc691bce24679b368bf5db9c3c92544",
+      "created_at": "1786245446777"
+    },
+    {
+      "id": 44,
+      "hash": "08959e6c9a6b92a0f0017135bbc839ba8ed89a73da805e128d90a8be6a5fc780",
+      "created_at": "1786282931686"
+    },
+    {
+      "id": 45,
+      "hash": "c83f8b98d728a33a731bc20f3b26cb3e90efe979aeb6eb17dd0dd5a6328335d5",
+      "created_at": "1786284799621"
+    },
+    {
+      "id": 84,
+      "hash": "3ddcb948b990ac87cd14d653b89ab1c8cea7f7ed880c1ac4ee716a3dbf10916e",
+      "created_at": "1786284799621"
+    },
+    {
+      "id": 46,
+      "hash": "a408a6a2a1d99d2cb3e134bf01137efd750604c3bea055277c4c67eddcb3e78b",
+      "created_at": "1786299163578"
+    },
+    {
+      "id": 47,
+      "hash": "47920b0dadafbe37c0d4dcd3594141161ed8ca75a05acbfc9fc4a46dfe57c277",
+      "created_at": "1786317692091"
+    },
+    {
+      "id": 48,
+      "hash": "95492e1024d0a8928a5d375c6990274b768e59a6c6cb4aee13bbb8af29ef1c1a",
+      "created_at": "1786321075751"
+    },
+    {
+      "id": 49,
+      "hash": "335febe044aaf437353e9233ea4aea760288e7b73fc49f64393cd948bb666c76",
+      "created_at": "1786326157386"
+    },
+    {
+      "id": 50,
+      "hash": "624977cc58359ca084adc1110e086e48242fc007960a8360dc6a88cba1010171",
+      "created_at": "1786327548119"
+    },
+    {
+      "id": 51,
+      "hash": "4ae9a8f5a993389d48c011db7a7f6f78bb0ed3b9378c02165ae6a2035548c34e",
+      "created_at": "1786329881842"
+    },
+    {
+      "id": 52,
+      "hash": "05650e776fde977e1c4bde3396d1271cab92832c3c0b1484e74a00691faa745a",
+      "created_at": "1786468130515"
+    },
+    {
+      "id": 85,
+      "hash": "f76c1c6b7784693fd2b18b8b615523c6c82df593705d0a40a8eb094c16816a93",
+      "created_at": "1786468130515"
+    },
+    {
+      "id": 53,
+      "hash": "f75b64d2fa114fe11c6a2d689f1e92349bc878db9fd9d25415ca4b4b756853da",
+      "created_at": "1786474571267"
+    },
+    {
+      "id": 86,
+      "hash": "aedce4d28992da5f051ab146adba9bc7257bb075560a34a3ff329e5fbcc18a46",
+      "created_at": "1786474571267"
+    },
+    {
+      "id": 54,
+      "hash": "99f23e56b6606d53c87bb8b51441eb3772a943e3d279f7426282f8547cfb8ea4",
+      "created_at": "1786732300816"
+    },
+    {
+      "id": 56,
+      "hash": "6473a9a73e6ab6e3951de37c96c5bea08c84e3f381f2d06e5b900ea09df9d9a8",
+      "created_at": "1786891301639"
+    },
+    {
+      "id": 87,
+      "hash": "8937e5003dfc9008ee5cfe5788a89114c86e1f6af24c0dca0fe63e3d21428fb6",
+      "created_at": "1786891301639"
+    },
+    {
+      "id": 57,
+      "hash": "87fbdd88455efff37bf70cc904c959b31987cef85a7514c3c6fda8b0c25a62a6",
+      "created_at": "1787075456159"
+    },
+    {
+      "id": 58,
+      "hash": "d1b2bd5492d3b2d5cc722042d4e6e879e89e524ea2f166a21922969021d2d339",
+      "created_at": "1787269031562"
+    },
+    {
+      "id": 88,
+      "hash": "b666c6f3bf344671d3e1b0c4475eb2fd6d1c8b8c020c6e84743a1c7212925cb0",
+      "created_at": "1787269031562"
+    },
+    {
+      "id": 59,
+      "hash": "68e3f042c7cffa97dd87ad1e0eef54e41c20cb226a638b51e2784fa28957030b",
+      "created_at": "1787271353454"
+    },
+    {
+      "id": 89,
+      "hash": "1ef94ee459467630515173ff4581e67867dee45f1379f9bc7297bbf4f30c2ede",
+      "created_at": "1787271353454"
+    },
+    {
+      "id": 60,
+      "hash": "78da00416d88e7f2754e9354cd724b2c74d88c5b07634f31e1b315410e64a9c7",
+      "created_at": "1787329216499"
+    },
+    {
+      "id": 90,
+      "hash": "f84cda75b3aafe01ecfe01fa71a18910a4370bcd0caf76b20dc42ffe4c73dbb4",
+      "created_at": "1787329216499"
+    },
+    {
+      "id": 61,
+      "hash": "2e7b768d6fe50974e12ce19d9709142b555f819a3f500976e39afe9e48cb4de5",
+      "created_at": "1787546120144"
+    },
+    {
+      "id": 62,
+      "hash": "df3209252c1069b6b7f798ad0fc8815b72402f44622beb64fbcbef6bf3cf7907",
+      "created_at": "1787599075181"
+    },
+    {
+      "id": 63,
+      "hash": "1c78b06f44a07175af71ee795dba5c032a3fda5717c088e4b7de653a355b76db",
+      "created_at": "1787622373537"
+    },
+    {
+      "id": 64,
+      "hash": "b505dc99a4e3eb8fc41ccc5d0cf9f80e7dbdd43053cb023fe0fd38290e37b537",
+      "created_at": "1787668177468"
+    },
+    {
+      "id": 65,
+      "hash": "b1e925822ded128162d46db3914b8e3e2ef20b79cb9dff5e8097c33613a9bf17",
+      "created_at": "1787676032929"
+    },
+    {
+      "id": 66,
+      "hash": "da2dfe6eed66f1bd2a78440597878e4333814aa0ccc1cf9f5e84b8b2e817b55e",
+      "created_at": "1787681354218"
+    },
+    {
+      "id": 67,
+      "hash": "2a010424ea941db97bf3e492e58caa65f15418a186240055e73054ce289f0d52",
+      "created_at": "1787683142176"
+    },
+    {
+      "id": 68,
+      "hash": "acfa11a7d09757e84077ba71a60f175fa081df79e3fb5346fd4e4076d1852279",
+      "created_at": "1787686873818"
+    },
+    {
+      "id": 69,
+      "hash": "7b6a7459a1f370747cb09ee489b7539094d0783ce981d4cb0cb574421672ef88",
+      "created_at": "1787688340570"
+    },
+    {
+      "id": 70,
+      "hash": "870f62ac516b0a95a3d2639fecbf28541a51ff7d912b40e6ecff839e950792cf",
+      "created_at": "1787695074732"
+    },
+    {
+      "id": 72,
+      "hash": "23298dae5eb83c52e06675b865b814020c45342a953d3b203154d1c2fbdeb859",
+      "created_at": "1787713145668"
+    },
+    {
+      "id": 73,
+      "hash": "0192c1e8771aadb22567808cfa423ba19f329edb8ca50d03e1adc55d4a15d180",
+      "created_at": "1787754080326"
+    },
+    {
+      "id": 74,
+      "hash": "6c7788e9323c58e7c481b64b87d7eed7c73f6ee31ae4568bf3c2ed4b6d6e411f",
+      "created_at": "1787756116625"
+    },
+    {
+      "id": 75,
+      "hash": "c8a3abed8e85fd405debbf920424b89bc36ab153c76cc75b324c2826134b7619",
+      "created_at": "1787757256616"
+    },
+    {
+      "id": 76,
+      "hash": "77ca83547711b04505b11edb9271b25d2bbdc85be18fb9e571d24891fef45f34",
+      "created_at": "1787761063070"
+    },
+    {
+      "id": 77,
+      "hash": "7eb542d55a8e594cd1764871844c442f25d75a51067df4e973c24ba794e1c339",
+      "created_at": "1787772001277"
+    },
+    {
+      "id": 91,
+      "hash": "aa01b2853a284f3cff2cdd3b4294e1b9e5ac0376736ecc0bdb4573606f047513",
+      "created_at": "1787786199620"
+    },
+    {
+      "id": 92,
+      "hash": "e84c8a3ec7e8381608da31abfd9bfa23cea09217711a3022d3aafbd45b5e9118",
+      "created_at": "1787802162079"
+    },
+    {
+      "id": 93,
+      "hash": "eee0c715a1e24e54aefba38b57d9e43e6de8827a705740c929ae2b3be30889bb",
+      "created_at": "1787947204915"
+    },
+    {
+      "id": 94,
+      "hash": "62152690f5853a0fad5c6ce27a591d3c42e8c5083973ba3fd87dd816d77f865f",
+      "created_at": "1787947439918"
+    },
+    {
+      "id": 95,
+      "hash": "e40c3caa165c9faf8b8d4f185228c925f7ed290ef8287ba302cb286584191673",
+      "created_at": "1787948727553"
+    },
+    {
+      "id": 96,
+      "hash": "8148d785b381e60985fc2c8d4053794c3181f0d0a230f0659662233cd5a33ed8",
+      "created_at": "1788235638918"
+    },
+    {
+      "id": 97,
+      "hash": "477223306f4149fc183bd1fe75d1a348a097b9815da4cb0450b90e1d812584c7",
+      "created_at": "1788272464337"
+    },
+    {
+      "id": 98,
+      "hash": "2105a6d152083a5bbe32399d7e9e8508480c83f213bbeaed73a735c4f94f7aa0",
+      "created_at": "1788279946150"
+    },
+    {
+      "id": 99,
+      "hash": "44119eacf963ee4d215b3d10d9c3051a5644796e69a2887f4e6e24eed1083694",
+      "created_at": "1788366346150"
+    },
+    {
+      "id": 100,
+      "hash": "4baebdaf05594022cd08017d3bedac217088359fa2566d9d67b725a0156bd9c1",
+      "created_at": "1788366347150"
+    },
+    {
+      "id": 101,
+      "hash": "079b1d57cc02d81edb32b7919746aa683231f196049e273be339107264dd967d",
+      "created_at": "1788366348150"
+    },
+    {
+      "id": 102,
+      "hash": "f381db0ec7cbba73bcf738ea1a540a9e8ddad264e580f6e5c90683b08579cf8f",
+      "created_at": "1788366349150"
+    },
+    {
+      "id": 103,
+      "hash": "e2dacee2f8ae9ba4fc250795f800f2ecbc506cb84d83daf3496e21e09631f5a1",
+      "created_at": "1788366350150"
+    },
+    {
+      "id": 104,
+      "hash": "efc1569b37f9f223ba8374380b1f15fe00d607fe542e101775801d81524ba5db",
+      "created_at": "1788366351150"
+    },
+    {
+      "id": 105,
+      "hash": "10bc3c3c336fbf713ab7dcc9135a35422bcb08af3f9e6ff1cd5ff4a1e3c8080b",
+      "created_at": "1788495126176"
+    },
+    {
+      "id": 106,
+      "hash": "c1057bf127b5475accc1c9b0faea759e0c4a38f282b498ef10d85ba45d59c485",
+      "created_at": "1788536263769"
+    },
+    {
+      "id": 107,
+      "hash": "bddd5686c8475f9c2235015455b6835a68be5724d173007837a410f568037089",
+      "created_at": "1789561143909"
+    },
+    {
+      "id": 108,
+      "hash": "c06cc87c23e7a2642ef7ffacd10ebc8e4a2218b0190b9708588aa1eeb5fbbd8a",
+      "created_at": "1789668621065"
+    },
+    {
+      "id": 109,
+      "hash": "b6fa7bc9a034524d05c56444c47404639ff1c3a80d7069077e033ef36e304e67",
+      "created_at": "1791698386584"
+    },
+    {
+      "id": 110,
+      "hash": "ff9feb6c13bb2113a217fb40520d3fe06a5bbe1d4005cd5d8a47f0988fba8161",
+      "created_at": "1791823860444"
+    },
+    {
+      "id": 111,
+      "hash": "ea5170d7a799e71ee8bd3ba07bc380a1d252d7d7007910ea64c1a8bfaa0c82a4",
+      "created_at": "1791826900589"
+    },
+    {
+      "id": 112,
+      "hash": "89661c8bf7664d14d4a648b96a64fffbea08be2522d65efbd2149f9d91bad5a3",
+      "created_at": "1791921209819"
+    },
+    {
+      "id": 113,
+      "hash": "25a1cc9bd1fdbabbc615076617149ce21990e894f6c397cb4410cb21d8d11835",
+      "created_at": "1792022400000"
+    },
+    {
+      "id": 114,
+      "hash": "f246707a20974026004a43a6c737f66f69c39e6eebad14285204c68a110dc2e2",
+      "created_at": "1792165092226"
+    },
+    {
+      "id": 115,
+      "hash": "cca0904dc5c2e22f073821dc5db637638b83a75c731cad1dfad9c4ff5c94c8bc",
+      "created_at": "1792182596053"
+    },
+    {
+      "id": 116,
+      "hash": "6d1ec524e79f8d5853b8f6fd38a441659679743ba2cdd7e4971d34cf98838576",
+      "created_at": "1792255192618"
+    },
+    {
+      "id": 117,
+      "hash": "cd4407d0098303d2c6a43a885a09fa7a30e2ba15287f14757b40b79e9375e242",
+      "created_at": "1792265703972"
+    },
+    {
+      "id": 118,
+      "hash": "b43c105a6ff5669c89f75d4858ebc55a7dfeb1f650cdafbb9dd6f511d914968c",
+      "created_at": "1792297057246"
+    },
+    {
+      "id": 119,
+      "hash": "bfc26f0d4fe97e4d5c5cfa3fa21976f72a99a7d3f95ac6c165539d7d231ee8f3",
+      "created_at": "1792301587985"
+    },
+    {
+      "id": 120,
+      "hash": "b61d84b2bf7bf1ac2aa9e7fb1ecaabdb4729f99f97b6bde67b3c609ba97de218",
+      "created_at": "1792333118084"
+    },
+    {
+      "id": 121,
+      "hash": "c5b2b379841deb63902489dfe4d36853eba672a76c771e1e0859f6574f070e69",
+      "created_at": "1792334760455"
+    },
+    {
+      "id": 122,
+      "hash": "104510d1ce92df9ac5a3f344eaef623dafe7a9a8f4726b1bbe6de41d8ad8b228",
+      "created_at": "1792336238263"
+    },
+    {
+      "id": 123,
+      "hash": "1050eb5f34589b8f198d1b11d604a110556c454e8c766bbf0a57503b1b86925a",
+      "created_at": "1792352624936"
+    },
+    {
+      "id": 124,
+      "hash": "212d5290728152429ff167512bcb06bb135852e404508a38f8969bd085592495",
+      "created_at": "1792362318608"
+    },
+    {
+      "id": 125,
+      "hash": "26666994a04682d7fa3e0ce0d9790eceab4c64710d9a95db8f4674397c1b817d",
+      "created_at": "1792366780360"
+    },
+    {
+      "id": 126,
+      "hash": "19da92f1d7d2183711afa010bdbc2a6b3dfff8cf78a3c4c0bf2c4cbaa8ad621b",
+      "created_at": "1792368239402"
+    },
+    {
+      "id": 127,
+      "hash": "7eaed904dbeeec89871bbfce289c3a3263058e2beb5e859c03eb818733c0fa00",
+      "created_at": "1792597712634"
+    },
+    {
+      "id": 128,
+      "hash": "a28bb69154756deec14e2f4ddf6ba79b45067ae08f34609788deb4ccb7a89094",
+      "created_at": "1792599120230"
+    },
+    {
+      "id": 129,
+      "hash": "a5a1bb1f7208f43f7442ba5e49726f601f0414bd3f6ae3ff457bed5206dd6d85",
+      "created_at": "1792602523048"
+    },
+    {
+      "id": 130,
+      "hash": "65bb697de9354f3b52ddb5132ba8a794dd649f9685fc8dc59ef803c62fa5b3c3",
+      "created_at": "1792605423290"
+    },
+    {
+      "id": 131,
+      "hash": "388b4881063816402b9849f642d04166402a3cbca620b83cb1856a407e1bfdcf",
+      "created_at": "1792607646574"
+    },
+    {
+      "id": 132,
+      "hash": "0bf4105a6a0eaf4bf9d3d39fa69a2268d42b342e4d3ad6f19ababa9dcade7c01",
+      "created_at": "1792615712236"
+    },
+    {
+      "id": 133,
+      "hash": "ed8e9fa2103e707ad26dc899f5eee69e6fdde07a65265e344cd86d09fd3b2f16",
+      "created_at": "1792615931083"
+    },
+    {
+      "id": 134,
+      "hash": "a88d899d7d0909253ce0705e1215622a57ac9e5a5502d9d26a2f0da6cde391ee",
+      "created_at": "1792617768120"
+    },
+    {
+      "id": 135,
+      "hash": "c1b93bd479225bb96a24b9460e72095f2d5a2046c4b10715b59b8fd7bbe26113",
+      "created_at": "1792621334222"
+    },
+    {
+      "id": 136,
+      "hash": "b77841ac04950035de0f065097132864f97871d842bbcbefc4664294367dd470",
+      "created_at": "1792629196856"
+    },
+    {
+      "id": 137,
+      "hash": "a5d1943a418633d3f17612b4014f64259377f83f1623d3392e6c0fc91389b2ec",
+      "created_at": "1792630269665"
+    },
+    {
+      "id": 138,
+      "hash": "594bea70b9fadd396567fae4517c39272197b228a69f23e12292e55f88a9e660",
+      "created_at": "1792691071337"
+    },
+    {
+      "id": 139,
+      "hash": "33050c36633c5d586cad0f8c453499f1e1743d9af86317c33addf00c01950595",
+      "created_at": "1792801464567"
+    },
+    {
+      "id": 140,
+      "hash": "feede1268378e194668f92744102c8d41b4b1460997d471ec32649d530b9502d",
+      "created_at": "1793211322963"
+    },
+    {
+      "id": 150,
+      "hash": "4130b2e28af98c517ce41537ea98b42a8460d4709db45a06ef33fac4aac7f232",
+      "created_at": "1793466216517"
+    },
+    {
+      "id": 151,
+      "hash": "a2483b83a7197137e3113414e5e62e20ca8345cd736a7f08f3b472d60f1b1969",
+      "created_at": "1793466315973"
+    },
+    {
+      "id": 152,
+      "hash": "a4f2f7a6e6209a1dbcd3fdc8fbc9ffbb9dcbcf1635b2f7fa4e2d55154e536ff0",
+      "created_at": "1793466562289"
+    },
+    {
+      "id": 153,
+      "hash": "2ed3d408da9a35a4ae65f9e262855de7fb164ba7f8910a33567c949a14c3e27a",
+      "created_at": "1793471209750"
+    },
+    {
+      "id": 154,
+      "hash": "37983200833ab4485ef524407036aad03b4dbc64e270c1dd4ca3689c5feac8dc",
+      "created_at": "1793471244163"
+    },
+    {
+      "id": 155,
+      "hash": "57c66282aa905faa6e851c73347858d4298ef46a577043ef6b9d4ffaa069c884",
+      "created_at": "1793526223271"
+    },
+    {
+      "id": 156,
+      "hash": "9395daf7ba887fb0b5ce8cd99c6edf055b9cb2a956b02e34f9f276fb2962c44f",
+      "created_at": "1793553175259"
+    },
+    {
+      "id": 157,
+      "hash": "5c5dc151c9027ef360d57499ca8f7e69a86815210f0145955f2ad3731f9a457c",
+      "created_at": "1793557977992"
+    },
+    {
+      "id": 158,
+      "hash": "f67a8b8b85f01332632cb67b0f0042baa1b34725747bf2000ad144b44607ce94",
+      "created_at": "1793658585339"
+    },
+    {
+      "id": 161,
+      "hash": "5d20dcd01f034259895d343bfddae2d9d7c4b47b750d03425884eb89e2ee7718",
+      "created_at": "1793662490511"
+    },
+    {
+      "id": 162,
+      "hash": "93ac52319d1db2d37714e3bcc8b54a671ae1a0f68591b244e2822ee780b02ad8",
+      "created_at": "1793708868569"
+    }
+  ],
+  "historyAfter": [
+    {
+      "id": 1,
+      "hash": "0000_mixed_arclight",
+      "created_at": "1784815642393"
+    },
+    {
+      "id": 2,
+      "hash": "0001_solid_blonde_phantom",
+      "created_at": "1784815702393"
+    },
+    {
+      "id": 3,
+      "hash": "0002_melodic_silverclaw",
+      "created_at": "1784815762393"
+    },
+    {
+      "id": 4,
+      "hash": "0003_sudden_mister_fear",
+      "created_at": "1784815822393"
+    },
+    {
+      "id": 5,
+      "hash": "0004_secret_vance_astro",
+      "created_at": "1784815882393"
+    },
+    {
+      "id": 6,
+      "hash": "0005_cuddly_unus",
+      "created_at": "1784815942393"
+    },
+    {
+      "id": 7,
+      "hash": "0006_faithful_sumo",
+      "created_at": "1784816002393"
+    },
+    {
+      "id": 8,
+      "hash": "0007_add_manager_invite_token",
+      "created_at": "1784816062393"
+    },
+    {
+      "id": 9,
+      "hash": "0008_simple_wolf_cub",
+      "created_at": "1784816122393"
+    },
+    {
+      "id": 10,
+      "hash": "ee29b14779321d9e1e0a0b1b714a2d6206fdb8f5046bca58a0c56cccec7b7779",
+      "created_at": "1784905189002"
+    },
+    {
+      "id": 11,
+      "hash": "8e2ccacf85ba36cfba324832261ab80f8c4adcd442d636a0d375ee87a972c247",
+      "created_at": "1784906575993"
+    },
+    {
+      "id": 12,
+      "hash": "795eaf9f3a82c65efd23984bfbde1c19ad5000522844b81ec642882594dcb2b8",
+      "created_at": "1784906986760"
+    },
+    {
+      "id": 13,
+      "hash": "6e2f0113eb4ba8478df09f9438d2bf7ae5bc2fbeb8b461cce07759f16697f68d",
+      "created_at": "1784985645668"
+    },
+    {
+      "id": 14,
+      "hash": "cdf2686ae56c36bc57c4d77186d824e0b2c18670c4adbb13a11dbb18b41b3011",
+      "created_at": "1785005432837"
+    },
+    {
+      "id": 15,
+      "hash": "c205e53dd65f509317bff639b8767dc41d3e9ad0a61846b033704cd20c249d07",
+      "created_at": "1785155152194"
+    },
+    {
+      "id": 16,
+      "hash": "52c4ce9756daa5cd16b5320602c3f7d2973ee6653dc56db99db62e02dfe86544",
+      "created_at": "1785155599220"
+    },
+    {
+      "id": 17,
+      "hash": "28d0e1ceb207b0f362d5dd2b18a56763e7bad42a1240f287ee07228af4b11014",
+      "created_at": "1785155655420"
+    },
+    {
+      "id": 18,
+      "hash": "f2e86b12fb4fe7659fa0457f3359d67c6c54b80c42b1aeef6c4ca180bb9aa7cc",
+      "created_at": "1785160757418"
+    },
+    {
+      "id": 19,
+      "hash": "02fb1350f3ce8c7e22f46f0f376038b1dd243d33f864a2eca7dd7923ce9c2853",
+      "created_at": "1785209010727"
+    },
+    {
+      "id": 20,
+      "hash": "22ad15dcf3db469b4e2fb75164bd8adf664e69a454bffd58fe4f3f8bf7a44f94",
+      "created_at": "1785251787256"
+    },
+    {
+      "id": 21,
+      "hash": "8bf6c3cfcd0447cc0cc6507df581c26cf5be0f6b1b2320f8b12f4f30c9e24073",
+      "created_at": "1785253105889"
+    },
+    {
+      "id": 22,
+      "hash": "c8713d45602abfbd0dbb739bd32e50696203ebcef7f4dff8c5c72f7b5829a1be",
+      "created_at": "1785716676483"
+    },
+    {
+      "id": 23,
+      "hash": "d2ca478db62466b5f1fca6ccd85e292773405b2cb40919ea26395ec9c4761f55",
+      "created_at": "1785723666237"
+    },
+    {
+      "id": 24,
+      "hash": "91b7d2eba56823ab182c75b7c5c19f11f4b133d0c8fb6ef320cc3a6b85406d10",
+      "created_at": "1785731101332"
+    },
+    {
+      "id": 25,
+      "hash": "09bd0a49c26db621682993a8993e8cf731d7bb351ea950e116bb3f414dbb459f",
+      "created_at": "1785731721404"
+    },
+    {
+      "id": 26,
+      "hash": "702cbb70f57110d21c75f3a32c0d2b1e03188d3249146de1c47817ee977d1246",
+      "created_at": "1785761034446"
+    },
+    {
+      "id": 27,
+      "hash": "2b10fa68978bc593c972b9c09b8d928e1cabc3bd2a2c987870e8cdb161ca26b6",
+      "created_at": "1785766837906"
+    },
+    {
+      "id": 28,
+      "hash": "95df46f2dca5feba0014147814f1928dd55054f375c931ca9e2de3a759014829",
+      "created_at": "1785864755469"
+    },
+    {
+      "id": 29,
+      "hash": "fba04366f2ef807adae2a8afc894167da5280f8ed9967ebc2a68c24a87666e01",
+      "created_at": "1785875436325"
+    },
+    {
+      "id": 30,
+      "hash": "9ec51bb27806fb0d3f5e17979b6a0d886fc0780553a4eef32c4753053f6507d6",
+      "created_at": "1785877886523"
+    },
+    {
+      "id": 31,
+      "hash": "00eceeac5e1ebcd6da8dcee8934e3e1c4682b8dae387ac68edf1bc827b7a1399",
+      "created_at": "1785955997211"
+    },
+    {
+      "id": 32,
+      "hash": "840fe498f4278d7804d1aa6e18dc6aedb431bce1cae7e5a0c9a26190478f6291",
+      "created_at": "1785959220110"
+    },
+    {
+      "id": 33,
+      "hash": "532eeaca2a605e91f9bade564c9cd3b9fa449fcab42ef904fb7ea8c933e431bb",
+      "created_at": "1785960912829"
+    },
+    {
+      "id": 78,
+      "hash": "ea02449a1118793bd018a3bb030514ce6a4ae989539f1e23e9264a431c4d3f64",
+      "created_at": "1785960912829"
+    },
+    {
+      "id": 34,
+      "hash": "20d5696419c96c1a2b893488fdd0605194a361d63e30797198a835e94abae35b",
+      "created_at": "1785960952526"
+    },
+    {
+      "id": 35,
+      "hash": "c61df18a37b2b434f6640bfa58722a20f03455512b717d9d46a3d7f47b376e5d",
+      "created_at": "1785961105235"
+    },
+    {
+      "id": 36,
+      "hash": "78c0e81b357a3303f7063c24850f25a9f0041c202e5eb90d2c602a246ecaf748",
+      "created_at": "1786031904384"
+    },
+    {
+      "id": 79,
+      "hash": "880eb35d2cb56297e8d295ba0675bd8742c3683db11388ec2af5ced17bdf6fb6",
+      "created_at": "1786031904384"
+    },
+    {
+      "id": 37,
+      "hash": "dd0819d87972f640c9b55bdf1bbadf1184af0fb2f60b1140e0eb9f317f3d90d4",
+      "created_at": "1786051189302"
+    },
+    {
+      "id": 38,
+      "hash": "6a4c84e8dccadb94d7ef5e0df5106579fcae705cf2692d658d4708306bfee7c3",
+      "created_at": "1786111597033"
+    },
+    {
+      "id": 80,
+      "hash": "0293aa027097a66c167760ca7d200531bf2340713a7f093655dfa456cbf16e13",
+      "created_at": "1786111597033"
+    },
+    {
+      "id": 39,
+      "hash": "1bc231d41f1b9fac77e0f0e2b6a847fbbcafcbaf94358fe648cf8790fed259ef",
+      "created_at": "1786150938231"
+    },
+    {
+      "id": 81,
+      "hash": "a5f3ef166d2404610f48c8421e4112f4d1300cd07fd93b76aa015faecf5f7a2a",
+      "created_at": "1786150938231"
+    },
+    {
+      "id": 41,
+      "hash": "2c29ea77cdfea1601d5217871f6d03bb1635e1318119f8bbe791c73ee1689158",
+      "created_at": "1786197611355"
+    },
+    {
+      "id": 82,
+      "hash": "036906f8f7659b3dd9deaa63116e29e4e9fffff53c8026124005752bf4c55bf8",
+      "created_at": "1786197611355"
+    },
+    {
+      "id": 42,
+      "hash": "0685353b0ec29fa61de4a8ad96300c5d51d8f5e679a77e0cf37994843d944af7",
+      "created_at": "1786198857644"
+    },
+    {
+      "id": 43,
+      "hash": "a522ae4f808e54f037594dd146875b2ed5f65f39f4706ab3182ef10a78eb48fd",
+      "created_at": "1786245446777"
+    },
+    {
+      "id": 83,
+      "hash": "9cac608f36296fd6b27853fadedbd7608bc691bce24679b368bf5db9c3c92544",
+      "created_at": "1786245446777"
+    },
+    {
+      "id": 44,
+      "hash": "08959e6c9a6b92a0f0017135bbc839ba8ed89a73da805e128d90a8be6a5fc780",
+      "created_at": "1786282931686"
+    },
+    {
+      "id": 45,
+      "hash": "c83f8b98d728a33a731bc20f3b26cb3e90efe979aeb6eb17dd0dd5a6328335d5",
+      "created_at": "1786284799621"
+    },
+    {
+      "id": 84,
+      "hash": "3ddcb948b990ac87cd14d653b89ab1c8cea7f7ed880c1ac4ee716a3dbf10916e",
+      "created_at": "1786284799621"
+    },
+    {
+      "id": 46,
+      "hash": "a408a6a2a1d99d2cb3e134bf01137efd750604c3bea055277c4c67eddcb3e78b",
+      "created_at": "1786299163578"
+    },
+    {
+      "id": 47,
+      "hash": "47920b0dadafbe37c0d4dcd3594141161ed8ca75a05acbfc9fc4a46dfe57c277",
+      "created_at": "1786317692091"
+    },
+    {
+      "id": 48,
+      "hash": "95492e1024d0a8928a5d375c6990274b768e59a6c6cb4aee13bbb8af29ef1c1a",
+      "created_at": "1786321075751"
+    },
+    {
+      "id": 49,
+      "hash": "335febe044aaf437353e9233ea4aea760288e7b73fc49f64393cd948bb666c76",
+      "created_at": "1786326157386"
+    },
+    {
+      "id": 50,
+      "hash": "624977cc58359ca084adc1110e086e48242fc007960a8360dc6a88cba1010171",
+      "created_at": "1786327548119"
+    },
+    {
+      "id": 51,
+      "hash": "4ae9a8f5a993389d48c011db7a7f6f78bb0ed3b9378c02165ae6a2035548c34e",
+      "created_at": "1786329881842"
+    },
+    {
+      "id": 52,
+      "hash": "05650e776fde977e1c4bde3396d1271cab92832c3c0b1484e74a00691faa745a",
+      "created_at": "1786468130515"
+    },
+    {
+      "id": 85,
+      "hash": "f76c1c6b7784693fd2b18b8b615523c6c82df593705d0a40a8eb094c16816a93",
+      "created_at": "1786468130515"
+    },
+    {
+      "id": 53,
+      "hash": "f75b64d2fa114fe11c6a2d689f1e92349bc878db9fd9d25415ca4b4b756853da",
+      "created_at": "1786474571267"
+    },
+    {
+      "id": 86,
+      "hash": "aedce4d28992da5f051ab146adba9bc7257bb075560a34a3ff329e5fbcc18a46",
+      "created_at": "1786474571267"
+    },
+    {
+      "id": 54,
+      "hash": "99f23e56b6606d53c87bb8b51441eb3772a943e3d279f7426282f8547cfb8ea4",
+      "created_at": "1786732300816"
+    },
+    {
+      "id": 56,
+      "hash": "6473a9a73e6ab6e3951de37c96c5bea08c84e3f381f2d06e5b900ea09df9d9a8",
+      "created_at": "1786891301639"
+    },
+    {
+      "id": 87,
+      "hash": "8937e5003dfc9008ee5cfe5788a89114c86e1f6af24c0dca0fe63e3d21428fb6",
+      "created_at": "1786891301639"
+    },
+    {
+      "id": 57,
+      "hash": "87fbdd88455efff37bf70cc904c959b31987cef85a7514c3c6fda8b0c25a62a6",
+      "created_at": "1787075456159"
+    },
+    {
+      "id": 58,
+      "hash": "d1b2bd5492d3b2d5cc722042d4e6e879e89e524ea2f166a21922969021d2d339",
+      "created_at": "1787269031562"
+    },
+    {
+      "id": 88,
+      "hash": "b666c6f3bf344671d3e1b0c4475eb2fd6d1c8b8c020c6e84743a1c7212925cb0",
+      "created_at": "1787269031562"
+    },
+    {
+      "id": 59,
+      "hash": "68e3f042c7cffa97dd87ad1e0eef54e41c20cb226a638b51e2784fa28957030b",
+      "created_at": "1787271353454"
+    },
+    {
+      "id": 89,
+      "hash": "1ef94ee459467630515173ff4581e67867dee45f1379f9bc7297bbf4f30c2ede",
+      "created_at": "1787271353454"
+    },
+    {
+      "id": 60,
+      "hash": "78da00416d88e7f2754e9354cd724b2c74d88c5b07634f31e1b315410e64a9c7",
+      "created_at": "1787329216499"
+    },
+    {
+      "id": 90,
+      "hash": "f84cda75b3aafe01ecfe01fa71a18910a4370bcd0caf76b20dc42ffe4c73dbb4",
+      "created_at": "1787329216499"
+    },
+    {
+      "id": 61,
+      "hash": "2e7b768d6fe50974e12ce19d9709142b555f819a3f500976e39afe9e48cb4de5",
+      "created_at": "1787546120144"
+    },
+    {
+      "id": 62,
+      "hash": "df3209252c1069b6b7f798ad0fc8815b72402f44622beb64fbcbef6bf3cf7907",
+      "created_at": "1787599075181"
+    },
+    {
+      "id": 63,
+      "hash": "1c78b06f44a07175af71ee795dba5c032a3fda5717c088e4b7de653a355b76db",
+      "created_at": "1787622373537"
+    },
+    {
+      "id": 64,
+      "hash": "b505dc99a4e3eb8fc41ccc5d0cf9f80e7dbdd43053cb023fe0fd38290e37b537",
+      "created_at": "1787668177468"
+    },
+    {
+      "id": 65,
+      "hash": "b1e925822ded128162d46db3914b8e3e2ef20b79cb9dff5e8097c33613a9bf17",
+      "created_at": "1787676032929"
+    },
+    {
+      "id": 66,
+      "hash": "da2dfe6eed66f1bd2a78440597878e4333814aa0ccc1cf9f5e84b8b2e817b55e",
+      "created_at": "1787681354218"
+    },
+    {
+      "id": 67,
+      "hash": "2a010424ea941db97bf3e492e58caa65f15418a186240055e73054ce289f0d52",
+      "created_at": "1787683142176"
+    },
+    {
+      "id": 68,
+      "hash": "acfa11a7d09757e84077ba71a60f175fa081df79e3fb5346fd4e4076d1852279",
+      "created_at": "1787686873818"
+    },
+    {
+      "id": 69,
+      "hash": "7b6a7459a1f370747cb09ee489b7539094d0783ce981d4cb0cb574421672ef88",
+      "created_at": "1787688340570"
+    },
+    {
+      "id": 70,
+      "hash": "870f62ac516b0a95a3d2639fecbf28541a51ff7d912b40e6ecff839e950792cf",
+      "created_at": "1787695074732"
+    },
+    {
+      "id": 72,
+      "hash": "23298dae5eb83c52e06675b865b814020c45342a953d3b203154d1c2fbdeb859",
+      "created_at": "1787713145668"
+    },
+    {
+      "id": 73,
+      "hash": "0192c1e8771aadb22567808cfa423ba19f329edb8ca50d03e1adc55d4a15d180",
+      "created_at": "1787754080326"
+    },
+    {
+      "id": 74,
+      "hash": "6c7788e9323c58e7c481b64b87d7eed7c73f6ee31ae4568bf3c2ed4b6d6e411f",
+      "created_at": "1787756116625"
+    },
+    {
+      "id": 75,
+      "hash": "c8a3abed8e85fd405debbf920424b89bc36ab153c76cc75b324c2826134b7619",
+      "created_at": "1787757256616"
+    },
+    {
+      "id": 76,
+      "hash": "77ca83547711b04505b11edb9271b25d2bbdc85be18fb9e571d24891fef45f34",
+      "created_at": "1787761063070"
+    },
+    {
+      "id": 77,
+      "hash": "7eb542d55a8e594cd1764871844c442f25d75a51067df4e973c24ba794e1c339",
+      "created_at": "1787772001277"
+    },
+    {
+      "id": 91,
+      "hash": "aa01b2853a284f3cff2cdd3b4294e1b9e5ac0376736ecc0bdb4573606f047513",
+      "created_at": "1787786199620"
+    },
+    {
+      "id": 92,
+      "hash": "e84c8a3ec7e8381608da31abfd9bfa23cea09217711a3022d3aafbd45b5e9118",
+      "created_at": "1787802162079"
+    },
+    {
+      "id": 93,
+      "hash": "eee0c715a1e24e54aefba38b57d9e43e6de8827a705740c929ae2b3be30889bb",
+      "created_at": "1787947204915"
+    },
+    {
+      "id": 94,
+      "hash": "62152690f5853a0fad5c6ce27a591d3c42e8c5083973ba3fd87dd816d77f865f",
+      "created_at": "1787947439918"
+    },
+    {
+      "id": 95,
+      "hash": "e40c3caa165c9faf8b8d4f185228c925f7ed290ef8287ba302cb286584191673",
+      "created_at": "1787948727553"
+    },
+    {
+      "id": 96,
+      "hash": "8148d785b381e60985fc2c8d4053794c3181f0d0a230f0659662233cd5a33ed8",
+      "created_at": "1788235638918"
+    },
+    {
+      "id": 97,
+      "hash": "477223306f4149fc183bd1fe75d1a348a097b9815da4cb0450b90e1d812584c7",
+      "created_at": "1788272464337"
+    },
+    {
+      "id": 98,
+      "hash": "2105a6d152083a5bbe32399d7e9e8508480c83f213bbeaed73a735c4f94f7aa0",
+      "created_at": "1788279946150"
+    },
+    {
+      "id": 99,
+      "hash": "44119eacf963ee4d215b3d10d9c3051a5644796e69a2887f4e6e24eed1083694",
+      "created_at": "1788366346150"
+    },
+    {
+      "id": 100,
+      "hash": "4baebdaf05594022cd08017d3bedac217088359fa2566d9d67b725a0156bd9c1",
+      "created_at": "1788366347150"
+    },
+    {
+      "id": 101,
+      "hash": "079b1d57cc02d81edb32b7919746aa683231f196049e273be339107264dd967d",
+      "created_at": "1788366348150"
+    },
+    {
+      "id": 102,
+      "hash": "f381db0ec7cbba73bcf738ea1a540a9e8ddad264e580f6e5c90683b08579cf8f",
+      "created_at": "1788366349150"
+    },
+    {
+      "id": 103,
+      "hash": "e2dacee2f8ae9ba4fc250795f800f2ecbc506cb84d83daf3496e21e09631f5a1",
+      "created_at": "1788366350150"
+    },
+    {
+      "id": 104,
+      "hash": "efc1569b37f9f223ba8374380b1f15fe00d607fe542e101775801d81524ba5db",
+      "created_at": "1788366351150"
+    },
+    {
+      "id": 105,
+      "hash": "10bc3c3c336fbf713ab7dcc9135a35422bcb08af3f9e6ff1cd5ff4a1e3c8080b",
+      "created_at": "1788495126176"
+    },
+    {
+      "id": 106,
+      "hash": "c1057bf127b5475accc1c9b0faea759e0c4a38f282b498ef10d85ba45d59c485",
+      "created_at": "1788536263769"
+    },
+    {
+      "id": 107,
+      "hash": "bddd5686c8475f9c2235015455b6835a68be5724d173007837a410f568037089",
+      "created_at": "1789561143909"
+    },
+    {
+      "id": 108,
+      "hash": "c06cc87c23e7a2642ef7ffacd10ebc8e4a2218b0190b9708588aa1eeb5fbbd8a",
+      "created_at": "1789668621065"
+    },
+    {
+      "id": 109,
+      "hash": "b6fa7bc9a034524d05c56444c47404639ff1c3a80d7069077e033ef36e304e67",
+      "created_at": "1791698386584"
+    },
+    {
+      "id": 110,
+      "hash": "ff9feb6c13bb2113a217fb40520d3fe06a5bbe1d4005cd5d8a47f0988fba8161",
+      "created_at": "1791823860444"
+    },
+    {
+      "id": 111,
+      "hash": "ea5170d7a799e71ee8bd3ba07bc380a1d252d7d7007910ea64c1a8bfaa0c82a4",
+      "created_at": "1791826900589"
+    },
+    {
+      "id": 112,
+      "hash": "89661c8bf7664d14d4a648b96a64fffbea08be2522d65efbd2149f9d91bad5a3",
+      "created_at": "1791921209819"
+    },
+    {
+      "id": 113,
+      "hash": "25a1cc9bd1fdbabbc615076617149ce21990e894f6c397cb4410cb21d8d11835",
+      "created_at": "1792022400000"
+    },
+    {
+      "id": 114,
+      "hash": "f246707a20974026004a43a6c737f66f69c39e6eebad14285204c68a110dc2e2",
+      "created_at": "1792165092226"
+    },
+    {
+      "id": 115,
+      "hash": "cca0904dc5c2e22f073821dc5db637638b83a75c731cad1dfad9c4ff5c94c8bc",
+      "created_at": "1792182596053"
+    },
+    {
+      "id": 116,
+      "hash": "6d1ec524e79f8d5853b8f6fd38a441659679743ba2cdd7e4971d34cf98838576",
+      "created_at": "1792255192618"
+    },
+    {
+      "id": 117,
+      "hash": "cd4407d0098303d2c6a43a885a09fa7a30e2ba15287f14757b40b79e9375e242",
+      "created_at": "1792265703972"
+    },
+    {
+      "id": 118,
+      "hash": "b43c105a6ff5669c89f75d4858ebc55a7dfeb1f650cdafbb9dd6f511d914968c",
+      "created_at": "1792297057246"
+    },
+    {
+      "id": 119,
+      "hash": "bfc26f0d4fe97e4d5c5cfa3fa21976f72a99a7d3f95ac6c165539d7d231ee8f3",
+      "created_at": "1792301587985"
+    },
+    {
+      "id": 120,
+      "hash": "b61d84b2bf7bf1ac2aa9e7fb1ecaabdb4729f99f97b6bde67b3c609ba97de218",
+      "created_at": "1792333118084"
+    },
+    {
+      "id": 121,
+      "hash": "c5b2b379841deb63902489dfe4d36853eba672a76c771e1e0859f6574f070e69",
+      "created_at": "1792334760455"
+    },
+    {
+      "id": 122,
+      "hash": "104510d1ce92df9ac5a3f344eaef623dafe7a9a8f4726b1bbe6de41d8ad8b228",
+      "created_at": "1792336238263"
+    },
+    {
+      "id": 123,
+      "hash": "1050eb5f34589b8f198d1b11d604a110556c454e8c766bbf0a57503b1b86925a",
+      "created_at": "1792352624936"
+    },
+    {
+      "id": 124,
+      "hash": "212d5290728152429ff167512bcb06bb135852e404508a38f8969bd085592495",
+      "created_at": "1792362318608"
+    },
+    {
+      "id": 125,
+      "hash": "26666994a04682d7fa3e0ce0d9790eceab4c64710d9a95db8f4674397c1b817d",
+      "created_at": "1792366780360"
+    },
+    {
+      "id": 126,
+      "hash": "19da92f1d7d2183711afa010bdbc2a6b3dfff8cf78a3c4c0bf2c4cbaa8ad621b",
+      "created_at": "1792368239402"
+    },
+    {
+      "id": 127,
+      "hash": "7eaed904dbeeec89871bbfce289c3a3263058e2beb5e859c03eb818733c0fa00",
+      "created_at": "1792597712634"
+    },
+    {
+      "id": 128,
+      "hash": "a28bb69154756deec14e2f4ddf6ba79b45067ae08f34609788deb4ccb7a89094",
+      "created_at": "1792599120230"
+    },
+    {
+      "id": 129,
+      "hash": "a5a1bb1f7208f43f7442ba5e49726f601f0414bd3f6ae3ff457bed5206dd6d85",
+      "created_at": "1792602523048"
+    },
+    {
+      "id": 130,
+      "hash": "65bb697de9354f3b52ddb5132ba8a794dd649f9685fc8dc59ef803c62fa5b3c3",
+      "created_at": "1792605423290"
+    },
+    {
+      "id": 131,
+      "hash": "388b4881063816402b9849f642d04166402a3cbca620b83cb1856a407e1bfdcf",
+      "created_at": "1792607646574"
+    },
+    {
+      "id": 132,
+      "hash": "0bf4105a6a0eaf4bf9d3d39fa69a2268d42b342e4d3ad6f19ababa9dcade7c01",
+      "created_at": "1792615712236"
+    },
+    {
+      "id": 133,
+      "hash": "ed8e9fa2103e707ad26dc899f5eee69e6fdde07a65265e344cd86d09fd3b2f16",
+      "created_at": "1792615931083"
+    },
+    {
+      "id": 134,
+      "hash": "a88d899d7d0909253ce0705e1215622a57ac9e5a5502d9d26a2f0da6cde391ee",
+      "created_at": "1792617768120"
+    },
+    {
+      "id": 135,
+      "hash": "c1b93bd479225bb96a24b9460e72095f2d5a2046c4b10715b59b8fd7bbe26113",
+      "created_at": "1792621334222"
+    },
+    {
+      "id": 136,
+      "hash": "b77841ac04950035de0f065097132864f97871d842bbcbefc4664294367dd470",
+      "created_at": "1792629196856"
+    },
+    {
+      "id": 137,
+      "hash": "a5d1943a418633d3f17612b4014f64259377f83f1623d3392e6c0fc91389b2ec",
+      "created_at": "1792630269665"
+    },
+    {
+      "id": 138,
+      "hash": "594bea70b9fadd396567fae4517c39272197b228a69f23e12292e55f88a9e660",
+      "created_at": "1792691071337"
+    },
+    {
+      "id": 139,
+      "hash": "33050c36633c5d586cad0f8c453499f1e1743d9af86317c33addf00c01950595",
+      "created_at": "1792801464567"
+    },
+    {
+      "id": 140,
+      "hash": "feede1268378e194668f92744102c8d41b4b1460997d471ec32649d530b9502d",
+      "created_at": "1793211322963"
+    },
+    {
+      "id": 150,
+      "hash": "4130b2e28af98c517ce41537ea98b42a8460d4709db45a06ef33fac4aac7f232",
+      "created_at": "1793466216517"
+    },
+    {
+      "id": 151,
+      "hash": "a2483b83a7197137e3113414e5e62e20ca8345cd736a7f08f3b472d60f1b1969",
+      "created_at": "1793466315973"
+    },
+    {
+      "id": 152,
+      "hash": "a4f2f7a6e6209a1dbcd3fdc8fbc9ffbb9dcbcf1635b2f7fa4e2d55154e536ff0",
+      "created_at": "1793466562289"
+    },
+    {
+      "id": 153,
+      "hash": "2ed3d408da9a35a4ae65f9e262855de7fb164ba7f8910a33567c949a14c3e27a",
+      "created_at": "1793471209750"
+    },
+    {
+      "id": 154,
+      "hash": "37983200833ab4485ef524407036aad03b4dbc64e270c1dd4ca3689c5feac8dc",
+      "created_at": "1793471244163"
+    },
+    {
+      "id": 155,
+      "hash": "57c66282aa905faa6e851c73347858d4298ef46a577043ef6b9d4ffaa069c884",
+      "created_at": "1793526223271"
+    },
+    {
+      "id": 156,
+      "hash": "9395daf7ba887fb0b5ce8cd99c6edf055b9cb2a956b02e34f9f276fb2962c44f",
+      "created_at": "1793553175259"
+    },
+    {
+      "id": 157,
+      "hash": "5c5dc151c9027ef360d57499ca8f7e69a86815210f0145955f2ad3731f9a457c",
+      "created_at": "1793557977992"
+    },
+    {
+      "id": 158,
+      "hash": "f67a8b8b85f01332632cb67b0f0042baa1b34725747bf2000ad144b44607ce94",
+      "created_at": "1793658585339"
+    },
+    {
+      "id": 161,
+      "hash": "5d20dcd01f034259895d343bfddae2d9d7c4b47b750d03425884eb89e2ee7718",
+      "created_at": "1793662490511"
+    },
+    {
+      "id": 162,
+      "hash": "93ac52319d1db2d37714e3bcc8b54a671ae1a0f68591b244e2822ee780b02ad8",
+      "created_at": "1793708868569"
+    },
+    {
+      "id": 171,
+      "hash": "c9dc23f8d0be58b4d3adf47d09c1694fc019a42618ddde465774bf4e0e3f2675",
+      "created_at": "1793710000000"
+    },
+    {
+      "id": 172,
+      "hash": "25d34d7ca047982b1e09be33c394b2827ea193a5469e1e7eaf6a806c8ad45c18",
+      "created_at": "1793745547475"
+    },
+    {
+      "id": 173,
+      "hash": "9c19af085fec854334211d3ff068fa464be63616c84ed4d3b17d5da7a40e2016",
+      "created_at": "1794435136067"
+    },
+    {
+      "id": 174,
+      "hash": "a48f2fcf5de0f2d92d7325c6fa3e024b0b2b54210abf64842133c11b5bad474e",
+      "created_at": "1794487594765"
+    },
+    {
+      "id": 175,
+      "hash": "adcd6dda1408584323d4444b9c82d606e00ddd94940b5a7124549f44311ab7f2",
+      "created_at": "1794488694351"
+    },
+    {
+      "id": 176,
+      "hash": "564690877933bbdae39cf9e669425a0f42f8e411b0a095db5395282d5371171a",
+      "created_at": "1794490259952"
+    },
+    {
+      "id": 177,
+      "hash": "8f1a13f2765bd5b1d66ebf3e3c014f63d740910eb955b94792bb9de0a059a8b0",
+      "created_at": "1794495394749"
+    },
+    {
+      "id": 178,
+      "hash": "51eb5f1b63bfca8a170774ffde0359965af464facb7bf4937fb8b5bf118b120e",
+      "created_at": "1794540240577"
+    }
+  ],
+  "observed": {
+    "table": {
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    "policy": [
+      {
+        "policyname": "accounting_inventory_tenant",
+        "qual": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)",
+        "with_check": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)"
+      }
+    ],
+    "triggers": [
+      {
+        "tgname": "accounting_inventory_capture",
+        "tgenabled": "O"
+      },
+      {
+        "tgname": "accounting_inventory_fact_immutable",
+        "tgenabled": "O"
+      },
+      {
+        "tgname": "accounting_inventory_post_validate",
+        "tgenabled": "O"
+      },
+      {
+        "tgname": "accounting_inventory_source_immutable",
+        "tgenabled": "O"
+      },
+      {
+        "tgname": "accounting_inventory_transfer_immutable",
+        "tgenabled": "O"
+      }
+    ],
+    "functions": [
+      {
+        "proname": "accounting_inventory_capture",
+        "prosecdef": true,
+        "proconfig": [
+          "search_path=pg_catalog"
+        ]
+      },
+      {
+        "proname": "accounting_inventory_expected_lines",
+        "prosecdef": false,
+        "proconfig": null
+      },
+      {
+        "proname": "accounting_inventory_immutable",
+        "prosecdef": true,
+        "proconfig": [
+          "search_path=pg_catalog"
+        ]
+      },
+      {
+        "proname": "accounting_inventory_post_guard",
+        "prosecdef": true,
+        "proconfig": [
+          "search_path=pg_catalog"
+        ]
+      },
+      {
+        "proname": "accounting_inventory_prorate",
+        "prosecdef": false,
+        "proconfig": [
+          "search_path=pg_catalog"
+        ]
+      },
+      {
+        "proname": "accounting_inventory_source_blocker",
+        "prosecdef": true,
+        "proconfig": [
+          "search_path=pg_catalog"
+        ]
+      },
+      {
+        "proname": "accounting_inventory_transfer_immutable",
+        "prosecdef": true,
+        "proconfig": [
+          "search_path=pg_catalog"
+        ]
+      }
+    ],
+    "missingColumns": [],
+    "missingIndexes": [],
+    "snapshot": "0142_snapshot.json"
+  },
+  "independentlyVerifiedAt": "2026-11-13T13:52:57.584Z",
+  "independentConnectionVerified": true,
+  "counts": {
+    "captured": 0
+  },
+  "productionCaptureCheck": {
+    "at": "2026-11-13T13:53:14.049Z",
+    "captureVerified": true,
+    "exactFractionalCentsVerified": true,
+    "priceChangeDidNotRevalue": true,
+    "physicalRewriteRejected": true,
+    "rolledBack": true,
+    "noBusinessRowsCommitted": true
+  },
+  "preexistingJournalAnomalies": {
+    "hashMismatches": 9,
+    "lineEndingDifferences": 25,
+    "duplicateTimestamps": 13,
+    "unmatchedHistoricalRows": 1,
+    "preservedWithoutRewrite": true,
+    "note": "Legacy rows are preserved exactly; no historical migration replay or fabricated hash repair."
+  },
+  "configuredWorkspaceDatabaseChanged": false,
+  "targetSelection": "Connection explicitly supplied by owner for Netlify; .env points to a different empty database."
+}

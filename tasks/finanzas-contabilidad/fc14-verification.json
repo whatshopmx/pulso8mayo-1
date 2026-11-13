@@ -1,31 +1,105 @@
 {
   "task": "FC-14",
-  "technicalStatus": "VERIFIED_LOCALLY",
+  "technicalStatus": "VERIFIED_RELEASE_AWAITING_DEPLOYMENT",
   "closedOn": "2026-11-13",
-  "operationalMigrationApplied": false,
+  "operationalMigrationApplied": true,
   "deployed": false,
   "featureFlag": "ACCOUNTING_INVENTORY_ENABLED",
   "featureFlagDefault": false,
   "migration": "0142_fc14_inventory_valuation",
   "precedingConcurrentMigration": "0141_inv01b_import_recipe_name",
   "checkpoints": {
-    "inventoryFinal": { "passed": 23, "exitCode": 0, "log": ".tmp/fc14-rls-read-final.log" },
-    "detailRegression": { "passed": 22, "exitCode": 0, "log": ".tmp/fc14-final-integration.log" },
-    "browser": { "passed": 8, "exitCode": 0, "log": ".tmp/fc14-browser.log" },
-    "financeAfterFinalRlsChange": { "passed": 226, "files": 19, "exitCode": 0, "log": ".tmp/fc14-finance-rls.log" },
-    "generalBeforeFinalRlsChange": { "passed": 2573, "skipped": 1, "todo": 1, "files": 208, "exitCode": 0, "log": ".tmp/fc14-all-unit.log" },
-    "globalLintBeforeFinalRlsChange": { "errors": 0, "warnings": 2435, "exitCode": 0, "log": ".tmp/fc14-global-lint.log" },
-    "finalChangedFilesLint": { "errors": 0, "warnings": 0, "exitCode": 0, "log": ".tmp/fc14-lint-rls.log" },
-    "finalTypecheck": { "exitCode": 0, "log": ".tmp/fc14-types-rls.log" },
-    "finalBuild": { "exitCode": 0, "log": ".tmp/fc14-build-final.log" }
+    "inventoryFinal": {
+      "passed": 23,
+      "exitCode": 0,
+      "log": ".tmp/fc14-rls-read-final.log"
+    },
+    "detailRegression": {
+      "passed": 22,
+      "exitCode": 0,
+      "log": ".tmp/fc14-final-integration.log"
+    },
+    "browser": {
+      "passed": 8,
+      "exitCode": 0,
+      "log": ".tmp/fc14-browser.log"
+    },
+    "financeAfterFinalRlsChange": {
+      "passed": 226,
+      "files": 19,
+      "exitCode": 0,
+      "log": ".tmp/fc14-finance-rls.log"
+    },
+    "generalBeforeFinalRlsChange": {
+      "passed": 2573,
+      "skipped": 1,
+      "todo": 1,
+      "files": 208,
+      "exitCode": 0,
+      "log": ".tmp/fc14-all-unit.log"
+    },
+    "globalLintBeforeFinalRlsChange": {
+      "errors": 0,
+      "warnings": 2435,
+      "exitCode": 0,
+      "log": ".tmp/fc14-global-lint.log"
+    },
+    "finalChangedFilesLint": {
+      "errors": 0,
+      "warnings": 0,
+      "exitCode": 0,
+      "log": ".tmp/fc14-lint-rls.log"
+    },
+    "finalTypecheck": {
+      "exitCode": 0,
+      "log": ".tmp/fc14-types-rls.log"
+    },
+    "finalBuild": {
+      "exitCode": 0,
+      "log": ".tmp/fc14-build-final.log"
+    },
+    "releaseUnit": {
+      "passed": 2556,
+      "skipped": 1,
+      "todo": 1,
+      "files": 205,
+      "exitCode": 0,
+      "log": ".tmp/fc14-release-unit.log"
+    },
+    "releaseLint": {
+      "errors": 0,
+      "warnings": 2437,
+      "exitCode": 0,
+      "log": ".tmp/fc14-release-lint.log"
+    },
+    "releaseBuild": {
+      "exitCode": 0,
+      "log": ".tmp/fc14-release-build.log"
+    },
+    "activationIntegration": {
+      "passed": 23,
+      "exitCode": 0,
+      "log": ".tmp/fc14-activation-integration.log"
+    }
   },
-  "independentLocalCommits": ["ee87eae", "fddc05d"],
-  "dependentPackage": "LOCAL_UNCOMMITTED_PENDING_INTEGRATION_OF_CONCURRENT_0141",
+  "independentLocalCommits": [
+    "ee87eae",
+    "fddc05d"
+  ],
+  "dependentPackage": "INTEGRATED_IN_GIT",
   "testBoundary": "Synthetic schemas in a test database checked distinct from the operational database",
   "limits": [
-    "No operational database migration or environment flag change",
+    "Netlify database migrated with owner authorization; .env and local flags unchanged. Deployment/activation await live verification.",
     "No retrospective valuation or replacement of missing original costs with current prices",
     "Sources without an eligible actor retain an immutable pending valuation without an invented outbox actor",
     "No certification of FC-20 or FC-21"
+  ],
+  "operationalTarget": "ep-dawn-scene-ayy93r15.c-5.us-east-2.aws.neon.tech",
+  "activationStatus": "AWAITING_NETLIFY_VARIABLE_AND_DEPLOYMENT",
+  "integrationCommits": [
+    "dce8b74",
+    "82fa91b",
+    "f13efea",
+    "a816208"
   ]
 }

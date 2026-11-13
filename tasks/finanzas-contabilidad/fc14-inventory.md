@@ -1,6 +1,6 @@
 # FC-14 — Valoración original de inventario
 
-Fecha: 2026-11-12. Implementación local; migración 0142 sin aplicar a la base operativa. La activación de inventario es independiente del piloto demo ya publicado.
+Estado 2026-11-13: historial 0141–0142 integrado en Git. La base real de Netlify, identificada por el propietario y distinta de `.env`, recibió **0135–0142 atómicamente**, con ensayo revertido y verificación independiente. Las 194 tablas anteriores conservaron sus datos. Se verificó también la captura original en esa base mediante una transacción revertida. Publicación y bandera `ACCOUNTING_INVENTORY_ENABLED=1` pendientes de comprobar en vivo. Evidencia: [fc14-netlify-migration-2026-11-13.json](fc14-netlify-migration-2026-11-13.json).
 
 Cierre técnico local: 2026-11-13. Build definitivo, tipos, regresión financiera y lectura bajo RLS aprobados. Resumen estructurado: [fc14-verification.json](fc14-verification.json).
 
@@ -48,6 +48,12 @@ Un costo original faltante se excluye del importe y degrada la cifra a parcial/d
 - **Build definitivo posterior al ajuste RLS: salida 0**, compilación, tipos y generación aprobados (`.tmp/fc14-build-final.log`, `.tmp/fc14-build-final-exit.txt`). La suite general y el lint global corresponden al checkpoint anterior a ese último ajuste; después se ejecutan las 23 integraciones de inventario, las 226 unitarias financieras, tipos, lint de los tres archivos ajustados y este build. No se presentan los controles anteriores como una ejecución nueva sobre el ajuste final.
 - Lint focalizado: cero errores; dos advertencias preexistentes en `inventory-service.ts`.
 
-La evidencia de pruebas corresponde a esquemas sintéticos en `TEST_DATABASE_URL`, comprobada distinta de la base operativa. No acredita migración, activación de FC-14, auditoría contable ni cierre del piloto FC-20/21. Se conserva el trabajo concurrente de ventas/ingesta y su migración 0141.
+Las pruebas de implementación corresponden a esquemas sintéticos en `TEST_DATABASE_URL`. La aplicación operativa y su ensayo tienen evidencia separada enlazada arriba. No se acredita auditoría contable ni cierre del piloto FC-20/21. `.env` continúa apuntando a la base vacía anterior, sin modificarla. Se conservan intactas las anomalías heredadas del journal del demo: nueve discrepancias de hash, 25 diferencias de finales de línea, 13 timestamps duplicados y una fila antigua sin correspondencia local. Se añaden ocho registros nuevos después de verificar los requisitos de esquema; no se reescribe ni se finge ejecutar el historial antiguo.
 
-Los incrementos independientes se guardan en `ee87eae` (contrato y pruebas) y `fddc05d` (recepción única y validación física). El paquete de esquema/adaptador/Resultados queda local junto a 0142: su snapshot depende de la migración 0141 concurrente todavía sin commit. No se incluye esa entrega ajena en un commit de FC-14 ni se publica un historial de migraciones incompleto.
+Incrementos: `ee87eae` (contrato), `fddc05d` (recepción), `dce8b74` (0141 independiente), `82fa91b` (0142 y esquema), `f13efea` (adaptador y diagnóstico de bandera), `a816208` (Resultados). Se integran solo el permiso/snapshot necesarios de 0141; los demás cambios concurrentes de ventas/ingesta siguen fuera de estos commits.
+
+## Verificación del release aislado
+
+El commit `a816208` se comprueba en un checkout separado, sin las modificaciones concurrentes: **205 archivos, 2556 unitarias aprobadas, una skipped y una todo; lint cero errores y 2437 advertencias; build de producción salida 0**, con inventario habilitado y credenciales ficticias de build. Logs `.tmp/fc14-release-{unit,lint,build}.log`. La regresión de integración tras añadir `inventoryEnabled` al diagnóstico de preparación vuelve a pasar **23/23**. Los manifiestos de dependencias del checkout y workspace coinciden tras normalizar finales de línea; se reutiliza la instalación existente sin modificarla.
+
+La respuesta autenticada de preparación incluye `inventoryEnabled` para comprobar la bandera real del servidor. En Netlify debe guardarse en Production con alcance Builds/Functions; una variable solo en `netlify.toml` no basta para las funciones, según la [documentación de Netlify](https://docs.netlify.com/build/functions/environment-variables/). Desactivar esa variable y redesplegar detiene nuevas publicaciones de inventario; las valoraciones físicas y pólizas anteriores se conservan.
