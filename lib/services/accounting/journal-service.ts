@@ -391,6 +391,9 @@ export function reverseJournal(ctx: AccountingContext, journalId: string, input:
     if (["RECEIVING_REPORT", "PURCHASE_INVOICE", "PURCHASE_CREDIT", "INVOICE_PAYMENT"].includes(original.sourceType ?? "")) {
       throw ApiError.conflict("La corrección de compras requiere revisar los documentos, devoluciones y pagos vinculados.");
     }
+    if (original.sourceType === "INVENTORY_MOVEMENT") {
+      throw ApiError.conflict("Inventario requiere una corrección física vinculada; la reversa manual no cambia sus existencias.");
+    }
     if (original.status !== "POSTED" || original.reversalOfId || original.version !== data.expectedVersion) {
       throw ApiError.conflict("Solo se revierte una póliza publicada vigente; vuelve a consultar su versión.");
     }

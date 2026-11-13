@@ -11,6 +11,7 @@ import { finishAccountingEventIn, recordAccountingEventIn } from "./event-store"
 import { postSalesEventIn } from "./sales-adapter";
 import { postSettlementEventIn, recoverSettlementFacts } from "./settlement-adapter";
 import { postPurchaseEventIn, PURCHASE_EVENTS } from "./purchase-adapter";
+import { isInventoryAccountingEnabled, postInventoryEventIn, recoverInventoryFacts } from "./inventory-adapter";
 
 type Tx = Parameters<Parameters<typeof withCompanyContext>[1]>[0];
 const id = z.uuid();
@@ -110,7 +111,8 @@ export function recoverMissingAccountingEvents(companyId: string) {
       sourceType: "DAILY_SALES_CUT", sourceId: cut.id, eventType: "SALE_RECOGNIZED", sourceVersion: 1,
       actorId: cut.receivedBy!, accountingDate: cut.businessDate });
     return { expenses: expenses.length, payments: payments.length, sales: sales.length,
-      settlements: await recoverSettlementFacts(tx, companyId) };
+      settlements: await recoverSettlementFacts(tx, companyId),
+      ...(isInventoryAccountingEnabled() ? { inventory: await recoverInventoryFacts(tx, companyId) } : {}) };
   });
 }
 
@@ -125,6 +127,7 @@ async function processIn(tx: Tx, companyId: string, eventId: string) {
   // order as the reconciliation that captured the fact; no source row lock here.
   if (event.sourceType === "GATEWAY_SETTLEMENT") return postSettlementEventIn(tx, event);
   if (Object.hasOwn(PURCHASE_EVENTS, event.sourceType)) return postPurchaseEventIn(tx, event);
+  if (event.sourceType === "INVENTORY_MOVEMENT") return postInventoryEventIn(tx, event);
 
   // Match the source transaction's lock order. Locking the outbox first would
   // deadlock with approval/settlement, which hold their source before the fact.

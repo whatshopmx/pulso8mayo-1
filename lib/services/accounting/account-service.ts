@@ -5,6 +5,7 @@ import { accountingAccounts, accountingGatewayLinks, accountingSourceLinks, comp
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { hasPermission, type Role } from "@/lib/permissions";
 import { getRoleScope } from "@/lib/rbac/resource-scope";
+import { isInventoryValuationEnabled } from "./inventory-contract";
 
 /** Internal principal supplied by an authenticated server boundary; no public endpoint in FC-05. */
 export interface AccountingContext { companyId: string; actorId: string; role: Role }
@@ -168,6 +169,7 @@ export function readAccountingPreparation(ctx: AccountingContext) {
     return { accounts: accounts.slice(0, 1000), centers: centers.slice(0, 1000), banks: banks.slice(0, 1000),
       links: links.slice(0, 2000), expenses,
       truncated: accounts.length > 1000 || centers.length > 1000 || banks.length > 1000 || links.length > 2000,
-      postingEnabled: process.env.ACCOUNTING_POSTING_ENABLED === "1", canPublishOpening: hasPermission(ctx.role, "accounting", "publish") };
+      postingEnabled: process.env.ACCOUNTING_POSTING_ENABLED === "1", inventoryEnabled: isInventoryValuationEnabled(),
+      canPublishOpening: hasPermission(ctx.role, "accounting", "publish") };
   });
 }
