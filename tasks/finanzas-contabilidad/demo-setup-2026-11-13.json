@@ -1,0 +1,811 @@
+{
+  "configuredAt": "2026-11-14T00:11:24.040Z",
+  "verifiedAt": "2026-11-14T00:23:03.611Z",
+  "timeZone": "America/Mexico_City",
+  "companyId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "companyName": "Pulso HORECA Demo",
+  "scope": "Only the authorized seed demo; not a customer opening or audited balances.",
+  "openingDate": "2026-11-12",
+  "operationsFrom": "2026-11-13",
+  "counts": {
+    "accounts": 23,
+    "rules": 15,
+    "costCenterLinks": 5,
+    "bankLinks": 1,
+    "gatewayLinks": 3
+  },
+  "accounts": [
+    {
+      "code": "DEMO-1101",
+      "name": "Caja · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-1102",
+      "name": "BBVA operativa · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-1103",
+      "name": "Tarjetas por liquidar · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-1104",
+      "name": "Plataformas por liquidar · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-1105",
+      "name": "Otros cobros por liquidar · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-1201",
+      "name": "Inventario de insumos · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-1202",
+      "name": "Inventario en tránsito · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-1301",
+      "name": "IVA acreditable documentado · DEMO",
+      "kind": "ASSET",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-2101",
+      "name": "Proveedores y gastos por pagar · DEMO",
+      "kind": "LIABILITY",
+      "normalBalance": "CREDIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-2102",
+      "name": "Recepciones por facturar · DEMO",
+      "kind": "LIABILITY",
+      "normalBalance": "CREDIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-2103",
+      "name": "IVA de ventas por pagar · DEMO",
+      "kind": "LIABILITY",
+      "normalBalance": "CREDIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-2104",
+      "name": "Propinas por pagar · DEMO",
+      "kind": "LIABILITY",
+      "normalBalance": "CREDIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-3101",
+      "name": "Contrapartida de apertura sintética · DEMO",
+      "kind": "EQUITY",
+      "normalBalance": "CREDIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-4101",
+      "name": "Ventas netas · DEMO",
+      "kind": "INCOME",
+      "normalBalance": "CREDIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5101",
+      "name": "Costo de consumo · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5102",
+      "name": "Merma · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5103",
+      "name": "Diferencias documentadas de compra · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5104",
+      "name": "Comisiones de cobro · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5010-ALM",
+      "name": "Alimentos y Materia Prima · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5020-BEB",
+      "name": "Bebidas y Licores · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5040-LIMP",
+      "name": "Limpieza y Químicos · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5030-MANT",
+      "name": "Mantenimiento y Equipamiento · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    },
+    {
+      "code": "DEMO-5050-SERV",
+      "name": "Servicios Generales y Operativos · DEMO",
+      "kind": "EXPENSE",
+      "normalBalance": "DEBIT",
+      "validFrom": "2026-11-12",
+      "postable": true,
+      "active": true
+    }
+  ],
+  "sourceMappings": [
+    {
+      "costCenterId": "4ec331f0-64d7-41cc-ae74-6864c98b6020",
+      "code": "CC-ALM",
+      "accountCode": "DEMO-5010-ALM"
+    },
+    {
+      "costCenterId": "9bba9637-1e18-496b-9124-d0cc16f89da8",
+      "code": "CC-BEB",
+      "accountCode": "DEMO-5020-BEB"
+    },
+    {
+      "costCenterId": "e8bb7e88-c79d-4739-8d6e-d4d5ee87ae09",
+      "code": "CC-LIMP",
+      "accountCode": "DEMO-5040-LIMP"
+    },
+    {
+      "costCenterId": "0ca32b4a-9b8e-4e04-8f96-738b11fa8267",
+      "code": "CC-MANT",
+      "accountCode": "DEMO-5030-MANT"
+    },
+    {
+      "costCenterId": "02a940b5-204a-41d8-9b53-5b0e038d44c0",
+      "code": "CC-SERV",
+      "accountCode": "DEMO-5050-SERV"
+    }
+  ],
+  "bank": {
+    "bankAccountId": "d6928345-dbba-4e9d-9cc8-f2864d3feae2",
+    "accountCode": "DEMO-1102",
+    "purpose": "MIXTO",
+    "openingBalanceCents": 10000000,
+    "openingAsOfDate": "2026-11-12",
+    "basis": "Supuesto sintético de 100,000 MXN para el demo, autorizado en esta tarea; no es un saldo confirmado por extracto."
+  },
+  "gatewayLinks": [
+    {
+      "gatewayAcquirer": "CLIP",
+      "salesDestination": "CARD",
+      "accountCode": "DEMO-1103",
+      "basis": "Adquirentes de terminal del seed; pagos con tarjeta."
+    },
+    {
+      "gatewayAcquirer": "MERCADO_PAGO",
+      "salesDestination": "CARD",
+      "accountCode": "DEMO-1103",
+      "basis": "Adquirentes de terminal del seed; pagos con tarjeta."
+    },
+    {
+      "gatewayAcquirer": "BBVA",
+      "salesDestination": "CARD",
+      "accountCode": "DEMO-1103",
+      "basis": "Adquirentes de terminal del seed; pagos con tarjeta."
+    }
+  ],
+  "rules": [
+    {
+      "code": "DEMO_EXPENSE_RECOGNIZED",
+      "name": "DEMO EXPENSE_RECOGNIZED",
+      "eventType": "EXPENSE_RECOGNIZED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "EXPENSE",
+          "accountCode": "DEMO-5050-SERV",
+          "required": true
+        },
+        {
+          "role": "PAYABLE",
+          "accountCode": "DEMO-2101",
+          "required": true
+        },
+        {
+          "role": "RECOVERABLE_TAX",
+          "accountCode": "DEMO-1301",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_EXPENSE_PAYMENT",
+      "name": "DEMO EXPENSE_PAYMENT",
+      "eventType": "EXPENSE_PAYMENT",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "PAYABLE",
+          "accountCode": "DEMO-2101",
+          "required": true
+        },
+        {
+          "role": "PAYMENT_SOURCE",
+          "accountCode": "DEMO-1102",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_SALE_RECOGNIZED",
+      "name": "DEMO SALE_RECOGNIZED",
+      "eventType": "SALE_RECOGNIZED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "CASH",
+          "accountCode": "DEMO-1101",
+          "required": true
+        },
+        {
+          "role": "CARD_RECEIVABLE",
+          "accountCode": "DEMO-1103",
+          "required": true
+        },
+        {
+          "role": "PLATFORM_RECEIVABLE",
+          "accountCode": "DEMO-1104",
+          "required": true
+        },
+        {
+          "role": "OTHER_RECEIVABLE",
+          "accountCode": "DEMO-1105",
+          "required": true
+        },
+        {
+          "role": "SALES_REVENUE",
+          "accountCode": "DEMO-4101",
+          "required": true
+        },
+        {
+          "role": "SALES_TAX",
+          "accountCode": "DEMO-2103",
+          "required": true
+        },
+        {
+          "role": "TIPS_PAYABLE",
+          "accountCode": "DEMO-2104",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_SALE_REFUNDED",
+      "name": "DEMO SALE_REFUNDED",
+      "eventType": "SALE_REFUNDED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "CASH",
+          "accountCode": "DEMO-1101",
+          "required": true
+        },
+        {
+          "role": "CARD_RECEIVABLE",
+          "accountCode": "DEMO-1103",
+          "required": true
+        },
+        {
+          "role": "PLATFORM_RECEIVABLE",
+          "accountCode": "DEMO-1104",
+          "required": true
+        },
+        {
+          "role": "OTHER_RECEIVABLE",
+          "accountCode": "DEMO-1105",
+          "required": true
+        },
+        {
+          "role": "SALES_REVENUE",
+          "accountCode": "DEMO-4101",
+          "required": true
+        },
+        {
+          "role": "SALES_TAX",
+          "accountCode": "DEMO-2103",
+          "required": true
+        },
+        {
+          "role": "TIPS_PAYABLE",
+          "accountCode": "DEMO-2104",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_SETTLEMENT_RECOGNIZED",
+      "name": "DEMO SETTLEMENT_RECOGNIZED",
+      "eventType": "SETTLEMENT_RECOGNIZED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "RECEPTION_SOURCE",
+          "accountCode": "DEMO-1102",
+          "required": true
+        },
+        {
+          "role": "CARD_RECEIVABLE",
+          "accountCode": "DEMO-1103",
+          "required": true
+        },
+        {
+          "role": "PLATFORM_RECEIVABLE",
+          "accountCode": "DEMO-1104",
+          "required": true
+        },
+        {
+          "role": "OTHER_RECEIVABLE",
+          "accountCode": "DEMO-1105",
+          "required": true
+        },
+        {
+          "role": "COMMISSION_EXPENSE",
+          "accountCode": "DEMO-5104",
+          "required": true
+        },
+        {
+          "role": "RECOVERABLE_TAX",
+          "accountCode": "DEMO-1301",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_PURCHASE_RECEIVED",
+      "name": "DEMO PURCHASE_RECEIVED",
+      "eventType": "PURCHASE_RECEIVED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "INVENTORY",
+          "accountCode": "DEMO-1201",
+          "required": true
+        },
+        {
+          "role": "RECEIVING_PENDING",
+          "accountCode": "DEMO-2102",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_PURCHASE_INVOICED",
+      "name": "DEMO PURCHASE_INVOICED",
+      "eventType": "PURCHASE_INVOICED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "RECEIVING_PENDING",
+          "accountCode": "DEMO-2102",
+          "required": true
+        },
+        {
+          "role": "PURCHASE_VARIANCE",
+          "accountCode": "DEMO-5103",
+          "required": true
+        },
+        {
+          "role": "RECOVERABLE_TAX",
+          "accountCode": "DEMO-1301",
+          "required": true
+        },
+        {
+          "role": "PAYABLE",
+          "accountCode": "DEMO-2101",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_PURCHASE_CREDITED",
+      "name": "DEMO PURCHASE_CREDITED",
+      "eventType": "PURCHASE_CREDITED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "PAYABLE",
+          "accountCode": "DEMO-2101",
+          "required": true
+        },
+        {
+          "role": "INVENTORY",
+          "accountCode": "DEMO-1201",
+          "required": true
+        },
+        {
+          "role": "PURCHASE_VARIANCE",
+          "accountCode": "DEMO-5103",
+          "required": true
+        },
+        {
+          "role": "RECOVERABLE_TAX",
+          "accountCode": "DEMO-1301",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_INVOICE_PAID",
+      "name": "DEMO INVOICE_PAID",
+      "eventType": "INVOICE_PAID",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "PAYABLE",
+          "accountCode": "DEMO-2101",
+          "required": true
+        },
+        {
+          "role": "PAYMENT_SOURCE",
+          "accountCode": "DEMO-1102",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_INVENTORY_USED",
+      "name": "DEMO INVENTORY_USED",
+      "eventType": "INVENTORY_USED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "COGS",
+          "accountCode": "DEMO-5101",
+          "required": true
+        },
+        {
+          "role": "INVENTORY",
+          "accountCode": "DEMO-1201",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_INVENTORY_USAGE_RETURNED",
+      "name": "DEMO INVENTORY_USAGE_RETURNED",
+      "eventType": "INVENTORY_USAGE_RETURNED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "INVENTORY",
+          "accountCode": "DEMO-1201",
+          "required": true
+        },
+        {
+          "role": "COGS",
+          "accountCode": "DEMO-5101",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_INVENTORY_WASTED",
+      "name": "DEMO INVENTORY_WASTED",
+      "eventType": "INVENTORY_WASTED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "WASTE",
+          "accountCode": "DEMO-5102",
+          "required": true
+        },
+        {
+          "role": "INVENTORY",
+          "accountCode": "DEMO-1201",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_INVENTORY_SHIPPED",
+      "name": "DEMO INVENTORY_SHIPPED",
+      "eventType": "INVENTORY_SHIPPED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "IN_TRANSIT",
+          "accountCode": "DEMO-1202",
+          "required": true
+        },
+        {
+          "role": "INVENTORY",
+          "accountCode": "DEMO-1201",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_INVENTORY_RECEIVED",
+      "name": "DEMO INVENTORY_RECEIVED",
+      "eventType": "INVENTORY_RECEIVED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "INVENTORY",
+          "accountCode": "DEMO-1201",
+          "required": true
+        },
+        {
+          "role": "IN_TRANSIT",
+          "accountCode": "DEMO-1202",
+          "required": true
+        }
+      ]
+    },
+    {
+      "code": "DEMO_INVENTORY_TRANSIT_WASTED",
+      "name": "DEMO INVENTORY_TRANSIT_WASTED",
+      "eventType": "INVENTORY_TRANSIT_WASTED",
+      "effectiveFrom": "2026-11-13",
+      "active": true,
+      "notes": "Configuración sintética autorizada para el seed. Arranque 2026-11-13; sin reconstruir el histórico. PAYMENT_SOURCE manual representa pagos bancarios; no usar para efectivo.",
+      "entries": [
+        {
+          "role": "WASTE",
+          "accountCode": "DEMO-5102",
+          "required": true
+        },
+        {
+          "role": "IN_TRANSIT",
+          "accountCode": "DEMO-1202",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "inventoryBasis": {
+    "method": "Mismo costo efectivo de FC-14 por sucursal; precio del artículo al preparar el arranque DEMO",
+    "branches": [
+      {
+        "branch_id": "b1000001-0000-4000-8000-000000000001",
+        "name": "Condesa",
+        "ownership_type": "OWNED",
+        "lots": 25,
+        "quantity": "645.6000",
+        "batch_cents": "3163230",
+        "cents": "3173260",
+        "uncosted_lots": 0,
+        "latest_created": "2026-10-29 23:15:19.682967",
+        "latest_updated": "2026-10-29 23:15:21.657"
+      },
+      {
+        "branch_id": "b1000001-0000-4000-8000-000000000002",
+        "name": "Polanco",
+        "ownership_type": "OWNED",
+        "lots": 27,
+        "quantity": "838.6000",
+        "batch_cents": "3899002",
+        "cents": "4092860",
+        "uncosted_lots": 0,
+        "latest_created": "2026-10-29 23:15:25.250781",
+        "latest_updated": "2026-10-29 23:15:26.814"
+      },
+      {
+        "branch_id": "b1000001-0000-4000-8000-000000000003",
+        "name": "Roma",
+        "ownership_type": "OWNED",
+        "lots": 26,
+        "quantity": "531.6000",
+        "batch_cents": "2724857",
+        "cents": "2784560",
+        "uncosted_lots": 0,
+        "latest_created": "2026-10-29 23:15:30.475823",
+        "latest_updated": "2026-10-29 23:15:32.038"
+      }
+    ],
+    "amountCents": 10050680
+  },
+  "opening": {
+    "id": "d4b2d855-7265-4808-8706-267e2c61fde4",
+    "journalId": "52e22976-7d68-45cb-9ab4-14d54ba52658",
+    "number": 1,
+    "date": "2026-11-12",
+    "status": "POSTED",
+    "totals": {
+      "debitCents": 20050680,
+      "creditCents": 20050680,
+      "balanced": true
+    }
+  },
+  "openingLines": [
+    {
+      "accountCode": "DEMO-1102",
+      "debitCents": 10000000,
+      "creditCents": 0,
+      "memo": "Saldo bancario sintético DEMO"
+    },
+    {
+      "accountCode": "DEMO-1201",
+      "debitCents": 10050680,
+      "creditCents": 0,
+      "memo": "Inventario del seed, respaldo por sucursal"
+    },
+    {
+      "accountCode": "DEMO-3101",
+      "debitCents": 0,
+      "creditCents": 20050680,
+      "memo": "Contrapartida de arranque sintético; no representa capital social real"
+    }
+  ],
+  "openingDocuments": [
+    {
+      "label": "Saldo bancario sintético DEMO",
+      "reference": "DEMO-OPEN-20261112-BANK-100000",
+      "amountCents": 10000000
+    },
+    {
+      "label": "Valuación de inventario del seed por sucursal",
+      "reference": "DEMO-OPEN-20261112-INVENTORY-10050680",
+      "amountCents": 10050680
+    }
+  ],
+  "verification": {
+    "independentDatabaseConnection": true,
+    "postedJournals": 1,
+    "openingBalanced": true,
+    "ledgerBalances": [
+      {
+        "code": "DEMO-1102",
+        "kind": "ASSET",
+        "debit_cents": "10000000",
+        "credit_cents": "0",
+        "net_cents": "10000000"
+      },
+      {
+        "code": "DEMO-1201",
+        "kind": "ASSET",
+        "debit_cents": "10050680",
+        "credit_cents": "0",
+        "net_cents": "10050680"
+      },
+      {
+        "code": "DEMO-3101",
+        "kind": "EQUITY",
+        "debit_cents": "0",
+        "credit_cents": "20050680",
+        "net_cents": "-20050680"
+      }
+    ],
+    "operationalInventoryUnchanged": true,
+    "bankStatementUnchanged": true,
+    "legacyMovementsUnchanged": true,
+    "bankPurposePreserved": "MIXTO",
+    "computedBankBalanceCents": 10000000,
+    "rolePermissionsChanged": false,
+    "publisherRole": "Existing SUPER_ADMIN seed user",
+    "rulesWithoutBlockers": 15,
+    "repeatedSetupCreatedRows": 0,
+    "postingEnabled": true,
+    "inventoryEnabled": true
+  },
+  "limits": [
+    "Bank opening is an explicit synthetic 100,000 MXN assumption; no statement balance was fabricated as verified.",
+    "Inventory comes from a seed snapshot using the effective FC-14 item-cost method; it is not an audited historical valuation.",
+    "Opening only carries the demo bank and inventory against synthetic opening equity; it does not reconstruct all operational history.",
+    "Manual PAYMENT_SOURCE is mapped to the demo bank; cash payments require their own reviewed configuration.",
+    "No historical events were replayed and no operational expense, payment, inventory movement or transfer was created.",
+    "FC-15 onward and complete pilot acceptance FC-20/21 remain pending."
+  ]
+}

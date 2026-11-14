@@ -89,7 +89,7 @@
   "dependentPackage": "INTEGRATED_IN_GIT",
   "testBoundary": "Synthetic schemas in a test database checked distinct from the operational database",
   "limits": [
-    "Netlify database migrated and live flags verified. .env and its separate empty database were not changed. The demo ledger catalog/rules/opening still require setup.",
+    "Netlify database migrated, live flags verified, and seed demo catalog/rules/opening configured. .env and its separate empty database unchanged; synthetic assumptions documented.",
     "No retrospective valuation or replacement of missing original costs with current prices",
     "Sources without an eligible actor retain an immutable pending valuation without an invented outbox actor",
     "No certification of FC-20 or FC-21"
@@ -112,5 +112,18 @@
     "conclusion": "success",
     "url": "https://github.com/whatshopmx/pulso8mayo-1/actions/runs/43444115653"
   },
-  "liveEvidence": "fc14-netlify-live-2026-11-13.json"
+  "liveEvidence": "fc14-netlify-live-2026-11-13.json",
+  "demoConfiguredAt": "2026-11-14T00:23:03.611Z",
+  "demoConfigurationEvidence": "demo-setup-2026-11-13.json",
+  "demoConfiguration": {
+    "accounts": 23,
+    "rules": 15,
+    "sourceLinks": 6,
+    "gatewayLinks": 3,
+    "openingJournalNumber": 1,
+    "openingDate": "2026-11-12",
+    "openingDebitCents": 20050680,
+    "openingCreditCents": 20050680,
+    "synthetic": true
+  }
 }

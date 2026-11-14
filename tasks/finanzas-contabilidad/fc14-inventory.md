@@ -58,4 +58,25 @@ El commit `a816208` se comprueba en un checkout separado, sin las modificaciones
 
 La respuesta autenticada de preparación incluye `inventoryEnabled` para comprobar la bandera real del servidor. En Netlify debe guardarse en Production con alcance Builds/Functions; una variable solo en `netlify.toml` no basta para las funciones, según la [documentación de Netlify](https://docs.netlify.com/build/functions/environment-variables/). Desactivar esa variable y redesplegar detiene nuevas publicaciones de inventario; las valoraciones físicas y pólizas anteriores se conservan.
 
-El propietario confirma la variable guardada y se comprueba activa sin necesitar un segundo despliegue. El commit fuente publicado `f8f03aa` tiene [CI aprobado](https://github.com/whatshopmx/pulso8mayo-1/actions/runs/43444115653). La comprobación HTTP acredita comportamiento y bandera; no expone un SHA independiente del despliegue Netlify. El demo conserva **cero cuentas contables**: catálogo, reglas y apertura requieren configuración explícita antes de generar pólizas. La habilitación de FC-14 no certifica FC-20/21 ni revalúa el histórico. Se elimina la copia temporal ignorada de la conexión suministrada; no se incluye en Git.
+El propietario confirma la variable guardada y se comprueba activa sin necesitar un segundo despliegue. El commit fuente publicado `f8f03aa` tiene [CI aprobado](https://github.com/whatshopmx/pulso8mayo-1/actions/runs/43444115653). La comprobación HTTP acredita comportamiento y bandera; no expone un SHA independiente del despliegue Netlify. La observación inicial de cero cuentas queda resuelta por la configuración demo documentada abajo. La habilitación de FC-14 no certifica FC-20/21 ni revalúa el histórico. Se eliminan las copias temporales ignoradas de la conexión suministrada; no se incluyen en Git.
+
+## Catálogo, reglas y apertura del demo
+
+Por solicitud del propietario, el 2026-11-13 (America/Mexico_City; evidencia UTC del 14) se configura únicamente **Pulso HORECA Demo** mediante las APIs publicadas y sus guardas existentes. Se usa el SUPER_ADMIN ya existente del seed para publicar la apertura; ADMIN conserva sus permisos anteriores. No se cambian roles, código de aplicación, banderas ni el seed general.
+
+Quedan **23 cuentas** con prefijo `DEMO-`, **15 reglas** vigentes desde 2026-11-13, cinco vínculos de partidas, un vínculo de BBVA y tres vínculos de adquirentes (CLIP, MERCADO_PAGO y BBVA, destino CARD del seed). Las quince vistas previas no tienen bloqueos. El banco conserva propósito **MIXTO** y usa el mismo vínculo en ingresos y pagos.
+
+Se publica la **póliza de apertura #1 al 2026-11-12**, consolidada por empresa:
+
+| Cuenta | Cargo MXN | Abono MXN | Respaldo |
+| --- | ---: | ---: | --- |
+| DEMO-1102 · BBVA operativa | 100,000.00 | 0.00 | Saldo sintético explícito; no es confirmación de extracto |
+| DEMO-1201 · Inventario | 100,506.80 | 0.00 | 78 lotes del seed, con el método efectivo de FC-14 |
+| DEMO-3101 · Contrapartida de apertura | 0.00 | 200,506.80 | Contrapartida sintética de arranque; no representa capital social real |
+| Total | **200,506.80** | **200,506.80** | Balanceado |
+
+Inventario por sucursal: Condesa $31,732.60, Polanco $40,928.60 y Roma $27,845.60. Sus últimos movimientos y cambios de lotes son de octubre; no se reejecutan. El ancla del banco se fija al mismo corte e importe sintético: el saldo computado queda en $100,000.00. Las reglas nuevas empiezan después de la apertura para no duplicar el histórico del seed. El cálculo usa precios disponibles al preparar el demo; no se presenta como valoración histórica auditada ni como balance completo de todas las operaciones anteriores.
+
+La verificación independiente confirma una única póliza POSTED, cargos/abonos iguales, inventario y movimientos anteriores intactos, y extracto bancario sin cambios. Una segunda ejecución de la configuración crea **cero filas**: conserva las mismas cuentas, reglas y apertura. No se añade un gasto, pago ni movimiento físico de prueba. La regla manual PAYMENT_SOURCE representa el banco demo; pagos manuales de efectivo requieren una configuración revisada específica.
+
+[Evidencia y manifiesto completo](demo-setup-2026-11-13.json). La consulta autenticada posterior confirma 23 cuentas, seis vínculos de origen, quince reglas, apertura publicada y banderas activas. Esta entrega configura el demo y su arranque; FC-15 y siguientes, el cierre integral y la aceptación FC-20/21 permanecen pendientes.
