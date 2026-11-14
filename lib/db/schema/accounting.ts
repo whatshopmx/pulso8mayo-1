@@ -520,3 +520,25 @@ export const accountingPeriodCloses = pgTable("accounting_period_closes", {
     using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
     withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
 ]).enableRLS();
+
+/** FC-20: gradual per-company pilot activation and reversible disablement. */
+export const accountingCompanySettings = pgTable("accounting_company_settings", {
+  companyId: uuid("company_id").primaryKey().references(() => companies.id),
+  mode: text("mode", { enum: ["DISABLED", "COMPARISON", "ACTIVE"] }).notNull().default("DISABLED"),
+  postingEnabled: boolean("posting_enabled").notNull().default(false),
+  reviewEnabled: boolean("review_enabled").notNull().default(false),
+  openingDate: date("opening_date"),
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  activatedBy: text("activated_by").references(() => users.id),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  disabledBy: text("disabled_by").references(() => users.id),
+  disableReason: text("disable_reason"),
+  updatedBy: text("updated_by").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  check("accounting_company_settings_mode_check", sql`${table.mode} IN ('DISABLED','COMPARISON','ACTIVE')`),
+  check("accounting_company_settings_disabled_check", sql`(${table.mode} <> 'DISABLED' OR ${table.postingEnabled} = false)`),
+  pgPolicy("accounting_company_settings_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();

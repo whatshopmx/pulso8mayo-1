@@ -639,15 +639,20 @@ Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint
 
 ## FC-20: Activar piloto recuperable por empresa
 
-- [ ] Completada con evidencia.
+- [x] Completada con evidencia.
 - **Tamaño:** M. **Dependencias:** FC-04, FC-19.
 - **Descripción:** Configurar activación gradual, importar apertura con vista previa y documentar operación/retroceso.
 - **Aceptación:**
-  - [ ] Histórico no solapa apertura ni se publica sin revisión.
-  - [ ] desactivar detiene nuevos eventos sin borrar evidencia.
-  - [ ] backlog, fallos y diferencias pueden medirse por empresa.
+  - [x] Histórico no solapa apertura ni se publica sin revisión.
+  - [x] desactivar detiene nuevos eventos sin borrar evidencia.
+  - [x] backlog, fallos y diferencias pueden medirse por empresa.
 - **Verificación:** Simular activación, caída, recuperación y desactivación en base aislada; revisión de checklist con responsable contable.
-- **Archivos previstos:** `lib/services/accounting/activation-service.ts`, `scripts/accounting-opening-preview.ts`, `tests/integration/accounting/pilot.test.ts`, `docs/accounting-operations.md`, `tasks/finanzas-contabilidad/pilot-review.md`.
+- **Archivos implementados:** `lib/db/schema/accounting.ts`, `drizzle/0150_fc20_company_activation.sql`, `drizzle/meta/_journal.json`, `lib/services/accounting/activation-service.ts`, `lib/services/accounting/event-store.ts`, `lib/services/accounting/event-service.ts`, `lib/inngest/functions/accounting-post.ts`, `scripts/accounting-opening-preview.ts`, `tests/integration/accounting/pilot.test.ts`, `docs/accounting-operations.md`, `tasks/finanzas-contabilidad/pilot-review.md`.
+- **Evidencia (2026-11-14):**
+  - `tests/integration/accounting/pilot.test.ts` en Postgres aislado (`NOBYPASSRLS`): **2/2 aprobadas** (vista previa de apertura sin publicar, detección de desbalance y conteo de histórico excluido; bloqueo de activación sin apertura; omisión de hechos en/antes de `openingDate`; simulación de fallo por regla faltante y recuperación posterior tras configurar regla/vínculo; medición de backlog, fallos y diferencias P&L por empresa; desactivación reversible que detiene nuevos eventos sin borrar pólizas/evidencia; aislamiento por rol/empresa).
+  - `pnpm exec eslint` sobre los 7 archivos TS de FC-20: **0 errores, 0 warnings** (ejecutado sobre la versión final de servicio/esquema/script; `pilot.test.ts` ajustado solo en fixture SQL después del lint).
+  - `node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false`: **exit 0**.
+  - **Límite documentado:** la migración `drizzle/0150_fc20_company_activation.sql` permanece local sin aplicar a la base operativa y la revisión del primer cierre real con responsable contable corresponde a **FC-21**.
 
 ## FC-21: Validar el primer cierre del piloto
 

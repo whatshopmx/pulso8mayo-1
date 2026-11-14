@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, lte, notExists, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ApiError, isApiError } from "@/lib/api/error";
 import { resolveBranchScope } from "@/lib/branch-scope";
@@ -6,6 +6,7 @@ import { accountingEvents, branches, dailySalesCuts, expensePayments, operatingE
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { hasPermission } from "@/lib/permissions";
 import type { AccountingContext } from "./journal-service";
+import { getCompanyOpeningDateIn, isCompanyPostingEnabledIn } from "./activation-service";
 import { ensureRecognitionIn, isAccountingPostingEnabled, postPaymentIn } from "./expense-adapter";
 import { finishAccountingEventIn, recordAccountingEventIn } from "./event-store";
 import { postSalesEventIn } from "./sales-adapter";
@@ -65,19 +66,27 @@ export function listPendingAccountingEvents(ctx: AccountingContext, input: z.inp
 
 /** Internal worker boundary: the tenant comes from the server's company catalog. */
 export function dueAccountingEvents(companyId: string) {
-  return withCompanyContext({ companyId: id.parse(companyId) }, tx => tx.select({ id: accountingEvents.id })
-    .from(accountingEvents).where(and(eq(accountingEvents.companyId, companyId),
-      eq(accountingEvents.status, "PENDING"), lte(accountingEvents.nextAttemptAt, new Date())))
-    .orderBy(asc(accountingEvents.nextAttemptAt), asc(accountingEvents.id)).limit(25));
+  return withCompanyContext({ companyId: id.parse(companyId) }, async tx => {
+    if (!(await isCompanyPostingEnabledIn(tx, companyId))) return [];
+    return tx.select({ id: accountingEvents.id })
+      .from(accountingEvents).where(and(eq(accountingEvents.companyId, companyId),
+        eq(accountingEvents.status, "PENDING"), lte(accountingEvents.nextAttemptAt, new Date())))
+      .orderBy(asc(accountingEvents.nextAttemptAt), asc(accountingEvents.id)).limit(25);
+  });
 }
 
 /** Bounded repair sweep for eligible sources saved before the outbox existed. */
 export function recoverMissingAccountingEvents(companyId: string) {
   if (!isAccountingPostingEnabled()) throw new ApiError("La contabilización automática aún no está habilitada.", 503);
   return withCompanyContext({ companyId: id.parse(companyId) }, async tx => {
+    if (!(await isCompanyPostingEnabledIn(tx, companyId))) {
+      return { expenses: 0, payments: 0, sales: 0, settlements: 0, skipped: true };
+    }
+    const openingDate = await getCompanyOpeningDateIn(tx, companyId);
     const expenses = await tx.select({ id: operatingExpenses.id, branchId: operatingExpenses.branchId,
       actorId: operatingExpenses.approvedBy, date: operatingExpenses.businessDate }).from(operatingExpenses).where(and(
       eq(operatingExpenses.companyId, companyId), inArray(operatingExpenses.status, ["APPROVED", "PAID"]),
+      openingDate ? gt(operatingExpenses.businessDate, openingDate) : undefined,
       isNotNull(operatingExpenses.approvedBy), notExists(tx.select({ id: accountingEvents.id }).from(accountingEvents).where(and(
         eq(accountingEvents.companyId, companyId), eq(accountingEvents.sourceType, "OPERATING_EXPENSE"),
         eq(accountingEvents.sourceId, operatingExpenses.id), eq(accountingEvents.eventType, "EXPENSE_RECOGNIZED"),
@@ -89,6 +98,7 @@ export function recoverMissingAccountingEvents(companyId: string) {
       actorId: expense.actorId!, accountingDate: expense.date });
     const payments = await tx.select().from(expensePayments).where(and(
       eq(expensePayments.companyId, companyId), eq(expensePayments.status, "CONFIRMED"),
+      openingDate ? gt(expensePayments.paidAt, openingDate) : undefined,
       notExists(tx.select({ id: accountingEvents.id }).from(accountingEvents).where(and(
         eq(accountingEvents.companyId, companyId), eq(accountingEvents.sourceType, "EXPENSE_PAYMENT"),
         eq(accountingEvents.sourceId, expensePayments.id), eq(accountingEvents.eventType, "EXPENSE_PAYMENT"),
@@ -103,6 +113,7 @@ export function recoverMissingAccountingEvents(companyId: string) {
       .innerJoin(branches, and(eq(branches.id, dailySalesCuts.branchId), eq(branches.companyId, companyId)))
       .innerJoin(users, and(eq(users.id, dailySalesCuts.receivedBy), eq(users.companyId, companyId))).where(and(
       eq(dailySalesCuts.companyId, companyId), eq(dailySalesCuts.status, "VALIDATED"), isNotNull(dailySalesCuts.receivedBy),
+      openingDate ? gt(dailySalesCuts.businessDate, openingDate) : undefined,
       notExists(tx.select({ id: accountingEvents.id }).from(accountingEvents).where(and(
         eq(accountingEvents.companyId, companyId), eq(accountingEvents.sourceType, "DAILY_SALES_CUT"),
         eq(accountingEvents.sourceId, dailySalesCuts.id), eq(accountingEvents.eventType, "SALE_RECOGNIZED"),
@@ -169,6 +180,10 @@ async function attempt(companyId: string, eventId: string, ctx?: AccountingConte
   try {
     return await withCompanyContext({ companyId, actorId: ctx?.actorId }, async tx => {
       if (ctx) { await authorize(tx, ctx, "publish"); authorized = true; }
+      if (!(await isCompanyPostingEnabledIn(tx, companyId))) {
+        if (ctx) throw new ApiError("La contabilización automática está desactivada para esta empresa.", 409);
+        return { journal: null, reason: "La contabilización automática está desactivada para esta empresa." };
+      }
       return processIn(tx, companyId, eventId, ctx?.actorId);
     });
   } catch (error) {

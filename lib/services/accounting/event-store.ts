@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { accountingEvents } from "@/lib/db/schema";
 import type { withCompanyContext } from "@/lib/db/tenant-context";
+import { getCompanyOpeningDateIn, isCompanyPostingEnabledIn } from "./activation-service";
 
 type Tx = Parameters<Parameters<typeof withCompanyContext>[1]>[0];
 type Fact = Pick<typeof accountingEvents.$inferInsert,
@@ -8,6 +9,11 @@ type Fact = Pick<typeof accountingEvents.$inferInsert,
 
 /** Called inside the transaction that saves the source; never sends a network event. */
 export async function recordAccountingEventIn(tx: Tx, fact: Fact) {
+  if (!(await isCompanyPostingEnabledIn(tx, fact.companyId))) return;
+  if (fact.sourceType !== "OPENING") {
+    const openingDate = await getCompanyOpeningDateIn(tx, fact.companyId);
+    if (openingDate && fact.accountingDate <= openingDate) return;
+  }
   await tx.insert(accountingEvents).values(fact).onConflictDoNothing({ target: [
     accountingEvents.companyId, accountingEvents.sourceType, accountingEvents.sourceId,
     accountingEvents.eventType, accountingEvents.sourceVersion,

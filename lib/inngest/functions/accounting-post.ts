@@ -4,6 +4,7 @@ import { inngest } from "@/lib/inngest/client";
 import { db } from "@/lib/db";
 import { companies } from "@/lib/db/schema";
 import { isAccountingPostingEnabled } from "@/lib/services/accounting/expense-adapter";
+import { isCompanyPostingEnabled } from "@/lib/services/accounting/activation-service";
 import { dueAccountingEvents, processAccountingEvent, recoverMissingAccountingEvents } from "@/lib/services/accounting/event-service";
 
 // One catalog page per durable run; the continuation prevents any tenant from
@@ -32,6 +33,9 @@ export const accountingPost = inngest.createFunction({
 }, async ({ event, step }) => {
   if (!isAccountingPostingEnabled()) return { enabled: false };
   const { companyId } = z.object({ companyId: z.uuid() }).parse(event.data);
+  if (!(await step.run("check-company-enabled", () => isCompanyPostingEnabled(companyId)))) {
+    return { enabled: false, companyId };
+  }
   await step.run("repair-missing-facts", () => recoverMissingAccountingEvents(companyId));
   const facts = await step.run("pending-facts", () => dueAccountingEvents(companyId));
   for (const fact of facts) {
