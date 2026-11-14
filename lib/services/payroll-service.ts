@@ -18,6 +18,8 @@ import { eq, and, gte, lte, sum, desc } from "drizzle-orm";
 import { timbrarNomina } from "./fiscal-service";
 import type { NominaDeduccion, NominaPercepcion } from "./fiscal-service";
 import { calcularAguinaldoAnual, DIAS_PRORRATEO } from "./aguinaldo-service";
+import { capturePayrollRunIn } from "./accounting/payroll-adapter";
+import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
 import { AGUINALDO_DAYS_VIGENTE } from "@/lib/company/labor-reform-status-catalog";
 import { differenceInDays, parseISO } from "date-fns";
 
@@ -525,9 +527,19 @@ export async function executePayrollRun(
 
   // Update run status
   const hasErrors = results.some(r => !r.success);
-  await withCompanyContext(scope, (tx) => tx.update(payrollRuns).set({
-    status: hasErrors ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED'
-  }).where(and(eq(payrollRuns.id, run.id), eq(payrollRuns.companyId, companyId))));
+  await withCompanyContext(scope, async (tx) => {
+    await tx.update(payrollRuns).set({
+      status: hasErrors ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED'
+    }).where(and(eq(payrollRuns.id, run.id), eq(payrollRuns.companyId, companyId)));
+    if (!hasErrors) {
+      if (isAccountingPostingEnabled() && !performedBy) {
+        throw ApiError.forbidden("La contabilización de nómina requiere un actor autenticado.");
+      }
+      if (performedBy) {
+        await capturePayrollRunIn(tx, companyId, performedBy, run.id);
+      }
+    }
+  });
 
   return {
     runId: run.id,

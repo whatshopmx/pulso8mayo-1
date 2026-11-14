@@ -3661,6 +3661,14 @@ export const pettyCashTransactions = pgTable("petty_cash_transactions", {
     costCenterId: uuid("cost_center_id").references(() => costCenters.id),
 
     evidenceUrl: text("evidence_url"),
+    /** FC-15 — identidad documental canónica compartida con operating_expenses (nunca una URL sola). */
+    voucherReference: text("voucher_reference"),
+    /** FC-15 — IVA acreditable documentado en centavos (null ≠ cero). */
+    taxAmount: integer("tax_amount"),
+    /** FC-15 — fecha explícita del movimiento o comprobante de caja chica. */
+    businessDate: date("business_date"),
+    /** FC-15 — partida PETTY_CASH_REIMBURSEMENT confirmada que respalda una reposición de fondo. */
+    paymentRunItemId: uuid("payment_run_item_id").references(() => paymentRunItems.id),
     workflowInstanceId: text("workflow_instance_id"),
 
     registeredBy: text("registered_by").notNull().references(() => users.id),
@@ -3790,6 +3798,8 @@ export const operatingExpenses = pgTable("operating_expenses", {
     description: text("description").notNull(),
     /** Foto del ticket/comprobante (gastos sin CFDI: hielo, ferretería, taxi, plomero). */
     evidenceUrl: text("evidence_url"),
+    /** FC-15 — identidad documental canónica compartida con petty_cash_transactions (nunca una URL sola). */
+    voucherReference: text("voucher_reference"),
     invoiceId: uuid("invoice_id").references(() => invoices.id),
     status: operatingExpenseStatusEnum("status").notNull().default('PENDING_APPROVAL'),
 

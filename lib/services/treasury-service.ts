@@ -61,6 +61,17 @@ import {
   remainingExpenseCents,
 } from "./accounting/expense-adapter";
 import { captureInvoicePaymentIn, remainingInvoiceCentsIn } from "./accounting/purchase-adapter";
+import { capturePayrollPaymentIn } from "./accounting/payroll-adapter";
+import { capturePettyCashReplenishmentByItemIn } from "./accounting/petty-cash-adapter";
+import { payrollNetCents } from "./accounting/payroll-contract";
+import { sumCents } from "./accounting/amounts";
+import { loadPayrollPaymentSnapshot } from "@/lib/treasury/payroll-payment-source";
+import { samePayrollSnapshot, type PayrollPaymentSnapshot } from "@/lib/treasury/payroll-snapshot";
+
+function payrollNetTotal(receipts: Parameters<typeof payrollNetCents>[0][]) {
+  try { return sumCents(receipts.map(payrollNetCents)); }
+  catch { throw ApiError.badRequest("La nómina tiene percepciones o deducciones inválidas; revisa los importes documentados antes de programar o dispersar."); }
+}
 
 type PaymentRunStatus = typeof paymentRunStatusEnum.enumValues[number];
 
@@ -305,6 +316,24 @@ async function saldarDocumentosDePartidas(
     } else {
       await tx.update(invoices).set({ paymentStatus: "PAID", paidAt: new Date(), paidBy: userId })
         .where(and(eq(invoices.companyId, companyId), inArray(invoices.id, facturaIds)));
+    }
+  }
+
+  if (isAccountingPostingEnabled()) {
+    const nominas = partidas.filter((p) => p.itemType === "PAYROLL");
+    if (nominas.length > 0) {
+      await setTenantContext(tx, { companyId, actorId: userId });
+      for (const item of nominas) {
+        await capturePayrollPaymentIn(tx, companyId, userId, item.id);
+      }
+    }
+
+    const reposiciones = partidas.filter((p) => p.itemType === "PETTY_CASH_REIMBURSEMENT");
+    if (reposiciones.length > 0) {
+      await setTenantContext(tx, { companyId, actorId: userId });
+      for (const item of reposiciones) {
+        await capturePettyCashReplenishmentByItemIn(tx, companyId, userId, item.id);
+      }
     }
   }
 
@@ -566,23 +595,24 @@ export class TreasuryService {
         orderBy: (pr, { desc }) => [desc(pr.createdAt)],
       });
 
-      if (runs.length === 0) return [];
+      const completedRuns = runs.filter(run => run.status === "COMPLETED");
+      if (completedRuns.length === 0) return [];
 
-      const runIds = runs.map(r => r.id);
+      const runIds = completedRuns.map(r => r.id);
 
       const attachedIds = await referenciasProgramadas(companyId, "PAYROLL", tx);
 
       const payslips = await tx.query.payrollPayslips.findMany({
         where: inArray(payrollPayslips.runId, runIds),
-        columns: { runId: true, totalPercepcionesCents: true }
+        columns: { runId: true, totalPercepcionesCents: true, totalDeduccionesCents: true }
       });
 
       const payrollTotals = new Map<string, number>();
       payslips.forEach(ps => {
-        payrollTotals.set(ps.runId, (payrollTotals.get(ps.runId) || 0) + (ps.totalPercepcionesCents || 0));
+        payrollTotals.set(ps.runId, sumCents([payrollTotals.get(ps.runId) ?? 0, payrollNetTotal([ps])]));
       });
 
-      return runs
+      return completedRuns
         .filter(r => !attachedIds.has(r.id))
         .map(r => ({
           ...r,
@@ -629,6 +659,7 @@ export class TreasuryService {
     /** Cuenta verificada de payee — mutuamente excluyente con `bankAccountId`: son dos catálogos distintos. */
     payeeBankAccountId?: string | null;
     clabeLast4?: string | null;
+    payrollSnapshot?: PayrollPaymentSnapshot;
   }> {
     const { companyId, itemType, referenceId, notes } = input;
     if (itemType === "PAYROLL") {
@@ -713,29 +744,17 @@ export class TreasuryService {
       // empleados, no contra una cuenta de contraparte. **Se declara** que no
       // requiere contraparte bancaria; no cae por omisión.
       case "PAYROLL": {
-        const payrollRun = await executor.query.payrollRuns.findFirst({
-          where: and(eq(payrollRuns.id, referenceId), eq(payrollRuns.companyId, companyId)),
-        });
-
-        if (!payrollRun) throw ApiError.notFound("Corrida de nómina no encontrada");
-
-        const payslips = await executor.query.payrollPayslips.findMany({
-          where: eq(payrollPayslips.runId, payrollRun.id),
-          columns: { totalPercepcionesCents: true },
-        });
-
-        const totalCents = payslips.reduce(
-          (sum, ps) => sum + (ps.totalPercepcionesCents || 0),
-          0
-        );
+        // The PAYROLL entry above always re-enters with a tenant transaction when q is absent.
+        const payrollSnapshot = await loadPayrollPaymentSnapshot(q!, companyId, referenceId);
+        const totalCents = payrollSnapshot.netCents;
 
         if (totalCents <= 0) {
           throw ApiError.badRequest(
-            "Esta corrida de nómina no tiene percepciones calculadas; no hay monto que programar."
+            "Esta corrida de nómina no tiene neto pendiente de pago; revisa percepciones y deducciones."
           );
         }
 
-        return { amountCents: totalCents, counterparty: "Nómina (dispersión a empleados)" };
+        return { amountCents: totalCents, counterparty: "Nómina (dispersión a empleados)", payrollSnapshot };
       }
 
       // Impuestos: se pagan por línea de captura al SAT/IMSS, no por SPEI a una
@@ -953,7 +972,7 @@ export class TreasuryService {
         throw ApiError.badRequest(retenida.motivo ?? "La obligación ya está programada.");
       }
 
-      const { amountCents, bankAccountId, payeeBankAccountId, clabeLast4 } =
+      const { amountCents, bankAccountId, payeeBankAccountId, clabeLast4, payrollSnapshot } =
         await TreasuryService.assertCounterpartyPayable(input, tx);
 
       const [item] = await tx
@@ -963,6 +982,7 @@ export class TreasuryService {
           itemType,
           referenceId,
           amountCents,
+          payrollSnapshot: payrollSnapshot ?? null,
           notes,
           // Congelado de cuenta (A2.1). Los tipos sin contraparte bancaria
           // —nómina, caja chica, impuestos— lo dejan en `null`, que es la
@@ -1476,7 +1496,12 @@ export class TreasuryService {
         .where(eq(paymentRunItems.id, itemId))
         .returning();
 
-      if (settlementStatus === "CONFIRMED" && aplicaEspejoDocumento(item.itemType)) {
+      if (
+        settlementStatus === "CONFIRMED" &&
+        (aplicaEspejoDocumento(item.itemType) ||
+          (isAccountingPostingEnabled() &&
+            (item.itemType === "PAYROLL" || item.itemType === "PETTY_CASH_REIMBURSEMENT")))
+      ) {
         await saldarDocumentosDePartidas(
           tx,
           [{ ...item, settledAt: updateData.settledAt as Date }],
@@ -1784,12 +1809,23 @@ export class TreasuryService {
     const nominaItems = partidasVigentes.filter((i) => i.itemType === "PAYROLL");
 
     if (nominaItems.length > 0) {
+      await withCompanyContext({ companyId }, async tx => {
+        for (const item of nominaItems) {
+          if (!item.payrollSnapshot) {
+            throw ApiError.conflict("La partida histórica no conserva un reparto de nómina autorizado; requiere revisión y nueva preparación.");
+          }
+          const current = await loadPayrollPaymentSnapshot(tx, companyId, item.referenceId);
+          if (!samePayrollSnapshot(item.payrollSnapshot, current) || item.amountCents !== current.netCents) {
+            throw ApiError.conflict("El reparto de nómina cambió respecto a lo autorizado; revisa los recibos y prepara una nueva autorización.");
+          }
+        }
+      });
       const recibos = await withCompanyContext({ companyId }, (tx) => tx
         .select({
           runId: payrollPayslips.runId,
+          payslipId: payrollPayslips.id,
           userId: payrollPayslips.userId,
           userName: users.name,
-          percepcionesCents: payrollPayslips.totalPercepcionesCents,
           bankName: employeeProfiles.bankName,
           clabe: employeeProfiles.clabe,
         })
@@ -1835,7 +1871,19 @@ export class TreasuryService {
           continue;
         }
 
-        const sinClabe = lista.filter((r) => !esClabe(r.clabe as string | null));
+        const frozenReceipts = item.payrollSnapshot!.receipts;
+        const frozenById = new Map(frozenReceipts.map(receipt => [receipt.payslipId, receipt]));
+        if (lista.length !== frozenReceipts.length || lista.some(row =>
+          frozenById.get(String(row.payslipId))?.employeeId !== row.userId)) {
+          throw ApiError.conflict("Los recibos de nómina cambiaron respecto al reparto autorizado.");
+        }
+        const frozenReceipt = (row: Record<string, unknown>) => frozenById.get(String(row.payslipId))!;
+        const netTotal = payrollNetTotal(frozenReceipts);
+        if (netTotal !== item.amountCents) {
+          throw ApiError.conflict("El neto documentado de nómina no coincide con el importe autorizado. Revisa la partida y prepara una nueva autorización antes de dispersar.");
+        }
+        const payable = lista.filter((r) => payrollNetCents(frozenReceipt(r)) > 0);
+        const sinClabe = payable.filter((r) => !esClabe(r.clabe as string | null));
 
         if (sinClabe.length > 0) {
           const nombres = sinClabe
@@ -1851,24 +1899,20 @@ export class TreasuryService {
           continue;
         }
 
-        // Una partida de nómina son N transferencias, una por empleado. El
-        // monto de cada renglón son las percepciones del recibo, que es la
-        // misma base con la que la partida entró a la corrida
-        // (`assertCounterpartyPayable`): el archivo y el total firmado tienen
-        // que decir lo mismo.
-        for (const recibo of lista) {
+        // Each employee receives documented net; fully withheld receipts emit no transfer.
+        for (const recibo of payable) {
           renglones.push({
             itemId: `${item.id}:${recibo.userId as string}`,
             clabe: String(recibo.clabe),
             bankName: (recibo.bankName as string) || "BANCO",
             beneficiario: (recibo.userName as string) || "EMPLEADO",
-            amountCents: Number(recibo.percepcionesCents || 0),
+            amountCents: payrollNetCents(frozenReceipt(recibo)),
             concepto: "NOMINA",
           });
         }
 
         avisos.push(
-          `La nómina se dispersa en ${lista.length} transferencias, una por empleado, por el total de percepciones de cada recibo. Las deducciones no se restan aquí: es la misma base con la que la partida entró a la corrida.`
+          `La nómina se dispersa en ${payable.length} transferencias por el neto documentado de cada recibo, después de deducciones. Los recibos con neto cero no generan transferencia.`
         );
       }
     }

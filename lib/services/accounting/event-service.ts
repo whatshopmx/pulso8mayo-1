@@ -11,6 +11,8 @@ import { finishAccountingEventIn, recordAccountingEventIn } from "./event-store"
 import { postSalesEventIn } from "./sales-adapter";
 import { postSettlementEventIn, recoverSettlementFacts } from "./settlement-adapter";
 import { postPurchaseEventIn, PURCHASE_EVENTS } from "./purchase-adapter";
+import { postPayrollEventIn, PAYROLL_SOURCES } from "./payroll-adapter";
+import { postPettyCashEventIn, PETTY_CASH_SOURCES } from "./petty-cash-adapter";
 import { isInventoryAccountingEnabled, postInventoryEventIn, recoverInventoryFacts } from "./inventory-adapter";
 
 type Tx = Parameters<Parameters<typeof withCompanyContext>[1]>[0];
@@ -116,7 +118,7 @@ export function recoverMissingAccountingEvents(companyId: string) {
   });
 }
 
-async function processIn(tx: Tx, companyId: string, eventId: string) {
+async function processIn(tx: Tx, companyId: string, eventId: string, posterId?: string) {
   const [event] = await tx.select().from(accountingEvents).where(and(
     eq(accountingEvents.companyId, companyId), eq(accountingEvents.id, eventId),
   )).limit(1);
@@ -127,6 +129,8 @@ async function processIn(tx: Tx, companyId: string, eventId: string) {
   // order as the reconciliation that captured the fact; no source row lock here.
   if (event.sourceType === "GATEWAY_SETTLEMENT") return postSettlementEventIn(tx, event);
   if (Object.hasOwn(PURCHASE_EVENTS, event.sourceType)) return postPurchaseEventIn(tx, event);
+  if (Object.hasOwn(PAYROLL_SOURCES, event.sourceType)) return postPayrollEventIn(tx, event, posterId);
+  if (Object.hasOwn(PETTY_CASH_SOURCES, event.sourceType)) return postPettyCashEventIn(tx, event, posterId);
   if (event.sourceType === "INVENTORY_MOVEMENT") return postInventoryEventIn(tx, event);
 
   // Match the source transaction's lock order. Locking the outbox first would
@@ -165,7 +169,7 @@ async function attempt(companyId: string, eventId: string, ctx?: AccountingConte
   try {
     return await withCompanyContext({ companyId, actorId: ctx?.actorId }, async tx => {
       if (ctx) { await authorize(tx, ctx, "publish"); authorized = true; }
-      return processIn(tx, companyId, eventId);
+      return processIn(tx, companyId, eventId, ctx?.actorId);
     });
   } catch (error) {
     if (authorized && !(isApiError(error) && error.statusCode === 404)) {

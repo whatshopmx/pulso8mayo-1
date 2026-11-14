@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, unique, uniqueIndex, index, foreignKey, date } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, unique, uniqueIndex, index, foreignKey, date, jsonb, check } from "drizzle-orm/pg-core";
+import type { PayrollPaymentSnapshot } from "@/lib/treasury/payroll-snapshot";
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
 import { users } from "./auth";
@@ -136,6 +137,9 @@ export const paymentRunItems = pgTable("payment_run_items", {
   referenceId: text("reference_id").notNull(), 
   
   amountCents: integer("amount_cents").notNull(),
+
+  /** FC-15: immutable receipt allocation; null only for historical/non-payroll items. */
+  payrollSnapshot: jsonb("payroll_snapshot").$type<PayrollPaymentSnapshot>(),
   
   notes: text("notes"),
 
@@ -201,6 +205,10 @@ export const paymentRunItems = pgTable("payment_run_items", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
+  payrollSnapshotCheck: check("payment_run_items_payroll_snapshot_check", sql`${table.payrollSnapshot} IS NULL OR
+    (${table.itemType} = 'PAYROLL' AND jsonb_typeof(${table.payrollSnapshot}) = 'object'
+      AND ${table.payrollSnapshot}->>'version' = '1'
+      AND jsonb_typeof(${table.payrollSnapshot}->'receipts') = 'array') IS TRUE`),
   /**
    * El panel de una corrida pregunta "¿qué falta liquidar?" y el generador del
    * layout "¿qué partidas ya no deben viajar?". Las dos son consultas por

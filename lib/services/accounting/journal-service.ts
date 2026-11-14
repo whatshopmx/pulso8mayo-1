@@ -394,6 +394,12 @@ export function reverseJournal(ctx: AccountingContext, journalId: string, input:
     if (original.sourceType === "INVENTORY_MOVEMENT") {
       throw ApiError.conflict("Inventario requiere una corrección física vinculada; la reversa manual no cambia sus existencias.");
     }
+    if (["PAYROLL_PAYSLIP", "PAYROLL_PAYMENT"].includes(original.sourceType ?? "")) {
+      throw ApiError.conflict("La corrección de nómina requiere revisar recibos y pagos vinculados.");
+    }
+    if (["PETTY_CASH_OUT", "PETTY_CASH_REPLENISHMENT"].includes(original.sourceType ?? "")) {
+      throw ApiError.conflict("La corrección de caja chica requiere revisar el movimiento y su comprobante.");
+    }
     if (original.status !== "POSTED" || original.reversalOfId || original.version !== data.expectedVersion) {
       throw ApiError.conflict("Solo se revierte una póliza publicada vigente; vuelve a consultar su versión.");
     }

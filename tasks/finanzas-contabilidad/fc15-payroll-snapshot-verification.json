@@ -1,0 +1,43 @@
+{
+  "recordedDate": "2026-11-14",
+  "task": "FC-15c payroll allocation snapshot",
+  "status": "local_increment_verified_global_build_pending",
+  "migration": {
+    "file": "drizzle/0146_fc15_payroll_snapshot.sql",
+    "sha256": "68b34d31f69b8ce1544d172e7c43ae3967250355a2c28f66652fe983bf4c5c75",
+    "operationallyApplied": false,
+    "priorConcurrentMigrations": ["0143", "0144", "0145"],
+    "testScope": "synthetic PGlite and random isolated PostgreSQL schema; schema and test role removed after execution"
+  },
+  "checks": {
+    "payrollSnapshotContract": { "passed": 5 },
+    "schemaFinal": { "passed": 7, "exitCode": 0, "log": ".tmp/fc15c-schema-final.log" },
+    "finance": { "filesPassed": 22, "passed": 256, "exitCode": 0, "log": ".tmp/fc15c-finance-final.log" },
+    "postgresFinal": { "passed": 4, "exitCode": 0, "durationSeconds": 26.46, "log": ".tmp/fc15c-integration-final.log" },
+    "typesFinal": { "exitCode": 0, "log": ".tmp/fc15c-tsc-final.log" },
+    "focusedLint": { "exitCode": 0, "errors": 0, "existingWarnings": 2, "log": ".tmp/fc15c-eslint.log" },
+    "unitGeneral": {
+      "filesPassed": 218, "passed": 2637, "skipped": 1, "todo": 1, "exitCode": 0,
+      "durationSeconds": 440.47, "log": ".tmp/fc15c-unit-full.log",
+      "scope": "before the final SQL parent-company guard; that guard and its assertions were verified by schemaFinal and postgresFinal"
+    },
+    "lintGeneral": { "status": "running", "log": ".tmp/fc15c-lint-full.log" },
+    "build": { "status": "running", "log": ".tmp/fc15c-build.log" }
+  },
+  "verifiedInvariants": [
+    "Completed payroll and stamped unique receipts are required for automatic payment preparation",
+    "Snapshots freeze source identities, period, branches, documented components and employee net allocation",
+    "Layout rejects changed allocation even if net total is unchanged and uses frozen amounts",
+    "Historical allocations remain null and are never reconstructed from mutable data",
+    "SQL prevents new snapshot-less payroll, tampering and relocation of snapshot-bearing payment runs to another company",
+    "Restricted NOLOGIN NOBYPASSRLS test role cannot read or prepare another tenant payroll",
+    "Actual PostgreSQL row locks serialize receipt insertion against the snapshot cut; verified with pg_blocking_pids"
+  ],
+  "notYetDelivered": [
+    "Individual employee bank identity freeze",
+    "Payroll recognition and payment accounting events, rules, journal publication and durable recovery",
+    "Petty cash document identity, duplicate expense protection and linked replenishments",
+    "Operational restricted-role provisioning and full HTTP treasury authorization verification",
+    "Operational migration, deployment and pilot acceptance FC-20/21"
+  ]
+}

@@ -8,12 +8,19 @@ import { eq, and, desc, count, inArray } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { ApiError } from "@/lib/api/error";
 import { assertBranchOfCompany, type BranchScope } from "@/lib/branch-scope";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import {
   validarAperturaFondo,
   validarReposicionFondo,
   validarRetiroFondo,
 } from "@/lib/finance/petty-cash-policy";
+import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
+import {
+  capturePettyCashOutflowIn,
+  capturePettyCashReplenishmentIn,
+} from "./accounting/petty-cash-adapter";
+import { isPettyCashOpeningConcept } from "./accounting/petty-cash-contract";
 
 export interface RegisterOutflowInput {
   companyId: string;
@@ -29,6 +36,12 @@ export interface RegisterOutflowInput {
    */
   costCenterId?: string | null;
   evidenceUrl?: string;
+  /** FC-15 — identidad documental canónica compartida con operating_expenses (no URL). */
+  voucherReference?: string | null;
+  /** FC-15 — impuesto acreditable documentado en centavos (null ≠ cero). */
+  taxCents?: number | null;
+  /** FC-15 — fecha de negocio explícita del comprobante o salida (YYYY-MM-DD). */
+  businessDate?: string | null;
   workflowInstanceId?: string;
   registeredBy: string;
   approvedBy?: string;
@@ -42,6 +55,10 @@ export interface ReplenishFundInput {
   registeredBy: string;
   approvedBy?: string;
   notes?: string;
+  /** FC-15 — partida PETTY_CASH_REIMBURSEMENT confirmada que respalda la reposición. */
+  paymentRunItemId?: string | null;
+  /** FC-15 — fecha explícita de la reposición (YYYY-MM-DD). */
+  businessDate?: string | null;
 }
 
 export interface OpenFundInput {
@@ -90,17 +107,26 @@ export async function getFund(companyId: string, branchId: string) {
 }
 
 /**
- * El fondo de una sucursal, o un error legible si no está abierto.
- * Las escrituras pasan por aquí: crear el fondo bajo la mesa era lo que hacía
- * indistinguible un saldo entregado de uno inventado.
+ * El fondo activo de una sucursal bloqueado dentro de la transacción (`FOR UPDATE`),
+ * o un error legible si no está abierto.
  */
-async function requireFund(companyId: string, branchId: string) {
-  // Antes que el fondo, la sucursal: sin esto una sucursal de otra empresa
-  // fallaba con "no tiene un fondo abierto", que es un mensaje que invita a
-  // abrirle fondo a la sucursal de alguien más.
-  await assertBranchOfCompany(companyId, branchId);
-
-  const fund = await getFund(companyId, branchId);
+async function lockActiveFund(
+  tx: Parameters<Parameters<typeof withCompanyContext>[1]>[0],
+  companyId: string,
+  branchId: string
+) {
+  const [fund] = await tx
+    .select()
+    .from(pettyCashFunds)
+    .where(
+      and(
+        eq(pettyCashFunds.companyId, companyId),
+        eq(pettyCashFunds.branchId, branchId),
+        eq(pettyCashFunds.active, true)
+      )
+    )
+    .limit(1)
+    .for("update");
   if (!fund) {
     throw ApiError.badRequest(
       "Esta sucursal no tiene un fondo de caja chica abierto. Ábrelo indicando el efectivo que se entregó antes de registrar movimientos."
@@ -209,45 +235,69 @@ export async function openFund(input: OpenFundInput) {
 }
 
 export async function registerOutflow(input: RegisterOutflowInput) {
-  const fund = await requireFund(input.companyId, input.branchId);
+  await assertBranchOfCompany(input.companyId, input.branchId);
 
-  validarRetiroFondo({
-    amountCents: input.amountCents,
-    currentBalanceCents: fund.currentBalance,
-    concept: input.concept,
-    evidenceUrl: input.evidenceUrl,
-  });
+  const { transaction, newBalance, lowThreshold } = await withCompanyContext(
+    { companyId: input.companyId, actorId: input.registeredBy },
+    async (tx) => {
+      const fund = await lockActiveFund(tx, input.companyId, input.branchId);
 
-  // Atomic deduction
-  const newBalance = fund.currentBalance - input.amountCents;
+      validarRetiroFondo({
+        amountCents: input.amountCents,
+        currentBalanceCents: fund.currentBalance,
+        concept: input.concept,
+        evidenceUrl: input.evidenceUrl,
+      });
 
-  const [tx] = await db
-    .insert(pettyCashTransactions)
-    .values({
-      fundId: fund.id,
-      type: "OUT",
-      amount: input.amountCents,
-      concept: input.concept,
-      category: input.category || "OTROS",
-      costCenterId: input.costCenterId || null,
-      evidenceUrl: input.evidenceUrl || null,
-      workflowInstanceId: input.workflowInstanceId || null,
-      registeredBy: input.registeredBy,
-      approvedBy: input.approvedBy || input.registeredBy,
-      authorizationNotes: input.authorizationNotes || null,
-    })
-    .returning();
+      const updatedBalance = fund.currentBalance - input.amountCents;
 
-  await db
-    .update(pettyCashFunds)
-    .set({
-      currentBalance: newBalance,
-      updatedAt: new Date(),
-    })
-    .where(eq(pettyCashFunds.id, fund.id));
+      const [createdTx] = await tx
+        .insert(pettyCashTransactions)
+        .values({
+          fundId: fund.id,
+          type: "OUT",
+          amount: input.amountCents,
+          concept: input.concept,
+          category: input.category || "OTROS",
+          costCenterId: input.costCenterId || null,
+          evidenceUrl: input.evidenceUrl || null,
+          voucherReference: input.voucherReference ?? null,
+          taxAmount: input.taxCents ?? null,
+          businessDate: input.businessDate ?? null,
+          workflowInstanceId: input.workflowInstanceId || null,
+          registeredBy: input.registeredBy,
+          approvedBy: input.approvedBy || input.registeredBy,
+          authorizationNotes: input.authorizationNotes || null,
+        })
+        .returning();
+
+      await tx
+        .update(pettyCashFunds)
+        .set({
+          currentBalance: updatedBalance,
+          updatedAt: new Date(),
+        })
+        .where(eq(pettyCashFunds.id, fund.id));
+
+      if (isAccountingPostingEnabled()) {
+        await capturePettyCashOutflowIn(
+          tx,
+          input.companyId,
+          input.approvedBy || input.registeredBy,
+          createdTx.id
+        );
+      }
+
+      return {
+        transaction: createdTx,
+        newBalance: updatedBalance,
+        lowThreshold: fund.lowThreshold,
+      };
+    }
+  );
 
   // Check low threshold (< 20%)
-  if (newBalance <= fund.lowThreshold) {
+  if (newBalance <= lowThreshold) {
     try {
       await NotificationDispatcher.sendNotification({
         userId: input.companyId,
@@ -263,44 +313,67 @@ export async function registerOutflow(input: RegisterOutflowInput) {
     }
   }
 
-  return { transaction: tx, newBalanceCents: newBalance };
+  return { transaction, newBalanceCents: newBalance };
 }
 
 export async function replenishFund(input: ReplenishFundInput) {
-  const fund = await requireFund(input.companyId, input.branchId);
-
+  await assertBranchOfCompany(input.companyId, input.branchId);
+  if (isPettyCashOpeningConcept(input.notes)) {
+    throw ApiError.badRequest(
+      "El concepto de apertura o reapertura está reservado para abrir el fondo; usa una nota de reposición."
+    );
+  }
   const config = await getTenantOperatingConfig(input.companyId);
-  validarReposicionFondo({
-    amountCents: input.amountCents,
-    currentBalanceCents: fund.currentBalance,
-    fundAmountCents: fund.fundAmount,
-    pettyCashLimitCents: config.pettyCashLimitCents,
-  });
 
-  const newBalance = fund.currentBalance + input.amountCents;
+  return await withCompanyContext(
+    { companyId: input.companyId, actorId: input.registeredBy },
+    async (tx) => {
+      const fund = await lockActiveFund(tx, input.companyId, input.branchId);
 
-  const [tx] = await db
-    .insert(pettyCashTransactions)
-    .values({
-      fundId: fund.id,
-      type: "REPLENISHMENT",
-      amount: input.amountCents,
-      concept: input.notes || "Reposición de fondo de caja chica",
-      registeredBy: input.registeredBy,
-      approvedBy: input.approvedBy || input.registeredBy,
-      authorizationNotes: input.notes || "Reposición autorizada",
-    })
-    .returning();
+      validarReposicionFondo({
+        amountCents: input.amountCents,
+        currentBalanceCents: fund.currentBalance,
+        fundAmountCents: fund.fundAmount,
+        pettyCashLimitCents: config.pettyCashLimitCents,
+      });
 
-  await db
-    .update(pettyCashFunds)
-    .set({
-      currentBalance: newBalance,
-      updatedAt: new Date(),
-    })
-    .where(eq(pettyCashFunds.id, fund.id));
+      const newBalance = fund.currentBalance + input.amountCents;
 
-  return { transaction: tx, newBalanceCents: newBalance };
+      const [createdTx] = await tx
+        .insert(pettyCashTransactions)
+        .values({
+          fundId: fund.id,
+          type: "REPLENISHMENT",
+          amount: input.amountCents,
+          concept: input.notes || "Reposición de fondo de caja chica",
+          businessDate: input.businessDate ?? null,
+          paymentRunItemId: input.paymentRunItemId ?? null,
+          registeredBy: input.registeredBy,
+          approvedBy: input.approvedBy || input.registeredBy,
+          authorizationNotes: input.notes || "Reposición autorizada",
+        })
+        .returning();
+
+      await tx
+        .update(pettyCashFunds)
+        .set({
+          currentBalance: newBalance,
+          updatedAt: new Date(),
+        })
+        .where(eq(pettyCashFunds.id, fund.id));
+
+      if (isAccountingPostingEnabled()) {
+        await capturePettyCashReplenishmentIn(
+          tx,
+          input.companyId,
+          input.approvedBy || input.registeredBy,
+          createdTx.id
+        );
+      }
+
+      return { transaction: createdTx, newBalanceCents: newBalance };
+    }
+  );
 }
 
 export async function getPettyCashAuditHistory(

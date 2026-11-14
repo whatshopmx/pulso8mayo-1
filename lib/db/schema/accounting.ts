@@ -5,7 +5,7 @@ import { users } from "./auth";
 import { costCenters } from "./service-orders";
 import { companyBankAccounts } from "./treasury";
 import { terminalAcquirerEnum } from "./finance";
-import { inventoryMovements } from "../schema";
+import { inventoryMovements, payrollRuns, payrollPayslips, paymentRunItems, pettyCashFunds, pettyCashTransactions } from "../schema";
 
 // Ledger structure only. Operational classification remains in cost_centers;
 // bank numbers/purpose remain in company_bank_accounts. No default mappings.
@@ -325,7 +325,7 @@ export const accountingOpeningDocuments = pgTable("accounting_opening_documents"
 export const accountingEvents = pgTable("accounting_events", {
   id: uuid("id").defaultRandom().primaryKey(),
   companyId: uuid("company_id").notNull().references(() => companies.id),
-  branchId: uuid("branch_id").notNull(),
+  branchId: uuid("branch_id"),
   sourceType: text("source_type").notNull(),
   sourceId: uuid("source_id").notNull(),
   eventType: text("event_type").notNull(),
@@ -355,8 +355,13 @@ export const accountingEvents = pgTable("accounting_events", {
     OR (${table.sourceType} = 'PURCHASE_INVOICE' AND ${table.eventType} = 'PURCHASE_INVOICED')
     OR (${table.sourceType} = 'PURCHASE_CREDIT' AND ${table.eventType} = 'PURCHASE_CREDITED')
     OR (${table.sourceType} = 'INVOICE_PAYMENT' AND ${table.eventType} = 'INVOICE_PAID')
+    OR (${table.sourceType} = 'PAYROLL_PAYSLIP' AND ${table.eventType} = 'PAYROLL_RECOGNIZED')
+    OR (${table.sourceType} = 'PAYROLL_PAYMENT' AND ${table.eventType} = 'PAYROLL_PAID')
+    OR (${table.sourceType} = 'PETTY_CASH_OUT' AND ${table.eventType} = 'PETTY_CASH_EXPENSE')
+    OR (${table.sourceType} = 'PETTY_CASH_REPLENISHMENT' AND ${table.eventType} = 'PETTY_CASH_REPLENISHED')
     OR (${table.sourceType} = 'INVENTORY_MOVEMENT' AND ${table.eventType} IN
       ('INVENTORY_USED','INVENTORY_USAGE_RETURNED','INVENTORY_WASTED','INVENTORY_SHIPPED','INVENTORY_RECEIVED','INVENTORY_TRANSIT_WASTED'))`),
+  check("accounting_events_branch_required_check", sql`${table.branchId} IS NOT NULL OR ${table.sourceType} IN ('PAYROLL_PAYSLIP','PAYROLL_PAYMENT')`),
   check("accounting_events_version_check", sql`${table.sourceVersion} >= 1
     AND (${table.sourceType} = 'DAILY_SALES_CUT' OR ${table.sourceVersion} = 1)`),
   check("accounting_events_attempts_check", sql`${table.attempts} >= 0`),
@@ -388,6 +393,63 @@ export const accountingPurchaseFacts = pgTable("accounting_purchase_facts", {
   check("accounting_purchase_facts_reference_check", sql`length(btrim(${table.documentReference})) BETWEEN 1 AND 200`),
   check("accounting_purchase_facts_snapshot_check", sql`jsonb_typeof(${table.snapshot}) = 'object'`),
   pgPolicy("accounting_purchase_facts_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
+/** Confirmed payroll receipt and cash application, frozen independently of live payroll calculations. */
+export const accountingPayrollFacts = pgTable("accounting_payroll_facts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").notNull().references(() => accountingEvents.id),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  payrollRunId: uuid("payroll_run_id").notNull().references(() => payrollRuns.id),
+  payslipId: uuid("payslip_id").notNull().references(() => payrollPayslips.id),
+  paymentRunItemId: uuid("payment_run_item_id").references(() => paymentRunItems.id),
+  kind: text("kind", { enum: ["RECOGNITION", "PAYMENT"] }).notNull(),
+  declaredBy: text("declared_by").notNull().references(() => users.id),
+  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("accounting_payroll_event_unique").on(table.eventId),
+  uniqueIndex("accounting_payroll_recognition_unique").on(table.companyId, table.payslipId).where(sql`${table.kind} = 'RECOGNITION'`),
+  uniqueIndex("accounting_payroll_payment_unique").on(table.companyId, table.paymentRunItemId, table.payslipId).where(sql`${table.kind} = 'PAYMENT'`),
+  index("accounting_payroll_run_idx").on(table.companyId, table.payrollRunId),
+  check("accounting_payroll_kind_check", sql`(${table.kind} = 'RECOGNITION' AND ${table.paymentRunItemId} IS NULL)
+    OR (${table.kind} = 'PAYMENT' AND ${table.paymentRunItemId} IS NOT NULL)`),
+  check("accounting_payroll_snapshot_check", sql`jsonb_typeof(${table.snapshot}) = 'object'`),
+  pgPolicy("accounting_payroll_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
+/** Confirmed petty cash expense or replenishment linked to own bank disbursement. */
+export const accountingPettyCashFacts = pgTable("accounting_petty_cash_facts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").notNull().references(() => accountingEvents.id),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  branchId: uuid("branch_id").notNull().references(() => branches.id),
+  fundId: uuid("fund_id").notNull().references(() => pettyCashFunds.id),
+  transactionId: uuid("transaction_id").notNull().references(() => pettyCashTransactions.id),
+  paymentRunItemId: uuid("payment_run_item_id").references(() => paymentRunItems.id),
+  kind: text("kind", { enum: ["OUT", "REPLENISHMENT"] }).notNull(),
+  voucherKey: text("voucher_key"),
+  declaredBy: text("declared_by").notNull().references(() => users.id),
+  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("accounting_petty_cash_event_unique").on(table.eventId),
+  uniqueIndex("accounting_petty_cash_tx_unique").on(table.companyId, table.transactionId),
+  uniqueIndex("accounting_petty_cash_item_unique").on(table.companyId, table.paymentRunItemId).where(sql`${table.paymentRunItemId} IS NOT NULL`),
+  index("accounting_petty_cash_voucher_idx").on(table.companyId, table.voucherKey),
+  check("accounting_petty_cash_kind_check", sql`(${table.kind} = 'OUT' AND ${table.paymentRunItemId} IS NULL AND ${table.voucherKey} IS NOT NULL)
+    OR (${table.kind} = 'REPLENISHMENT' AND ${table.paymentRunItemId} IS NOT NULL AND ${table.voucherKey} IS NULL)`),
+  check("accounting_petty_cash_voucher_check", sql`${table.voucherKey} IS NULL OR (${table.voucherKey} = upper(btrim(${table.voucherKey}))
+    AND length(${table.voucherKey}) BETWEEN 3 AND 160
+    AND ${table.voucherKey} !~* '^(https?|s3|file|blob|data)://'
+    AND left(${table.voucherKey}, 1) <> '/'
+    AND ${table.voucherKey} !~* '\\.(png|jpe?g|webp|gif|pdf)(\\?.*)?$')`),
+  check("accounting_petty_cash_snapshot_check", sql`jsonb_typeof(${table.snapshot}) = 'object'`),
+  pgPolicy("accounting_petty_cash_tenant", { for: "all", to: "public",
     using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
     withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
 ]).enableRLS();

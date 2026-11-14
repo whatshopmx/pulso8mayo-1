@@ -90,6 +90,10 @@ export interface CreateExpenseInput {
   businessDate?: string;
   /** URL del ticket/foto de evidencia (R2). */
   evidenceUrl?: string;
+  /** FC-15 — identidad documental canónica compartida con caja chica (no URL). */
+  voucherReference?: string | null;
+  /** FC-09/FC-15 — impuesto acreditable documentado en centavos (null ≠ cero). */
+  taxCents?: number | null;
   /** Contraparte (payee) a la que se le paga. Opcional: los gastos casuales no la tienen. */
   payeeId?: string;
   /**
@@ -284,6 +288,8 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       description: input.description,
       invoiceId: input.invoiceId || null,
       evidenceUrl: input.evidenceUrl || null,
+      voucherReference: input.voucherReference ?? null,
+      taxAmount: input.taxCents ?? null,
       payeeId: input.payeeId || null,
       costCenterId: input.costCenterId || null,
       businessDate: input.businessDate || null,

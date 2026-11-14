@@ -23,6 +23,8 @@ import { MAX_CENTS } from "./amounts";
 import { insertJournalLines, postInTransaction } from "./journal-service";
 import { resolveRuleIn, ruleBlockerMessage } from "./mapping-service";
 import { recordAccountingEventIn, finishAccountingEventIn } from "./event-store";
+import { normalizeAccountingVoucherKey } from "./petty-cash-contract";
+import { hasDuplicateVoucherIn, pettyCashLock } from "./petty-cash-adapter";
 
 /**
  * FC-09 — gasto reconocido y pagos parciales.
@@ -165,6 +167,13 @@ function expenseBlocker(expense: ExpenseRow, date: string | null): string | null
   if (!Number.isSafeInteger(expense.taxAmount) || expense.taxAmount < 0 || expense.taxAmount >= expense.amount) {
     return "El impuesto documentado debe ser no negativo y menor al importe bruto del gasto.";
   }
+  if (expense.voucherReference !== null && expense.voucherReference !== undefined) {
+    try {
+      normalizeAccountingVoucherKey(expense.voucherReference);
+    } catch (error) {
+      return error instanceof Error ? error.message : "La clave documental del comprobante del gasto es inválida.";
+    }
+  }
   if (expense.invoiceId) return "El gasto está vinculado a una factura; requiere resolver la fuente canónica antes de contabilizar.";
   return null;
 }
@@ -258,6 +267,19 @@ async function expenseRecognitionPlanIn(tx: Tx, companyId: string, expense: Expe
   const credit = entryOf(preview.entries, EXPENSE_ROLES.credit);
   const blocked = expenseBlocker(expense, date);
   if (blocked || !date) return { date, preview, debit, credit, reason: blocked ?? "Falta la fecha de negocio del gasto." };
+  if (expense.voucherReference) {
+    await pettyCashLock(tx, companyId);
+    const voucherKey = normalizeAccountingVoucherKey(expense.voucherReference);
+    if (await hasDuplicateVoucherIn(tx, companyId, voucherKey, { excludeExpenseId: expense.id })) {
+      return {
+        date,
+        preview,
+        debit,
+        credit,
+        reason: "El comprobante ya está registrado en caja chica u otro gasto operativo; requiere revisión para evitar duplicación.",
+      };
+    }
+  }
   if (expense.costCenterId) {
     const [link] = await tx.select({ id: accountingSourceLinks.id, accountId: accountingAccounts.id, accountCode: accountingAccounts.code,
       accountName: accountingAccounts.name, accountActive: accountingAccounts.active,

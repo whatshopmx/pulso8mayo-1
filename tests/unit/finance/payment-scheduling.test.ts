@@ -7,9 +7,10 @@ import { db } from "@/lib/db";
 import {
   invoices, operatingExpenses, payrollRuns, payrollPayslips,
   paymentRuns, paymentRunItems, suppliers, supplierBankAccounts,
-  branches, payees, payeeBankAccounts, pettyCashFunds,
+  branches, payees, payeeBankAccounts, pettyCashFunds, users, employeeProfiles,
 } from "@/lib/db/schema";
 import { TreasuryService } from "@/lib/services/treasury-service";
+import { decryptProfileRecords } from "@/lib/security/employee-cipher";
 import { claveObligacion, puedeAgendar, retieneObligacion } from "@/lib/treasury/scheduling-policy";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { POST } from "@/app/api/finance/treasury/runs/[id]/items/route";
@@ -20,7 +21,7 @@ vi.mock("@/lib/rbac/abac", () => ({ requirePermissionApi: vi.fn() }));
 
 type Row = Record<string, unknown>;
 type Context = Record<string, Row>;
-const tables = { invoices, operatingExpenses, payrollRuns, payrollPayslips, paymentRuns, paymentRunItems, suppliers, supplierBankAccounts, branches, payees, payeeBankAccounts, pettyCashFunds };
+const tables = { invoices, operatingExpenses, payrollRuns, payrollPayslips, paymentRuns, paymentRunItems, suppliers, supplierBankAccounts, branches, payees, payeeBankAccounts, pettyCashFunds, users, employeeProfiles };
 const dialect = new PgDialect();
 const camel = (name: string) => name.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 
@@ -35,6 +36,7 @@ function databaseFixture() {
   const rows: Record<string, Row[]> = Object.fromEntries(Object.values(tables).map(table => [getTableName(table), []]));
   const writes: Array<{ table: string; values: Row }> = [];
   const locks = new Map<string, Promise<void>>();
+  const heldLocks = new WeakMap<Array<() => void>, Set<string>>();
   const acquired: string[] = [];
   const controls: { beforeTransaction?: () => void; failUpdate?: boolean } = {};
   let sequence = 0;
@@ -42,6 +44,10 @@ function databaseFixture() {
   const valueOf = (context: Context, table: string, column: string) => context[table]?.[camel(column)];
   const acquire = async (key: string, releaseAtEnd?: Array<() => void>) => {
     if (!releaseAtEnd) throw new Error("El bloqueo exige una transacción");
+    const held = heldLocks.get(releaseAtEnd) ?? new Set<string>();
+    if (held.has(key)) return;
+    held.add(key);
+    heldLocks.set(releaseAtEnd, held);
     const previous = locks.get(key) ?? Promise.resolve();
     let release!: () => void;
     const current = new Promise<void>(resolve => { release = resolve; });
@@ -166,16 +172,16 @@ function databaseFixture() {
     finally { releases.reverse().forEach(release => release()); }
   } });
 
-  data(paymentRuns).push({ id: "target", companyId: "company-a", title: "Nueva corrida", status: "DRAFT", totalAmountCents: 0 });
-  data(invoices).push({ id: "invoice-a", companyId: "company-a", paymentStatus: "PENDING", matchStatus: "MATCHED", supplierId: "supplier-a", total: 12500 });
-  data(suppliers).push({ id: "supplier-a", companyId: "company-a", name: "Proveedor" });
-  data(supplierBankAccounts).push({ id: "bank-a", companyId: "company-a", supplierId: "supplier-a", status: "VERIFIED", active: true, clabeLast4: "1234" });
+  data(paymentRuns).push({ id: "target", companyId: "10000000-0000-4000-8000-000000000001", title: "Nueva corrida", status: "DRAFT", totalAmountCents: 0 });
+  data(invoices).push({ id: "invoice-a", companyId: "10000000-0000-4000-8000-000000000001", paymentStatus: "PENDING", matchStatus: "MATCHED", supplierId: "supplier-a", total: 12500 });
+  data(suppliers).push({ id: "supplier-a", companyId: "10000000-0000-4000-8000-000000000001", name: "Proveedor" });
+  data(supplierBankAccounts).push({ id: "bank-a", companyId: "10000000-0000-4000-8000-000000000001", supplierId: "supplier-a", status: "VERIFIED", active: true, clabeLast4: "1234" });
   return { data, writes, acquired, controls };
 }
 
 let fixture: ReturnType<typeof databaseFixture>;
-const addInvoice = (paymentRunId = "target") => TreasuryService.addItemToRun({ companyId: "company-a", paymentRunId, itemType: "INVOICE", referenceId: "invoice-a", amountCents: 1 });
-function retain(itemType = "INVOICE", referenceId = "invoice-a", status = "DRAFT", companyId = "company-a", id = "existing") {
+const addInvoice = (paymentRunId = "target") => TreasuryService.addItemToRun({ companyId: "10000000-0000-4000-8000-000000000001", paymentRunId, itemType: "INVOICE", referenceId: "invoice-a", amountCents: 1 });
+function retain(itemType = "INVOICE", referenceId = "invoice-a", status = "DRAFT", companyId = "10000000-0000-4000-8000-000000000001", id = "existing") {
   fixture.data(paymentRuns).push({ id, companyId, title: "Corrida anterior", status, totalAmountCents: 12500 });
   fixture.data(paymentRunItems).push({ id: "old-item", paymentRunId: id, itemType, referenceId, amountCents: 12500 });
 }
@@ -187,7 +193,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture = databaseFixture();
   vi.mocked(requirePermissionApi).mockReset();
-  vi.mocked(requirePermissionApi).mockResolvedValue({ ctx: { userCompanyId: "company-a", userId: "actor-a" } } as never);
+  vi.mocked(requirePermissionApi).mockResolvedValue({ ctx: { userCompanyId: "10000000-0000-4000-8000-000000000001", userId: "actor-a" } } as never);
 });
 
 describe("C19: una obligación sólo se programa una vez", () => {
@@ -227,7 +233,7 @@ describe("C19: una obligación sólo se programa una vez", () => {
     await rejected(addInvoice(), /cuenta bancaria CLABE verificada/i);
   });
   it("dos altas concurrentes en corridas diferentes sólo insertan una obligación", async () => {
-    fixture.data(paymentRuns).push({ id: "target-two", companyId: "company-a", title: "Segunda corrida", status: "DRAFT", totalAmountCents: 0 });
+    fixture.data(paymentRuns).push({ id: "target-two", companyId: "10000000-0000-4000-8000-000000000001", title: "Segunda corrida", status: "DRAFT", totalAmountCents: 0 });
     const results = await Promise.allSettled([addInvoice(), addInvoice("target-two")]);
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
     const failure = results.find(result => result.status === "rejected") as PromiseRejectedResult;
@@ -251,10 +257,14 @@ describe("C19: una obligación sólo se programa una vez", () => {
     expect(fixture.data(paymentRunItems)).toHaveLength(1);
   });
   it("dos altas concurrentes de la misma nómina sólo insertan una partida", async () => {
-    fixture.data(paymentRuns).push({ id: "target-two", companyId: "company-a", title: "Segunda corrida", status: "DRAFT", totalAmountCents: 0 });
-    fixture.data(payrollRuns).push({ id: "payroll-a", companyId: "company-a", status: "CALCULATED" });
-    fixture.data(payrollPayslips).push({ runId: "payroll-a", totalPercepcionesCents: 9300 });
-    const add = (paymentRunId: string) => TreasuryService.addItemToRun({ companyId: "company-a", paymentRunId, itemType: "PAYROLL", referenceId: "payroll-a" });
+    fixture.data(paymentRuns).push({ id: "target-two", companyId: "10000000-0000-4000-8000-000000000001", title: "Segunda corrida", status: "DRAFT", totalAmountCents: 0 });
+    fixture.data(payrollRuns).push({ id: "10000000-0000-4000-8000-000000000002", companyId: "10000000-0000-4000-8000-000000000001", status: "COMPLETED", periodStart: "2026-11-01", periodEnd: "2026-11-15" });
+    fixture.data(users).push({ id: "employee-a", companyId: "10000000-0000-4000-8000-000000000001", branchId: null });
+    fixture.data(payrollPayslips).push({ id: "10000000-0000-4000-8000-000000000004", runId: "10000000-0000-4000-8000-000000000002", userId: "employee-a",
+      cfdiUuid: "10000000-0000-4000-8000-000000000005", cfdiStatus: "TIMBRADO",
+      baseSalaryCents: 9300, propinasCents: 0, holidayPayCents: 0, overtimePayCents: 0, aguinaldoCents: 0,
+      totalPercepcionesCents: 9300, totalDeduccionesCents: 0 });
+    const add = (paymentRunId: string) => TreasuryService.addItemToRun({ companyId: "10000000-0000-4000-8000-000000000001", paymentRunId, itemType: "PAYROLL", referenceId: "10000000-0000-4000-8000-000000000002" });
     const results = await Promise.allSettled([add("target"), add("target-two")]);
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect((results.find(result => result.status === "rejected") as PromiseRejectedResult).reason).toBeInstanceOf(ApiError);
@@ -263,32 +273,32 @@ describe("C19: una obligación sólo se programa una vez", () => {
     expect(fixture.acquired.filter(key => key.startsWith(`${getTableName(payrollRuns)}:`))).toHaveLength(2);
   });
   it("dos pagos de impuestos concurrentes con la misma referencia se serializan", async () => {
-    fixture.data(paymentRuns).push({ id: "target-two", companyId: "company-a", title: "Segunda corrida", status: "DRAFT", totalAmountCents: 0 });
-    const add = (paymentRunId: string) => TreasuryService.addItemToRun({ companyId: "company-a", paymentRunId, itemType: "TAXES", referenceId: "capture-line", amountCents: 5700, notes: "SAT línea de captura" });
+    fixture.data(paymentRuns).push({ id: "target-two", companyId: "10000000-0000-4000-8000-000000000001", title: "Segunda corrida", status: "DRAFT", totalAmountCents: 0 });
+    const add = (paymentRunId: string) => TreasuryService.addItemToRun({ companyId: "10000000-0000-4000-8000-000000000001", paymentRunId, itemType: "TAXES", referenceId: "capture-line", amountCents: 5700, notes: "SAT línea de captura" });
     const results = await Promise.allSettled([add("target"), add("target-two")]);
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect((results.find(result => result.status === "rejected") as PromiseRejectedResult).reason).toBeInstanceOf(ApiError);
     expect(fixture.data(paymentRunItems)).toHaveLength(1);
-    expect(fixture.acquired.filter(key => key.startsWith("advisory:"))).toEqual(["advisory:company-a:TAXES:capture-line", "advisory:company-a:TAXES:capture-line"]);
+    expect(fixture.acquired.filter(key => key.startsWith("advisory:"))).toEqual(["advisory:10000000-0000-4000-8000-000000000001:TAXES:capture-line", "advisory:10000000-0000-4000-8000-000000000001:TAXES:capture-line"]);
   });
   it.each(["DRAFT", "PENDING_APPROVAL", "APPROVED", "PROCESSING"])("una reposición de caja chica %s retiene el fondo", async status => {
-    fixture.data(pettyCashFunds).push({ id: "fund-a", companyId: "company-a", active: true, fundAmount: 10000, currentBalance: 3000 });
+    fixture.data(pettyCashFunds).push({ id: "fund-a", companyId: "10000000-0000-4000-8000-000000000001", active: true, fundAmount: 10000, currentBalance: 3000 });
     retain("PETTY_CASH_REIMBURSEMENT", "fund-a", status);
-    await rejected(TreasuryService.addItemToRun({ companyId: "company-a", paymentRunId: "target", itemType: "PETTY_CASH_REIMBURSEMENT", referenceId: "fund-a" }), /Corrida anterior/i);
+    await rejected(TreasuryService.addItemToRun({ companyId: "10000000-0000-4000-8000-000000000001", paymentRunId: "target", itemType: "PETTY_CASH_REIMBURSEMENT", referenceId: "fund-a" }), /Corrida anterior/i);
   });
   it.each(["COMPLETED", "CANCELLED"])("una reposición %s permite volver a reponer el fondo", async status => {
-    fixture.data(pettyCashFunds).push({ id: "fund-a", companyId: "company-a", active: true, fundAmount: 10000, currentBalance: 3000 });
+    fixture.data(pettyCashFunds).push({ id: "fund-a", companyId: "10000000-0000-4000-8000-000000000001", active: true, fundAmount: 10000, currentBalance: 3000 });
     retain("PETTY_CASH_REIMBURSEMENT", "fund-a", status);
-    await expect(TreasuryService.addItemToRun({ companyId: "company-a", paymentRunId: "target", itemType: "PETTY_CASH_REIMBURSEMENT", referenceId: "fund-a" })).resolves.toMatchObject({ amountCents: 7000 });
+    await expect(TreasuryService.addItemToRun({ companyId: "10000000-0000-4000-8000-000000000001", paymentRunId: "target", itemType: "PETTY_CASH_REIMBURSEMENT", referenceId: "fund-a" })).resolves.toMatchObject({ amountCents: 7000 });
   });
 });
 
 describe("C19: contraparte del gasto dentro de la empresa", () => {
-  const addExpense = () => TreasuryService.addItemToRun({ companyId: "company-a", paymentRunId: "target", itemType: "OPERATING_EXPENSE", referenceId: "expense-a" });
+  const addExpense = () => TreasuryService.addItemToRun({ companyId: "10000000-0000-4000-8000-000000000001", paymentRunId: "target", itemType: "OPERATING_EXPENSE", referenceId: "expense-a" });
   beforeEach(() => {
-    fixture.data(operatingExpenses).push({ id: "expense-a", companyId: "company-a", status: "APPROVED", payeeId: "payee-a", amount: 4800 });
-    fixture.data(payees).push({ id: "payee-a", companyId: "company-a", name: "Contraparte propia" });
-    fixture.data(payeeBankAccounts).push({ id: "payee-bank-a", companyId: "company-a", payeeId: "payee-a", status: "VERIFIED", active: true, clabeLast4: "4321" });
+    fixture.data(operatingExpenses).push({ id: "expense-a", companyId: "10000000-0000-4000-8000-000000000001", status: "APPROVED", payeeId: "payee-a", amount: 4800 });
+    fixture.data(payees).push({ id: "payee-a", companyId: "10000000-0000-4000-8000-000000000001", name: "Contraparte propia" });
+    fixture.data(payeeBankAccounts).push({ id: "payee-bank-a", companyId: "10000000-0000-4000-8000-000000000001", payeeId: "payee-a", status: "VERIFIED", active: true, clabeLast4: "4321" });
   });
   it("conserva el monto y la cuenta verificada de la contraparte propia", async () => {
     await expect(addExpense()).resolves.toMatchObject({ amountCents: 4800, payeeBankAccountId: "payee-bank-a", clabeLast4Snapshot: "4321" });
@@ -369,22 +379,111 @@ describe("C19: contrato HTTP de agregar partidas", () => {
 
 describe("C19: listados de obligaciones disponibles", () => {
   const cases = [
-    { label: "facturas", type: "INVOICE", table: invoices, list: () => TreasuryService.getUnpaidMatchedInvoices("company-a") },
-    { label: "gastos", type: "OPERATING_EXPENSE", table: operatingExpenses, list: () => TreasuryService.getUnpaidApprovedExpenses("company-a") },
-    { label: "nómina", type: "PAYROLL", table: payrollRuns, list: () => TreasuryService.getUnpaidPayrollRuns("company-a") },
+    { label: "facturas", type: "INVOICE", table: invoices, list: () => TreasuryService.getUnpaidMatchedInvoices("10000000-0000-4000-8000-000000000001") },
+    { label: "gastos", type: "OPERATING_EXPENSE", table: operatingExpenses, list: () => TreasuryService.getUnpaidApprovedExpenses("10000000-0000-4000-8000-000000000001") },
+    { label: "nómina", type: "PAYROLL", table: payrollRuns, list: () => TreasuryService.getUnpaidPayrollRuns("10000000-0000-4000-8000-000000000001") },
   ];
   for (const candidate of cases) {
     it(`${candidate.label}: excluye corridas vivas propias y permite canceladas/ajenas`, async () => {
       fixture.data(candidate.table).splice(0);
       for (const id of ["live", "cancelled", "foreign", "free"]) {
-        fixture.data(candidate.table).push({ id, companyId: "company-a", paymentStatus: "PENDING", matchStatus: "MATCHED", status: "APPROVED", amount: 100, total: 100 });
-        if (candidate.type === "PAYROLL") fixture.data(payrollPayslips).push({ runId: id, totalPercepcionesCents: 100 });
+        fixture.data(candidate.table).push({ id, companyId: "10000000-0000-4000-8000-000000000001", paymentStatus: "PENDING", matchStatus: "MATCHED", status: candidate.type === "PAYROLL" ? "COMPLETED" : "APPROVED", amount: 100, total: 100 });
+        if (candidate.type === "PAYROLL") fixture.data(payrollPayslips).push({ runId: id, totalPercepcionesCents: 100, totalDeduccionesCents: 0 });
       }
-      retain(candidate.type, "live", "DRAFT", "company-a", "live-run");
-      retain(candidate.type, "cancelled", "CANCELLED", "company-a", "cancelled-run");
+      retain(candidate.type, "live", "DRAFT", "10000000-0000-4000-8000-000000000001", "live-run");
+      retain(candidate.type, "cancelled", "CANCELLED", "10000000-0000-4000-8000-000000000001", "cancelled-run");
       retain(candidate.type, "foreign", "APPROVED", "company-b", "foreign-run");
       const listed = await candidate.list();
       expect(listed.map(row => row.id).sort()).toEqual(["cancelled", "foreign", "free"]);
     });
   }
+});
+
+describe("FC-15 net payroll preparation", () => {
+  function payroll() {
+    fixture.data(payrollRuns).push({ id: "10000000-0000-4000-8000-000000000003", companyId: "10000000-0000-4000-8000-000000000001", status: "COMPLETED", periodStart: "2026-11-01", periodEnd: "2026-11-15" });
+    fixture.data(payrollPayslips).push({ id: "10000000-0000-4000-8000-000000000004", runId: "10000000-0000-4000-8000-000000000003", userId: "employee-a",
+      cfdiUuid: "10000000-0000-4000-8000-000000000005", cfdiStatus: "TIMBRADO",
+      baseSalaryCents: 80000, propinasCents: 10000, holidayPayCents: 0, overtimePayCents: 0, aguinaldoCents: 0,
+      totalPercepcionesCents: 90000, totalDeduccionesCents: 10000 });
+    fixture.data(users).push({ id: "employee-a", companyId: "10000000-0000-4000-8000-000000000001", name: "Empleado", branchId: null });
+    fixture.data(employeeProfiles).push({ userId: "employee-a", bankName: "BBVA", clabe: "012180001234567890" });
+    vi.mocked(decryptProfileRecords).mockImplementation(async (_company, rows) => rows);
+  }
+  const add = () => TreasuryService.addItemToRun({ companyId: "10000000-0000-4000-8000-000000000001", paymentRunId: "target",
+    itemType: "PAYROLL", referenceId: "10000000-0000-4000-8000-000000000003" });
+
+  it("lists and authorizes the documented net instead of gross", async () => {
+    payroll();
+    expect(await TreasuryService.getUnpaidPayrollRuns("10000000-0000-4000-8000-000000000001")).toMatchObject([{ id: "10000000-0000-4000-8000-000000000003", totalAmountCents: 80000 }]);
+    expect(await add()).toMatchObject({ amountCents: 80000 });
+    expect(fixture.data(paymentRuns)[0].totalAmountCents).toBe(80000);
+  });
+
+  it("exports employee net and rejects a historical gross authorization", async () => {
+    payroll();
+    await add();
+    fixture.data(paymentRuns)[0].status = "APPROVED";
+    const layout = await TreasuryService.generateBankDisbursementLayout("target", "10000000-0000-4000-8000-000000000001", "OWNER");
+    expect(layout.totalPesos).toBe("800.00");
+    expect(JSON.stringify(layout)).toContain("800.00");
+    fixture.data(paymentRunItems)[0].amountCents = 90000;
+    await expect(TreasuryService.generateBankDisbursementLayout("target", "10000000-0000-4000-8000-000000000001", "OWNER")).rejects.toThrow(/neto|autorizado/i);
+  });
+
+  it.each([undefined, null, -1, 0.5, 90001])("rejects undocumented or invalid deductions: %s", async deduction => {
+    payroll();
+    fixture.data(payrollPayslips)[0].totalDeduccionesCents = deduction;
+    await expect(add()).rejects.toThrow();
+    expect(fixture.data(paymentRunItems)).toHaveLength(0);
+  });
+
+  it("emits no transfer or CLABE requirement for a fully withheld receipt", async () => {
+    payroll();
+    fixture.data(payrollPayslips).push({ id: "10000000-0000-4000-8000-000000000006", runId: "10000000-0000-4000-8000-000000000003", userId: "employee-zero",
+      cfdiUuid: "10000000-0000-4000-8000-000000000007", cfdiStatus: "TIMBRADO",
+      baseSalaryCents: 10000, propinasCents: 0, holidayPayCents: 0, overtimePayCents: 0, aguinaldoCents: 0,
+      totalPercepcionesCents: 10000, totalDeduccionesCents: 10000 });
+    fixture.data(users).push({ id: "employee-zero", companyId: "10000000-0000-4000-8000-000000000001", name: "Retenido", branchId: null });
+    await add();
+    fixture.data(paymentRuns)[0].status = "APPROVED";
+    const layout = await TreasuryService.generateBankDisbursementLayout("target", "10000000-0000-4000-8000-000000000001", "OWNER");
+    expect(layout).toMatchObject({ recordCount: 1, totalPesos: "800.00", excludedCount: 0 });
+    expect(layout.content).not.toContain("Retenido");
+  });
+
+  it("does not export an employee from another company", async () => {
+    payroll();
+    await add();
+    fixture.data(paymentRuns)[0].status = "APPROVED";
+    fixture.data(users)[0].companyId = "company-b";
+    await expect(TreasuryService.generateBankDisbursementLayout("target", "10000000-0000-4000-8000-000000000001", "OWNER")).rejects.toThrow(/empresa/i);
+  });
+
+  it("freezes employee allocation and rejects changed components even when net stays equal", async () => {
+    payroll();
+    const item = await add();
+    expect(item.payrollSnapshot).toMatchObject({ version: 1, netCents: 80000,
+      receipts: [{ employeeId: "employee-a", baseSalaryCents: 80000 }] });
+    fixture.data(paymentRuns)[0].status = "APPROVED";
+    Object.assign(fixture.data(payrollPayslips)[0], { baseSalaryCents: 81000,
+      totalPercepcionesCents: 91000, totalDeduccionesCents: 11000 });
+    await expect(TreasuryService.generateBankDisbursementLayout("target", "10000000-0000-4000-8000-000000000001", "OWNER")).rejects.toThrow(/reparto/i);
+  });
+
+  it("rejects a historical item without reconstructing its approved allocation", async () => {
+    payroll();
+    await add();
+    fixture.data(paymentRuns)[0].status = "APPROVED";
+    fixture.data(paymentRunItems)[0].payrollSnapshot = null;
+    await expect(TreasuryService.generateBankDisbursementLayout("target", "10000000-0000-4000-8000-000000000001", "OWNER")).rejects.toThrow(/histórica/i);
+  });
+
+  it.each(["PROCESSING", "COMPLETED_WITH_ERRORS"])("does not prepare unconfirmed payroll %s", async status => {
+    payroll();
+    fixture.data(payrollRuns)[0].status = status;
+    expect(await TreasuryService.getUnpaidPayrollRuns("10000000-0000-4000-8000-000000000001")).toEqual([]);
+    await expect(add()).rejects.toThrow(/completada/i);
+    expect(fixture.data(paymentRunItems)).toHaveLength(0);
+  });
 });
