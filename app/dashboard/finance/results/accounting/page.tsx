@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Scale } from "lucide-react";
 import { AccountingStatements } from "@/components/finance/accounting-statements";
+import { AccountingExport } from "@/components/finance/accounting-export";
 import { Button } from "@/components/ui/button";
 
 export default function AccountingStatementsPage() {
@@ -24,6 +25,7 @@ export default function AccountingStatementsPage() {
         </Button>
       </div>
 
+      <AccountingExport />
       <AccountingStatements />
     </div>
   );

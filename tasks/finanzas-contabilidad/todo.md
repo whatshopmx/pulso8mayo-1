@@ -620,17 +620,22 @@ Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint
 
 ## FC-19: Exportar expediente del cierre
 
-- [ ] Completada con evidencia.
+- [x] Completada con evidencia.
 - **Tamaño:** M. **Dependencias:** FC-16–18.
 - **Descripción:** Generar PDF/CSV con periodo, versión, pólizas, estados y pendientes.
 - **Aceptación:**
-  - [ ] Exportación reproduce totales del cierre y respeta permisos.
-  - [ ] periodo, versión y cobertura aparecen en cada reporte.
-  - [ ] CSV neutraliza fórmulas y archivos no filtran datos de otros ámbitos.
+  - [x] Exportación reproduce totales del cierre y respeta permisos.
+  - [x] periodo, versión y cobertura aparecen en cada reporte.
+  - [x] CSV neutraliza fórmulas y archivos no filtran datos de otros ámbitos.
 - **Verificación:** Comparar totales descargados, reexportar cierre antiguo y probar roles/fórmulas maliciosas.
-- **Archivos previstos:** `lib/services/accounting/export-service.ts`, `app/api/finance/accounting/export/route.ts`, `components/finance/accounting-export.tsx`, `tests/integration/accounting/export.test.ts`, `tests/e2e/accounting.spec.ts`.
+- **Archivos implementados:** `lib/services/accounting/export-service.ts`, `app/api/finance/accounting/export/route.ts`, `components/finance/accounting-export.tsx`, `app/dashboard/finance/results/accounting/page.tsx`, `tests/integration/accounting/export.test.ts`.
+- **Evidencia (2026-11-14):**
+  - `tests/integration/accounting/export.test.ts` en Postgres aislado (`NOBYPASSRLS`): **2/2 aprobadas** (verifica reproducción fiel de cierre `SUPERSEDED` `v1` vs `v2` acotado por `maxJournalNumber`, salida binaria `%PDF-` con `pdfkit`, neutralización de fórmulas CSV `=`, `+`, `-`, `@`, `\t`, `\r` y aislamiento por rol/sucursal/tenant con auditoría `logDataAccess`).
+  - `pnpm exec eslint` sobre los 5 archivos de FC-19: **0 errores, 0 warnings**.
+  - `node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false`: **exit 0**.
+  - **Límite documentado:** no se ejecutó Playwright E2E de navegador para los nuevos controles de descarga en `components/finance/accounting-export.tsx` (`tests/e2e/accounting.spec.ts` no se modificó ni ejecutó en este bloque).
 
-**Checkpoint tras FC-19:** revisar aceptación y evidencia de las tareas acumuladas; ejecutar verificaciones aplicables y actualizar decisiones/riesgos del plan antes de ampliar el alcance.
+**Checkpoint tras FC-19 (2026-11-14):** FC-16–19 completadas y verificadas con integración en Postgres aislado, ESLint y `tsc --noEmit`. Siguiente bloque: **FC-20** (Activar piloto recuperable por empresa).
 
 ## FC-20: Activar piloto recuperable por empresa
 
