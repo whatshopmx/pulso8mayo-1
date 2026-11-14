@@ -382,7 +382,7 @@ export default function TerminalsSettingsPage() {
                         {t.active ? (
                           <Badge
                             variant="outline"
-                            className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25 text-xs"
+                            className="bg-success/10 text-success-text border-success/20 text-xs"
                           >
                             Activa
                           </Badge>
@@ -411,8 +411,8 @@ export default function TerminalsSettingsPage() {
                             size="sm"
                             className={`h-8 px-2 text-xs ${
                               t.active
-                                ? "text-amber-700 hover:text-amber-800 dark:text-amber-400"
-                                : "text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
+                                ? "text-warning-text hover:text-warning-text/80"
+                                : "text-success-text hover:text-success"
                             }`}
                             onClick={() => handleToggleActive(t)}
                             title={t.active ? "Desactivar terminal" : "Activar terminal"}

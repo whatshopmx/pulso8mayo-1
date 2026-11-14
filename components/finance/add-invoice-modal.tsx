@@ -365,22 +365,33 @@ export function AddPaymentRunItemModal({
     const successfulIds = new Set<string>();
     const failures: string[] = [];
     try {
-      for (const item of batch.items) {
-        try {
-          const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ itemType: batch.itemType, referenceId: item.id, notes: batch.notes(item) }),
-          });
-          if (!res.ok) {
-            const json = await res.json();
-            throw new Error(json.error || json.message || "No se pudo adjuntar la partida.");
-          }
-          successfulIds.add(item.id);
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : "No se pudo adjuntar la partida.";
-          failures.push(`${batch.notes(item)}: ${reason}`);
-        }
+      const CONCURRENCY_LIMIT = 5;
+      for (let i = 0; i < batch.items.length; i += CONCURRENCY_LIMIT) {
+        const chunk = batch.items.slice(i, i + CONCURRENCY_LIMIT);
+        await Promise.allSettled(
+          chunk.map(async (item) => {
+            try {
+              const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  itemType: batch.itemType,
+                  referenceId: item.id,
+                  notes: batch.notes(item),
+                }),
+              });
+              if (!res.ok) {
+                const json = await res.json();
+                throw new Error(json.error || json.message || "No se pudo adjuntar la partida.");
+              }
+              successfulIds.add(item.id);
+            } catch (error) {
+              const reason =
+                error instanceof Error ? error.message : "No se pudo adjuntar la partida.";
+              failures.push(`${batch.notes(item)}: ${reason}`);
+            }
+          })
+        );
       }
       const summary = `Se agregaron ${successfulIds.size} ${batch.noun}; ${failures.length} no se pudieron agregar.`;
       if (successfulIds.size > 0) {
@@ -401,11 +412,11 @@ export function AddPaymentRunItemModal({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className="font-medium gap-1.5 shadow-sm">
+        <Button size="sm" className="font-medium gap-1.5">
           <Plus className="h-4 w-4" /> Agregar Ítems a Corrida
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-5xl lg:max-w-6xl w-[94vw] max-h-[88vh] flex flex-col p-0 gap-0 overflow-hidden text-foreground bg-background rounded-xl border border-border shadow-2xl">
+      <DialogContent className="sm:max-w-5xl lg:max-w-6xl w-[94vw] max-h-[88vh] flex flex-col p-0 gap-0 overflow-hidden text-foreground bg-background rounded-xl border border-border">
         {/* Header */}
         <DialogHeader className="p-5 pb-4 border-b border-border/60 bg-muted/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0">
           <div>
@@ -432,23 +443,23 @@ export function AddPaymentRunItemModal({
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pb-2">
               <TabsList className="bg-muted/70 p-1 grid grid-cols-3 sm:flex sm:w-auto h-auto">
                 <TabsTrigger value="invoices" className="flex items-center gap-2 text-xs font-medium px-3 py-1.5">
-                  <Receipt className="h-3.5 w-3.5 text-blue-500" />
+                  <Receipt className="h-3.5 w-3.5 text-info" />
                   <span>Facturas</span>
-                  <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-background font-mono">
+                  <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 h-4 bg-background font-mono">
                     {invoices.length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="expenses" className="flex items-center gap-2 text-xs font-medium px-3 py-1.5">
-                  <Wallet className="h-3.5 w-3.5 text-emerald-500" />
+                  <Wallet className="h-3.5 w-3.5 text-success" />
                   <span>Gastos</span>
-                  <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-background font-mono">
+                  <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 h-4 bg-background font-mono">
                     {expenses.length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="payroll" className="flex items-center gap-2 text-xs font-medium px-3 py-1.5">
-                  <Users className="h-3.5 w-3.5 text-amber-500" />
+                  <Users className="h-3.5 w-3.5 text-warning-text" />
                   <span>Nómina</span>
-                  <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-background font-mono">
+                  <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 h-4 bg-background font-mono">
                     {payrollRuns.length}
                   </Badge>
                 </TabsTrigger>
@@ -496,7 +507,7 @@ export function AddPaymentRunItemModal({
                   </div>
                 ) : (
                   <Table className="relative">
-                    <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur-sm z-10 border-b border-border">
+                    <TableHeader className="sticky top-0 bg-muted z-10 border-b border-border">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="w-10 text-center">
                           <Checkbox
@@ -550,7 +561,7 @@ export function AddPaymentRunItemModal({
                                 {inv.nombreEmisor || inv.rfcEmisor}
                               </div>
                               {inv.nombreEmisor && (
-                                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                                <div className="text-xs text-muted-foreground font-mono mt-0.5">
                                   {inv.rfcEmisor}
                                 </div>
                               )}
@@ -558,7 +569,7 @@ export function AddPaymentRunItemModal({
                             <TableCell>
                               <Badge
                                 variant="outline"
-                                className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25 text-[11px] font-medium"
+                                className="bg-success/10 text-success-text border-success/20 text-xs font-medium"
                               >
                                 {inv.matchStatus === "MATCHED"
                                   ? "3-Way Match Conciliado"
@@ -569,7 +580,7 @@ export function AddPaymentRunItemModal({
                             </TableCell>
                             <TableCell className="text-right font-mono font-bold text-xs whitespace-nowrap">
                               {formatCents(inv.total)}{" "}
-                              <span className="text-[10px] text-muted-foreground font-normal">
+                              <span className="text-xs text-muted-foreground font-normal">
                                 {inv.currency || "MXN"}
                               </span>
                             </TableCell>
@@ -620,7 +631,7 @@ export function AddPaymentRunItemModal({
                   </div>
                 ) : (
                   <Table className="relative">
-                    <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur-sm z-10 border-b border-border">
+                    <TableHeader className="sticky top-0 bg-muted z-10 border-b border-border">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="w-10 text-center">
                           <Checkbox
@@ -661,13 +672,13 @@ export function AddPaymentRunItemModal({
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {exp.payeeName ?? (
-                                <span className="text-[11px] text-amber-600 dark:text-amber-400 italic">
+                                <span className="text-xs text-warning-text italic">
                                   Sin contraparte asignada
                                 </span>
                               )}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="text-[11px] font-normal">
+                              <Badge variant="outline" className="text-xs font-normal">
                                 {exp.category}
                               </Badge>
                             </TableCell>
@@ -721,7 +732,7 @@ export function AddPaymentRunItemModal({
                   </div>
                 ) : (
                   <Table className="relative">
-                    <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur-sm z-10 border-b border-border">
+                    <TableHeader className="sticky top-0 bg-muted z-10 border-b border-border">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="w-10 text-center">
                           <Checkbox
@@ -766,7 +777,7 @@ export function AddPaymentRunItemModal({
                             <TableCell>
                               <Badge
                                 variant="outline"
-                                className="bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/25 text-[11px] font-medium"
+                                className="bg-info/10 text-info border-info/20 text-xs font-medium"
                               >
                                 {pr.status === "COMPLETED" ? "Procesada / Timbrada" : pr.status}
                               </Badge>
@@ -829,7 +840,7 @@ export function AddPaymentRunItemModal({
                 size="sm"
                 disabled={isBatchAdding}
                 onClick={handleBatchAdd}
-                className="gap-1.5 shadow-sm font-medium text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                className="gap-1.5 font-medium text-xs bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {isBatchAdding ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

@@ -63,27 +63,27 @@ const STATUS_CONFIG: Record<
   PENDING_APPROVAL: {
     label: "Pendiente Aprobación",
     variant: "outline",
-    className: "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25 font-medium",
+    className: "bg-warning/10 text-warning-text border-warning/25 font-medium",
   },
   PENDING: {
     label: "Pendiente Aprobación",
     variant: "outline",
-    className: "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25 font-medium",
+    className: "bg-warning/10 text-warning-text border-warning/25 font-medium",
   },
   APPROVED: {
     label: "Aprobada",
     variant: "default",
-    className: "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25 font-medium",
+    className: "bg-success/10 text-success-text border-success/20 font-medium",
   },
   PROCESSING: {
     label: "En Proceso",
     variant: "outline",
-    className: "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-500/25 font-medium",
+    className: "bg-info/10 text-info border-info/20 font-medium",
   },
   COMPLETED: {
     label: "Pagada / Completada",
     variant: "secondary",
-    className: "bg-emerald-600/10 text-emerald-800 dark:text-emerald-300 border-emerald-600/25 font-medium",
+    className: "bg-success/10 text-success-text border-success/20 font-medium",
   },
   EXECUTED: { label: "Pagada", variant: "secondary" },
   PAID: { label: "Pagada", variant: "secondary" },
@@ -121,13 +121,13 @@ function getDueDateUrgency(dateStr: string) {
   const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
-    return { label: "Vencido", className: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/20" };
+    return { label: "Vencido", className: "bg-destructive/10 text-destructive border-destructive/20" };
   }
   if (diffDays === 0) {
-    return { label: "Vence hoy", className: "bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/30" };
+    return { label: "Vence hoy", className: "bg-warning/15 text-warning-text border-warning/30" };
   }
   if (diffDays <= 3) {
-    return { label: `Vence en ${diffDays}d`, className: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20" };
+    return { label: `Vence en ${diffDays}d`, className: "bg-warning/10 text-warning-text border-warning/25" };
   }
   return { label: `En ${diffDays}d`, className: "text-muted-foreground border-border/50" };
 }
@@ -462,13 +462,13 @@ export function TreasuryDashboard() {
               )}
             </p>
           </div>
-          <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+          <div className="p-2.5 rounded-lg bg-info/10 text-info">
             <Calendar className="h-5 w-5" />
           </div>
         </Card>
 
         <Card
-          className="p-4 flex items-center justify-between space-y-0 cursor-pointer hover:border-amber-500/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="p-4 flex items-center justify-between space-y-0 cursor-pointer hover:border-warning/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           onClick={() => setStatusFilter("PENDING_APPROVAL")}
           tabIndex={0}
           role="button"
@@ -479,11 +479,11 @@ export function TreasuryDashboard() {
             <p className="text-2xl font-bold tracking-tight text-foreground mt-1">
               {pendingRunsCount} <span className="text-xs font-normal text-muted-foreground">corridas</span>
             </p>
-            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+            <p className="text-xs text-warning-text font-medium mt-0.5">
               {pendingRunsCount > 0 ? "Haz clic para filtrar pendientes" : "Sin pendientes inmediatos"}
             </p>
           </div>
-          <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+          <div className="p-2.5 rounded-lg bg-warning/10 text-warning-text">
             <Clock className="h-5 w-5" />
           </div>
         </Card>

@@ -72,25 +72,25 @@ const STATUS_CONFIG: Record<
     label: "Pendiente Aprobación",
     variant: "outline",
     className:
-      "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25 font-medium",
+      "bg-warning/10 text-warning-text border-warning/25 font-medium",
   },
   APPROVED: {
     label: "Aprobada",
     variant: "default",
     className:
-      "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25 font-medium",
+      "bg-success/10 text-success-text border-success/20 font-medium",
   },
   PROCESSING: {
     label: "En Dispersión",
     variant: "outline",
     className:
-      "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-500/25 font-medium",
+      "bg-info/10 text-info border-info/20 font-medium",
   },
   COMPLETED: {
     label: "Liquidada / Cerrada",
     variant: "secondary",
     className:
-      "bg-emerald-600/10 text-emerald-800 dark:text-emerald-300 border-emerald-600/25 font-medium",
+      "bg-success/10 text-success-text border-success/20 font-medium",
   },
   CANCELLED: { label: "Cancelada", variant: "destructive" },
 };
@@ -380,7 +380,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                   disabled={isUpdating || !veredictos("CERRAR").permitido}
                   className={
                     summary.pending === 0
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      ? "bg-success hover:bg-success/90 text-success-foreground"
                       : ""
                   }
                   title={veredictos("CERRAR").motivo ?? "Cerrar la corrida"}
@@ -449,19 +449,19 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                  <div className="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-xs">
-                    <span className="text-emerald-800 dark:text-emerald-300 font-medium block">
+                  <div className="p-2.5 rounded-md bg-success/10 border border-success/20 text-xs">
+                    <span className="text-success-text font-medium block">
                       Confirmadas ({summary.confirmed})
                     </span>
-                    <span className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                    <span className="text-sm font-bold text-success-text">
                       {formatCurrency(summary.confirmedCents)}
                     </span>
                   </div>
-                  <div className="p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs">
-                    <span className="text-amber-800 dark:text-amber-300 font-medium block">
+                  <div className="p-2.5 rounded-md bg-warning/10 border border-warning/25 text-xs">
+                    <span className="text-warning-text font-medium block">
                       Pendientes de dispersión ({summary.pending})
                     </span>
-                    <span className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                    <span className="text-sm font-bold text-warning-text">
                       {formatCurrency(summary.pendingCents)}
                     </span>
                   </div>
@@ -473,7 +473,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                       {formatCurrency(summary.failedCents)}
                     </span>
                     {summary.failed > 0 && (
-                      <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      <span className="text-xs text-muted-foreground block mt-0.5">
                         Deuda viva para reprogramar
                       </span>
                     )}
@@ -481,7 +481,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 </div>
 
                 {run.status === "PROCESSING" && summary.pending > 0 && (
-                  <p className="text-xs text-amber-700 dark:text-amber-300 pt-1">
+                  <p className="text-xs text-warning-text pt-1">
                     Nota: Para cerrar la corrida es necesario asentar el comprobante
                     de pago o el rechazo bancario de cada partida individual.
                   </p>
@@ -541,21 +541,21 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                             {item.itemType === "INVOICE" ? (
                               <Badge
                                 variant="outline"
-                                className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-normal"
+                                className="bg-success/10 text-success-text border-success/20 font-normal"
                               >
                                 Factura
                               </Badge>
                             ) : item.itemType === "PAYROLL" ? (
                               <Badge
                                 variant="outline"
-                                className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 font-normal"
+                                className="bg-info/10 text-info border-info/20 font-normal"
                               >
                                 Nómina
                               </Badge>
                             ) : item.itemType === "OPERATING_EXPENSE" ? (
                               <Badge
                                 variant="outline"
-                                className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-normal"
+                                className="bg-warning/10 text-warning-text border-warning/25 font-normal"
                               >
                                 Gasto Operativo
                               </Badge>
@@ -572,7 +572,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                 ? item.expenseDetails.description
                                 : item.referenceId.slice(0, 8)}
                             {item.invoiceDetails?.nombreEmisor && (
-                              <span className="block text-[11px] font-sans text-muted-foreground truncate max-w-[200px]">
+                              <span className="block text-xs font-sans text-muted-foreground truncate max-w-[200px]">
                                 {item.invoiceDetails.nombreEmisor}
                               </span>
                             )}
@@ -588,13 +588,13 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                               <div className="inline-flex flex-col items-center">
                                 <Badge
                                   variant="outline"
-                                  className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25 text-[11px] gap-1 font-medium"
+                                  className="bg-success/10 text-success-text border-success/20 text-xs gap-1 font-medium"
                                 >
                                   <CheckCircle2 className="h-3 w-3" />
                                   Confirmado
                                 </Badge>
                                 {item.settlementReference && (
-                                  <span className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                                  <span className="text-xs font-mono text-muted-foreground mt-0.5">
                                     Ref: {item.settlementReference}
                                   </span>
                                 )}
@@ -603,13 +603,13 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                               <div className="inline-flex flex-col items-center">
                                 <Badge
                                   variant="destructive"
-                                  className="text-[11px] gap-1 font-medium"
+                                  className="text-xs gap-1 font-medium"
                                 >
                                   <XCircle className="h-3 w-3" />
                                   Rechazado
                                 </Badge>
                                 {item.failureReason && (
-                                  <span className="text-[10px] text-destructive mt-0.5 max-w-[140px] truncate" title={item.failureReason}>
+                                  <span className="text-xs text-destructive mt-0.5 max-w-[140px] truncate" title={item.failureReason}>
                                     {item.failureReason}
                                   </span>
                                 )}
@@ -617,7 +617,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25 text-[11px] font-normal"
+                                className="bg-warning/10 text-warning-text border-warning/25 text-xs font-normal"
                               >
                                 Pendiente
                               </Badge>
@@ -628,7 +628,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                               <div className="inline-flex gap-1.5 justify-end">
                                 {!puedeLiquidar && (
                                   <span
-                                    className="text-[11px] text-muted-foreground italic self-center max-w-[240px] text-right"
+                                    className="text-xs text-muted-foreground italic self-center max-w-[240px] text-right"
                                     title={veredictos("LIQUIDAR").motivo}
                                   >
                                     {veredictos("LIQUIDAR").motivo}
@@ -639,7 +639,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-7 text-xs border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+                                      className="h-9 sm:h-8 text-xs border-success/30 text-success-text hover:bg-success/10"
                                       onClick={() => openSettleDialog(item, "CONFIRM")}
                                       disabled={!puedeLiquidar}
                                       title={veredictos("LIQUIDAR").motivo ?? undefined}
@@ -650,7 +650,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                                      className="h-9 sm:h-8 text-xs text-destructive hover:bg-destructive/10"
                                       onClick={() => openSettleDialog(item, "REJECT")}
                                       disabled={!puedeLiquidar}
                                       title={veredictos("LIQUIDAR").motivo ?? undefined}
@@ -664,7 +664,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 text-xs border-amber-600/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                                    className="h-9 sm:h-8 text-xs border-warning/30 text-warning-text hover:bg-warning/10"
                                     onClick={() => openSettleDialog(item, "CONFIRM")}
                                     disabled={!puedeLiquidar}
                                     title={
@@ -678,8 +678,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                   </Button>
                                 )}
                                 {settlementStatus === "CONFIRMED" && (
-                                  <span className="text-[11px] text-muted-foreground italic flex items-center gap-1 justify-end">
-                                    <CheckCircle className="h-3 w-3 text-emerald-600" />
+                                  <span className="text-xs text-muted-foreground italic flex items-center gap-1 justify-end">
+                                    <CheckCircle className="h-3 w-3 text-success-text" />
                                     Saldado
                                   </span>
                                 )}

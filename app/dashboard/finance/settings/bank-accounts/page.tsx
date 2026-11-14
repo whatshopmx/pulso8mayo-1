@@ -340,7 +340,7 @@ export default function CompanyBankAccountsPage() {
                                                             )
                                                         }
                                                     >
-                                                        <SelectTrigger className="h-7 w-[130px] text-xs">
+                                                        <SelectTrigger className="h-9 sm:h-8 w-[140px] text-xs">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -364,7 +364,7 @@ export default function CompanyBankAccountsPage() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-6 px-1 text-xs text-muted-foreground"
+                                                            className="h-8 px-2 text-xs text-muted-foreground"
                                                             onClick={() =>
                                                                 setAnchorDialog({
                                                                     accountId: a.id,
@@ -382,7 +382,7 @@ export default function CompanyBankAccountsPage() {
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
-                                                            className="h-7 text-xs"
+                                                            className="h-9 sm:h-8 text-xs"
                                                             onClick={() =>
                                                                 setAnchorDialog({
                                                                     accountId: a.id,

@@ -499,7 +499,7 @@ export default function BankReconciliationPage() {
                             <CardDescription className="text-xs">
                                 Pasarela cruzada con el banco
                             </CardDescription>
-                            <CardTitle className="text-xl font-bold tabular-nums text-emerald-700">
+                            <CardTitle className="text-xl font-bold tabular-nums text-success-text">
                                 {formatCents(summary.matchedDepositCents)}
                             </CardTitle>
                         </CardHeader>
@@ -516,13 +516,18 @@ export default function BankReconciliationPage() {
                                 Ordenados por fecha valor descendente.
                             </CardDescription>
                         </div>
-                        <div className="flex items-center gap-1 text-xs">
+                        <div
+                            role="group"
+                            aria-label="Filtrar movimientos por estado de cruce"
+                            className="flex items-center gap-1 text-xs flex-wrap"
+                        >
                             {(["ALL", "UNMATCHED", "MATCHED", "IGNORED"] as const).map((f) => (
                                 <button
                                     key={f}
                                     type="button"
+                                    aria-pressed={matchFilter === f}
                                     onClick={() => setMatchFilter(f)}
-                                    className={`px-2 py-1 rounded-md transition-colors ${
+                                    className={`min-h-9 sm:min-h-8 px-2.5 py-1.5 rounded-md transition-colors ${
                                         matchFilter === f
                                             ? "bg-primary/10 text-primary font-semibold"
                                             : "text-muted-foreground hover:bg-muted/50"
@@ -589,7 +594,7 @@ export default function BankReconciliationPage() {
                                                 </TableCell>
                                                 <TableCell
                                                     className={`text-right tabular-nums font-semibold ${
-                                                        tx.amountCents < 0 ? "text-destructive" : "text-emerald-700"
+                                                        tx.amountCents < 0 ? "text-destructive" : "text-success-text"
                                                     }`}
                                                 >
                                                     {formatCents(tx.amountCents)}
@@ -723,7 +728,7 @@ export default function BankReconciliationPage() {
                                                 <TableCell className="text-xs text-muted-foreground">
                                                     {tx.accountLabel ?? "—"}
                                                 </TableCell>
-                                                <TableCell className="text-right tabular-nums font-semibold text-emerald-700">
+                                                <TableCell className="text-right tabular-nums font-semibold text-success-text">
                                                     {formatCents(tx.amountCents)}
                                                 </TableCell>
                                                 <TableCell className="max-w-[36ch]">

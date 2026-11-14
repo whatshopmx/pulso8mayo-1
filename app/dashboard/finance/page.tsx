@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,16 @@ export default function FinanceTodayPage() {
   const [failedSources, setFailedSources] = useState<string[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<"ALL" | CaseSourceType>("ALL");
+  const dossierRef = useRef<HTMLDivElement>(null);
+
+  const handleSelectCase = useCallback((id: string) => {
+    setSelectedCaseId(id);
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      requestAnimationFrame(() => {
+        dossierRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+  }, []);
 
   const loadCases = useCallback(
     async (isCancelled?: () => boolean) => {
@@ -197,11 +207,16 @@ export default function FinanceTodayPage() {
       </div>
 
       {/* Chips de filtro / resumen de pendientes */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
+      <div
+        role="group"
+        aria-label="Filtrar casos por tipo"
+        className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs"
+      >
         <button
           type="button"
+          aria-pressed={activeFilter === "ALL"}
           onClick={() => setActiveFilter("ALL")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 min-h-11 sm:min-h-8 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors shrink-0 ${
             activeFilter === "ALL"
               ? "bg-foreground text-background border-foreground font-semibold"
               : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -214,8 +229,9 @@ export default function FinanceTodayPage() {
         </button>
         <button
           type="button"
+          aria-pressed={activeFilter === "expense"}
           onClick={() => setActiveFilter("expense")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 min-h-11 sm:min-h-8 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors shrink-0 ${
             activeFilter === "expense"
               ? "bg-foreground text-background border-foreground font-semibold"
               : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -229,8 +245,9 @@ export default function FinanceTodayPage() {
         </button>
         <button
           type="button"
+          aria-pressed={activeFilter === "cut"}
           onClick={() => setActiveFilter("cut")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 min-h-11 sm:min-h-8 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors shrink-0 ${
             activeFilter === "cut"
               ? "bg-foreground text-background border-foreground font-semibold"
               : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -244,8 +261,9 @@ export default function FinanceTodayPage() {
         </button>
         <button
           type="button"
+          aria-pressed={activeFilter === "violation"}
           onClick={() => setActiveFilter("violation")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 min-h-11 sm:min-h-8 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors shrink-0 ${
             activeFilter === "violation"
               ? "bg-foreground text-background border-foreground font-semibold"
               : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -277,7 +295,7 @@ export default function FinanceTodayPage() {
             variant="outline"
             size="sm"
             onClick={() => loadCases()}
-            className="h-6 px-2 text-xs"
+            className="h-9 sm:h-8 px-2.5 text-xs"
           >
             Reintentar
           </Button>
@@ -330,11 +348,11 @@ export default function FinanceTodayPage() {
                         key={item.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedCaseId(item.id)}
+                        onClick={() => handleSelectCase(item.id)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            setSelectedCaseId(item.id);
+                            handleSelectCase(item.id);
                           }
                         }}
                         className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
@@ -405,9 +423,10 @@ export default function FinanceTodayPage() {
         </div>
 
         {/* Panel lateral: Expediente del caso seleccionado (Derecha, 5 cols) */}
-        <div className="lg:col-span-5 sticky top-16">
+        <div ref={dossierRef} className="lg:col-span-5 lg:sticky lg:top-16 scroll-mt-20">
           <HoyCaseDossier
             selectedCase={selectedCase}
+            onClose={() => setSelectedCaseId(null)}
             onCaseResolved={handleCaseResolved}
           />
         </div>

@@ -209,11 +209,11 @@ export default function ControlInternoPage() {
               variant={isCurrentPeriodClosed ? "outline" : "default"}
               size="sm"
               onClick={() => setPeriodDialogOpen(true)}
-              className={isCurrentPeriodClosed ? "border-amber-500/30 text-amber-800 dark:text-amber-300" : ""}
+              className={isCurrentPeriodClosed ? "border-warning/30 text-warning-text" : ""}
             >
               {isCurrentPeriodClosed ? (
                 <>
-                  <Unlock className="w-4 h-4 mr-2 text-amber-500" /> Reabrir Mes ({currentMonth}/{currentYear})
+                  <Unlock className="w-4 h-4 mr-2 text-warning-text" /> Reabrir Mes ({currentMonth}/{currentYear})
                 </>
               ) : (
                 <>

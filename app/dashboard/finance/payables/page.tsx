@@ -490,11 +490,16 @@ function PayablesContent() {
                       : "Lo vencido primero. Selecciona partidas elegibles con cuenta verificada para programar un lote de pago."}
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div
+                role="group"
+                aria-label="Filtrar cuentas por pagar"
+                className="flex items-center gap-2 flex-wrap"
+              >
                 <Button
                   variant={filterMode === "ALL" ? "default" : "outline"}
                   size="sm"
-                  className="text-xs h-8"
+                  aria-pressed={filterMode === "ALL"}
+                  className="text-xs h-9 sm:h-8"
                   onClick={() => setFilterMode("ALL")}
                 >
                   Todas ({data.items.length})
@@ -502,7 +507,8 @@ function PayablesContent() {
                 <Button
                   variant={filterMode === "DISCREPANCIES" ? "default" : "outline"}
                   size="sm"
-                  className={`text-xs h-8 ${data.items.some(i => i.hasDiscrepancy || i.matchStatus === "DISCREPANCY") ? "border-warning/50 text-warning-text" : ""}`}
+                  aria-pressed={filterMode === "DISCREPANCIES"}
+                  className={`text-xs h-9 sm:h-8 ${data.items.some(i => i.hasDiscrepancy || i.matchStatus === "DISCREPANCY") ? "border-warning/50 text-warning-text" : ""}`}
                   onClick={() => setFilterMode("DISCREPANCIES")}
                 >
                   <AlertTriangle className="w-3.5 h-3.5 mr-1" /> Discrepancias ({data.items.filter(i => i.hasDiscrepancy || i.matchStatus === "DISCREPANCY").length})
@@ -510,7 +516,8 @@ function PayablesContent() {
                 <Button
                   variant={filterMode === "OVERDUE" ? "default" : "outline"}
                   size="sm"
-                  className="text-xs h-8"
+                  aria-pressed={filterMode === "OVERDUE"}
+                  className="text-xs h-9 sm:h-8"
                   onClick={() => setFilterMode("OVERDUE")}
                 >
                   Vencidas ({data.overdueCount})
@@ -573,7 +580,7 @@ function PayablesContent() {
                             </span>
                           )}
                           {item.blockedReason && !item.hasDiscrepancy && (
-                            <span className="text-xs text-amber-700 dark:text-amber-400 block mt-0.5">
+                            <span className="text-xs text-warning-text block mt-0.5">
                               {item.blockedReason}
                             </span>
                           )}
@@ -583,7 +590,7 @@ function PayablesContent() {
                           {item.bankAccountStatus === "VERIFIED" ? (
                             <Badge
                               variant="outline"
-                              className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25 text-xs inline-flex items-center gap-1"
+                              className={`${statusBadgeClasses("success")} text-xs inline-flex items-center gap-1`}
                             >
                               <ShieldCheck className="w-3 h-3" />
                               CLABE Verificada
@@ -595,7 +602,7 @@ function PayablesContent() {
                                   ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
                                   : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
                               }
-                              className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400 hover:underline font-medium"
+                              className="inline-flex items-center gap-1 text-xs text-info hover:underline font-medium"
                               title="Cuenta registrada pendiente de validación CEP"
                             >
                               <Clock className="w-3.5 h-3.5" />
@@ -608,7 +615,7 @@ function PayablesContent() {
                                   ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
                                   : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
                               }
-                              className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:underline font-medium"
+                              className="inline-flex items-center gap-1 text-xs text-warning-text hover:underline font-medium"
                               title="Registrar cuenta bancaria CLABE para poder pagar"
                             >
                               <AlertTriangle className="w-3.5 h-3.5" />
@@ -648,18 +655,18 @@ function PayablesContent() {
                         <TableCell className="text-right">
                           {item.source === "INVOICE" ? (
                             item.matchStatus === "EXCEPTION_APPROVED" ? (
-                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs">
+                              <Badge variant="outline" className={`${statusBadgeClasses("success")} text-xs`}>
                                 Excepción Autorizada
                               </Badge>
                             ) : item.hasDiscrepancy || item.matchStatus === "DISCREPANCY" ? (
                               <div className="flex items-center justify-end gap-2">
-                                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs">
+                                <Badge variant="outline" className={`${statusBadgeClasses("warning")} text-xs`}>
                                   Bloqueada
                                 </Badge>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-7 text-xs border-primary/30 hover:bg-primary/10"
+                                  className="h-9 sm:h-8 text-xs border-primary/30 hover:bg-primary/10"
                                   onClick={() => {
                                     setSelectedInvoiceForException(item);
                                     setExceptionReason("");
@@ -731,10 +738,14 @@ function PayablesContent() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <label
+                      htmlFor="exception-reason"
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                    >
                       Justificación / Motivo de Auditoría <span className="text-destructive">*</span>
                     </label>
                     <Textarea
+                      id="exception-reason"
                       placeholder="Ej. Se acordó incremento de precio con proveedor por flete urgente autorizado por Dirección General..."
                       value={exceptionReason}
                       onChange={(e) => setExceptionReason(e.target.value)}

@@ -93,7 +93,7 @@ export function CashFlowMitigationWorkbench({
   };
 
   return (
-    <Card className="border-border shadow-sm mt-6">
+    <Card className="border-border mt-6">
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4">
         <div>
           <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -104,20 +104,26 @@ export function CashFlowMitigationWorkbench({
           </CardDescription>
         </div>
 
-        <div className="flex items-center gap-1.5 rounded-lg border border-border p-1 bg-muted/30">
+        <div
+          role="group"
+          aria-label="Filtrar elementos de mitigación"
+          className="flex items-center gap-1.5 rounded-lg border border-border p-1 bg-muted/30"
+        >
           <Button
             variant={activeTab === "overdue" ? "secondary" : "ghost"}
             size="sm"
+            aria-pressed={activeTab === "overdue"}
             onClick={() => setActiveTab("overdue")}
-            className="text-xs h-7"
+            className="text-xs h-9 sm:h-8"
           >
             Vencidos ({overdueItems.length})
           </Button>
           <Button
             variant={activeTab === "upcoming" ? "secondary" : "ghost"}
             size="sm"
+            aria-pressed={activeTab === "upcoming"}
             onClick={() => setActiveTab("upcoming")}
-            className="text-xs h-7"
+            className="text-xs h-9 sm:h-8"
           >
             Próximos de Alto Impacto
           </Button>
@@ -139,7 +145,7 @@ export function CashFlowMitigationWorkbench({
                       {item.description}
                     </span>
                     {item.supplierName && (
-                      <Badge variant="outline" className="text-[10px] py-0">
+                      <Badge variant="outline" className="text-xs py-0">
                         {item.supplierName}
                       </Badge>
                     )}
@@ -157,13 +163,13 @@ export function CashFlowMitigationWorkbench({
                   </span>
 
                   {canActOnExpenses && item.source === "OPERATING_EXPENSE" ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <Button
                         variant="outline"
                         size="sm"
                         disabled={actionLoadingId === item.id}
                         onClick={() => handleRescheduleDays(item, 7)}
-                        className="h-7 text-xs px-2"
+                        className="h-9 sm:h-8 text-xs px-2.5"
                         title="Postergar 7 días la fecha de vencimiento"
                       >
                         {actionLoadingId === item.id ? (
@@ -177,7 +183,7 @@ export function CashFlowMitigationWorkbench({
                         size="sm"
                         disabled={actionLoadingId === item.id}
                         onClick={() => handleRescheduleDays(item, 14)}
-                        className="h-7 text-xs px-2"
+                        className="h-9 sm:h-8 text-xs px-2.5"
                         title="Postergar 14 días la fecha de vencimiento"
                       >
                         {actionLoadingId === item.id ? (
@@ -188,7 +194,7 @@ export function CashFlowMitigationWorkbench({
                       </Button>
                     </div>
                   ) : (
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-xs">
                       {item.isPayroll ? "Nómina" : "Factura/OC"}
                     </Badge>
                   )}

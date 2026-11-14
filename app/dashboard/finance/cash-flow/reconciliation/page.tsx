@@ -172,29 +172,21 @@ function ReconciliationContent() {
       .catch(() => {});
   }, []);
 
-  // Catálogo de cuentas de destino + memoria del override por sucursal+adquirente.
-  // Preselección por propósito: primera RECEPCION activa, sino MIXTO; la primera
-  // vez gana la memoria local del override — con catálogo vacío no se
-  // preselecciona nada (la UI pide, no adivina) y el default no es jaula.
+  // Preselección de cuenta de destino al abrir el modal o cambiar sucursal/adquirente,
+  // reutilizando el catálogo `destinationAccounts` cargado al montar.
   useEffect(() => {
-    if (!uploadOpen) return;
-    fetch("/api/finance/bank-accounts?activeOnly=true")
-      .then((res) => res.json())
-      .then((json) => {
-        if (!json.success || !Array.isArray(json.data)) return;
-        setDestinationAccounts(json.data);
-        const memoryKey = `destBank:${uploadBranchId}:${uploadAcquirer}`;
-        const rememberedId = window.localStorage.getItem(memoryKey);
-        const remembered = rememberedId && json.data.some((a: { id: string }) => a.id === rememberedId)
-          ? rememberedId
-          : null;
-        const purposeDefault =
-          json.data.find((a: { purpose: string }) => a.purpose === "RECEPCION") ??
-          json.data.find((a: { purpose: string }) => a.purpose === "MIXTO");
-        setUploadDestinationId(remembered ?? purposeDefault?.id ?? "");
-      })
-      .catch(() => {});
-  }, [uploadOpen, uploadBranchId, uploadAcquirer]);
+    if (!uploadOpen || destinationAccounts.length === 0) return;
+    const memoryKey = `destBank:${uploadBranchId}:${uploadAcquirer}`;
+    const rememberedId = window.localStorage.getItem(memoryKey);
+    const remembered =
+      rememberedId && destinationAccounts.some((a) => a.id === rememberedId)
+        ? rememberedId
+        : null;
+    const purposeDefault =
+      destinationAccounts.find((a) => a.purpose === "RECEPCION") ??
+      destinationAccounts.find((a) => a.purpose === "MIXTO");
+    setUploadDestinationId(remembered ?? purposeDefault?.id ?? "");
+  }, [uploadOpen, uploadBranchId, uploadAcquirer, destinationAccounts]);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -281,9 +273,17 @@ function ReconciliationContent() {
 
   useEffect(() => {
     fetchTransactions();
+  }, [fetchTransactions]);
+
+  useEffect(() => {
     fetchAudit();
-    fetchPlatformReport();
-  }, [fetchTransactions, fetchAudit, fetchPlatformReport]);
+  }, [fetchAudit]);
+
+  useEffect(() => {
+    if (activeTab === "platforms") {
+      fetchPlatformReport();
+    }
+  }, [activeTab, fetchPlatformReport]);
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

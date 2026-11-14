@@ -152,7 +152,7 @@ export function SettlePaymentRunItemDialog({
           <DialogHeader>
             <div className="flex items-center gap-2">
               {isConfirm ? (
-                <div className="p-2 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="p-2 rounded-md bg-success/10 text-success-text">
                   <CheckCircle2 className="h-5 w-5" />
                 </div>
               ) : (
@@ -190,7 +190,7 @@ export function SettlePaymentRunItemDialog({
               </span>
             </div>
             {item.settlementStatus === "FAILED" && isConfirm && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 pt-1 border-t border-border/40 mt-1">
+              <p className="text-xs text-warning-text pt-1 border-t border-border/40 mt-1">
                 Corrige el rechazo anterior: el comprobante saldará la obligación pendiente.
               </p>
             )}
@@ -210,13 +210,13 @@ export function SettlePaymentRunItemDialog({
                 disabled={isSubmitting}
                 className="text-sm font-mono"
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Dato indispensable para contrastar la salida contra el estado de cuenta.
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="p-2.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex gap-2 items-start">
+              <div className="p-2.5 rounded bg-warning/10 border border-warning/25 text-warning-text text-xs flex gap-2 items-start">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
                   La partida no se marcará como pagada. La factura o gasto seguirá en cuentas por pagar para reprogramarse en un nuevo lote.
@@ -267,7 +267,7 @@ export function SettlePaymentRunItemDialog({
               size="sm"
               variant={isConfirm ? "default" : "destructive"}
               disabled={isSubmitting}
-              className={isConfirm ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+              className={isConfirm ? "bg-success hover:bg-success/90 text-success-foreground" : ""}
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isConfirm ? "Confirmar Pago" : "Registrar Rechazo"}

@@ -88,7 +88,7 @@ export function FinanceSubnav() {
     pathname.startsWith("/dashboard/company/operating-config");
 
   return (
-    <div className="border-b border-border bg-card/60 backdrop-blur-sm sticky top-0 z-20">
+    <div className="border-b border-border bg-card sticky top-0 z-20">
       <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between overflow-x-auto no-scrollbar">
         <nav className="flex items-center gap-1 sm:gap-2 py-2" aria-label="Espacios de Finanzas">
           {FINANCE_TABS.map((tab) => {
@@ -105,7 +105,7 @@ export function FinanceSubnav() {
                 key={tab.href}
                 href={tab.href}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap",
+                  "flex items-center gap-2 min-h-9 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap",
                   isActive
                     ? "bg-primary/10 text-primary font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"

@@ -35,8 +35,22 @@ import {
   X,
   AlertTriangle,
   ShieldAlert,
+  Shield,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSession } from "@/hooks/use-session";
+import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
+
+const ROLE_LABELS: Record<string, string> = {
+  SUPER_ADMIN: "Super Admin",
+  OWNER: "Dueño",
+  DIRECTOR_OPS: "Director Ops",
+  ADMIN: "Admin",
+  GERENTE: "Gerente",
+  SUPERVISOR: "Supervisor",
+  EMPLEADO: "Empleado",
+  READONLY: "Solo lectura",
+};
 
 export type CaseSourceType = "expense" | "cut" | "cut_cash" | "cut_tpv" | "violation";
 
@@ -59,7 +73,9 @@ export interface HoyCaseItem {
   costCenterName?: string;
   costCenterCode?: string;
   costCenterId?: string;
+  requestedBy?: string;
   requestedByName?: string;
+  sinAprobadorPosible?: boolean;
   budgetContext?: {
     budgetedCents: number;
     committedCents: number;
@@ -105,6 +121,9 @@ export function HoyCaseDossier({
   onCaseResolved,
 }: HoyCaseDossierProps) {
   const { toast } = useToast();
+  const { session } = useSession();
+  const currentUserRole = session?.user?.role || "EMPLEADO";
+  const currentUserId = session?.user?.id;
   const [loadingAction, setLoadingAction] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -201,6 +220,17 @@ export function HoyCaseDossier({
     }
   };
 
+  const requiredExpenseRole = selectedCase.requiredRole || "GERENTE";
+  const expenseDenial =
+    selectedCase.sourceType === "expense"
+      ? denyExpenseResolution({
+          actorRole: currentUserRole,
+          actorId: currentUserId,
+          requiredApproverRole: requiredExpenseRole,
+          requestedBy: selectedCase.requestedBy,
+        })
+      : null;
+
   return (
     <>
       <Card className="h-full flex flex-col border-border bg-card">
@@ -238,7 +268,7 @@ export function HoyCaseDossier({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                className="h-9 w-9 sm:h-8 sm:w-8 p-0 text-muted-foreground hover:text-foreground"
                 onClick={onClose}
               >
                 <X className="w-4 h-4" />
@@ -327,8 +357,8 @@ export function HoyCaseDossier({
                       variant="outline"
                       className={
                         selectedCase.budgetContext.ok
-                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]"
-                          : "bg-destructive/10 text-destructive border-destructive/30 text-[10px]"
+                          ? "bg-success/10 text-success-text border-success/20 text-xs"
+                          : "bg-destructive/10 text-destructive border-destructive/30 text-xs"
                       }
                     >
                       {selectedCase.budgetContext.ok ? "Dentro de presupuesto" : "Excede presupuesto"}
@@ -336,19 +366,19 @@ export function HoyCaseDossier({
                   </div>
                   <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
                     <div>
-                      <span className="text-muted-foreground text-[11px] block">Presupuestado</span>
+                      <span className="text-muted-foreground text-xs block">Presupuestado</span>
                       <span className="font-medium text-foreground tabular-nums text-xs">
                         {formatCents(selectedCase.budgetContext.budgetedCents)}
                       </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground text-[11px] block">Comprometido</span>
+                      <span className="text-muted-foreground text-xs block">Comprometido</span>
                       <span className="font-medium text-foreground tabular-nums text-xs">
                         {formatCents(selectedCase.budgetContext.committedCents)}
                       </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground text-[11px] block">Disponible</span>
+                      <span className="text-muted-foreground text-xs block">Disponible</span>
                       <span
                         className={`font-semibold tabular-nums text-xs ${
                           selectedCase.budgetContext.availableCents < 0
@@ -361,14 +391,14 @@ export function HoyCaseDossier({
                     </div>
                   </div>
                   {!selectedCase.budgetContext.ok && (
-                    <p className="text-[11px] text-destructive flex items-center gap-1 mt-1">
+                    <p className="text-xs text-destructive flex items-center gap-1 mt-1">
                       <AlertTriangle className="w-3 h-3 shrink-0" />
                       Este gasto sobrepasará la partida presupuestal asignada para esta sucursal.
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="p-2.5 rounded border border-dashed border-border text-[11px] text-muted-foreground">
+                <div className="p-2.5 rounded border border-dashed border-border text-xs text-muted-foreground">
                   Gasto sin partida presupuestal asignada (no afecta un centro de costo específico).
                 </div>
               )}
@@ -384,7 +414,7 @@ export function HoyCaseDossier({
                 <div className="p-2.5 rounded border border-border bg-background text-xs flex items-center justify-between">
                   <div>
                     <span className="text-foreground font-medium block">Factura o Comprobante Digital</span>
-                    <span className="text-muted-foreground text-[11px]">Evidencia cargada por el solicitante</span>
+                    <span className="text-muted-foreground text-xs">Evidencia cargada por el solicitante</span>
                   </div>
                   <a
                     href={selectedCase.evidenceUrl}
@@ -514,7 +544,7 @@ export function HoyCaseDossier({
               </div>
 
               {selectedCase.violationMeta?.ruleCode === "TPV_VOID_AFTER_CHARGE" && (
-                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-[11px] space-y-1">
+                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-xs space-y-1">
                   <strong className="text-foreground block">Protocolo de investigación:</strong>
                   <p>
                     Revisa la comanda física y los registros del POS. Si la terminal física Clip/Banco
@@ -524,7 +554,7 @@ export function HoyCaseDossier({
               )}
 
               {selectedCase.violationMeta?.ruleCode === "TPV_EXCESSIVE_TIP" && (
-                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-[11px] space-y-1">
+                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-xs space-y-1">
                   <strong className="text-foreground block">Protocolo de propinas:</strong>
                   <p>
                     Inspecciona la fotografía del voucher de cierre de lote físico. Verifica si el importe de propinas
@@ -534,7 +564,7 @@ export function HoyCaseDossier({
               )}
 
               {selectedCase.violationMeta?.ruleCode === "TPV_GHOST_TERMINAL" && (
-                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-[11px] space-y-1">
+                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-xs space-y-1">
                   <strong className="text-foreground block">Auditoría física de terminales:</strong>
                   <p>
                     Verifica los números de serie de todas las terminales físicas que están operando en la barra y salón.
@@ -553,31 +583,45 @@ export function HoyCaseDossier({
         {/* Acciones directas in-situ */}
         <CardFooter className="pt-3 border-t border-border/60 flex flex-col gap-2">
           {selectedCase.sourceType === "expense" ? (
-            <div className="w-full flex items-center gap-2">
-              <Button
-                variant="default"
-                size="sm"
-                className="flex-1 h-9 text-xs font-semibold"
-                onClick={handleApproveExpense}
-                disabled={loadingAction}
-              >
-                {loadingAction ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                )}
-                Aprobar Gasto
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
-                onClick={() => setRejectDialogOpen(true)}
-                disabled={loadingAction}
-              >
-                <XCircle className="w-3.5 h-3.5 mr-1.5" />
-                Rechazar
-              </Button>
+            <div className="w-full space-y-2">
+              {expenseDenial && (
+                <div className="p-2.5 rounded-md border border-border bg-muted/40 text-xs text-muted-foreground flex items-center gap-2">
+                  <Shield className="w-4 h-4 shrink-0 text-warning-text" />
+                  <span>
+                    {expenseDenial === "ROLE"
+                      ? `Requiere rol ${ROLE_LABELS[requiredExpenseRole] || requiredExpenseRole} para autorizar o rechazar este gasto.`
+                      : selectedCase.sinAprobadorPosible
+                        ? "Sin aprobador disponible: lo registraste tú y nadie más alcanza el rol requerido."
+                        : "Segregación de funciones: lo registraste tú, debe resolverlo otro aprobador."}
+                  </span>
+                </div>
+              )}
+              <div className="w-full flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex-1 h-9 text-xs font-semibold"
+                  onClick={handleApproveExpense}
+                  disabled={loadingAction || expenseDenial !== null}
+                >
+                  {loadingAction ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  Aprobar Gasto
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+                  onClick={() => setRejectDialogOpen(true)}
+                  disabled={loadingAction || expenseDenial !== null}
+                >
+                  <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                  Rechazar
+                </Button>
+              </div>
             </div>
           ) : (
             <Button variant="default" size="sm" asChild className="w-full h-9 text-xs font-semibold">

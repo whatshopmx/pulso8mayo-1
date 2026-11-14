@@ -91,7 +91,7 @@ export function CashFlowHero({
       {/* ── Banners / Termómetro Principal ───────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Card Principal: Cobertura de Efectivo (Days of Runway) */}
-        <Card className="lg:col-span-2 border-border bg-card/60 backdrop-blur-sm relative overflow-hidden">
+        <Card className="lg:col-span-2 border-border bg-card relative overflow-hidden">
           <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="space-y-3 min-w-0 flex-1">
               <div className="flex items-center gap-2">
@@ -99,17 +99,17 @@ export function CashFlowHero({
                   <Clock className="w-3.5 h-3.5 text-primary" /> Cobertura de Operación (Runway)
                 </span>
                 {metrics.statusLevel === "HEALTHY" && (
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium">
+                  <Badge variant="outline" className="bg-success/10 text-success-text border-success/20 font-medium">
                     <CheckCircle2 className="w-3 h-3 mr-1" /> Cobertura Estable
                   </Badge>
                 )}
                 {metrics.statusLevel === "WARNING" && (
-                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-medium">
+                  <Badge variant="outline" className="bg-warning/10 text-warning-text border-warning/25 font-medium">
                     <AlertTriangle className="w-3 h-3 mr-1" /> Monitorear Compromisos
                   </Badge>
                 )}
                 {metrics.statusLevel === "CRITICAL" && (
-                  <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 font-medium">
+                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 font-medium">
                     <ShieldAlert className="w-3 h-3 mr-1" /> Riesgo de Liquidez
                   </Badge>
                 )}
@@ -126,7 +126,7 @@ export function CashFlowHero({
 
               <p className="text-xs text-muted-foreground max-w-[55ch] leading-relaxed">
                 {!hasOpeningBalance ? (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  <span className="text-warning-text font-medium">
                     Captura el saldo inicial en caja/bancos para habilitar el termómetro de cobertura exacto.
                   </span>
                 ) : metrics.firstNegativeDay ? (
@@ -148,18 +148,18 @@ export function CashFlowHero({
               <span
                 className={`text-xl font-bold tabular-nums ${
                   metrics.minBalanceCents < 0
-                    ? "text-rose-600 dark:text-rose-400"
+                    ? "text-destructive"
                     : metrics.minBalanceCents < 50_000_00
-                    ? "text-amber-600 dark:text-amber-400"
+                    ? "text-warning-text"
                     : "text-foreground"
                 }`}
               >
                 {formatCents(metrics.minBalanceCents)}
               </span>
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
                 {metrics.minBalanceCents < 0 ? (
                   <>
-                    <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                    <AlertCircle className="w-3 h-3 text-destructive shrink-0" />
                     Punto crítico {metrics.minBalanceDate ? `el ${metrics.minBalanceDate}` : ""}
                   </>
                 ) : (
@@ -183,18 +183,18 @@ export function CashFlowHero({
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <TrendingUp className="w-4 h-4 text-emerald-500" /> Ingresos Estimados
+                  <TrendingUp className="w-4 h-4 text-success" /> Ingresos Estimados
                 </span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                <span className="font-semibold text-success-text tabular-nums">
                   {formatCents(metrics.totalInflowCents)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <TrendingDown className="w-4 h-4 text-rose-500" /> Egresos Proyectados
+                  <TrendingDown className="w-4 h-4 text-destructive" /> Egresos Proyectados
                 </span>
-                <span className="font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
+                <span className="font-semibold text-destructive tabular-nums">
                   -{formatCents(metrics.totalOutflowCents)}
                 </span>
               </div>
@@ -203,7 +203,7 @@ export function CashFlowHero({
                 <span>Flujo Neto</span>
                 <span
                   className={`tabular-nums ${
-                    metrics.netFlowCents < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                    metrics.netFlowCents < 0 ? "text-destructive" : "text-success-text"
                   }`}
                 >
                   {metrics.netFlowCents < 0 ? "" : "+"}

@@ -29,7 +29,9 @@ export interface AttentionItem {
   costCenterName?: string;
   costCenterCode?: string;
   costCenterId?: string;
+  requestedBy?: string;
   requestedByName?: string;
+  sinAprobadorPosible?: boolean;
   budgetContext?: {
     budgetedCents: number;
     committedCents: number;
@@ -190,7 +192,9 @@ export async function getAttentionSummary(
         costCenterName: e.costCenterName || undefined,
         costCenterCode: e.costCenterCode || undefined,
         costCenterId: e.costCenterId || undefined,
+        requestedBy: e.requestedBy || undefined,
         requestedByName: e.requestedByName || undefined,
+        sinAprobadorPosible: e.sinAprobadorPosible || undefined,
         budgetContext,
       });
     }
