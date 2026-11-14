@@ -236,7 +236,7 @@ function PayablesContent() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6 min-w-0 max-w-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -365,97 +365,101 @@ function PayablesContent() {
             </div>
           )}
 
-          {/* Antigüedad */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold">Antigüedad</CardTitle>
-              <CardDescription className="text-xs">
-                Cómo se reparte la deuda en el tiempo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {data.buckets.map((bucket) => {
-                  const pct =
-                    data.totalCents > 0 ? (bucket.cents / data.totalCents) * 100 : 0;
-                  return (
-                    <div key={bucket.bucket} className="space-y-1">
-                      <div className="flex items-baseline justify-between text-xs">
-                        <span className="font-medium">{AGING_BUCKET_LABELS[bucket.bucket]}</span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {formatCents(bucket.cents)} · {bucket.count}
-                        </span>
+          {/* Resumen compacto: Antigüedad + Exposición por contraparte en paralelo */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            {/* Antigüedad */}
+            <Card className="lg:col-span-5 min-w-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-bold">Antigüedad</CardTitle>
+                <CardDescription className="text-xs">
+                  Cómo se reparte la deuda en el tiempo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2.5">
+                  {data.buckets.map((bucket) => {
+                    const pct =
+                      data.totalCents > 0 ? (bucket.cents / data.totalCents) * 100 : 0;
+                    return (
+                      <div key={bucket.bucket} className="space-y-1">
+                        <div className="flex items-baseline justify-between gap-2 text-xs">
+                          <span className="font-medium truncate">{AGING_BUCKET_LABELS[bucket.bucket]}</span>
+                          <span className="tabular-nums text-muted-foreground shrink-0">
+                            {formatCents(bucket.cents)} · {bucket.count}
+                          </span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              bucket.bucket === "OVERDUE"
+                                ? "bg-destructive"
+                                : bucket.bucket === "DUE_7"
+                                  ? "bg-warning"
+                                  : "bg-primary"
+                            }`}
+                            style={{ width: `${Math.max(pct, 1)}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full ${
-                            bucket.bucket === "OVERDUE"
-                              ? "bg-destructive"
-                              : bucket.bucket === "DUE_7"
-                                ? "bg-warning"
-                                : "bg-primary"
-                          }`}
-                          style={{ width: `${Math.max(pct, 1)}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* A quién le debes */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold">Por contraparte</CardTitle>
-              <CardDescription className="text-xs">
-                Ordenado por lo vencido primero. Los gastos operativos se agrupan por contraparte
-                (&quot;Inmobiliaria X&quot;); los gastos casuales sin contraparte, por categoría.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="border rounded-md overflow-x-auto">
-                <Table>
-                  <TableCaption className="sr-only">
-                    Deuda agrupada por contraparte (proveedor de mercancía, arrendador o servicio,
-                    o categoría del gasto casual): total, monto vencido y número de partidas.
-                  </TableCaption>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Contraparte</TableHead>
-                      <TableHead className="text-center">Partidas</TableHead>
-                      <TableHead className="text-right">Vencido</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.byCounterparty.slice(0, 10).map((row) => (
-                      <TableRow key={row.supplierId ?? row.name} className="hover:bg-muted/40">
-                        <TableCell className="font-medium">{row.name}</TableCell>
-                        <TableCell className="text-center text-sm">{row.count}</TableCell>
-                        <TableCell
-                          className={`text-right tabular-nums ${
-                            row.overdueCents > 0 ? "text-destructive font-semibold" : "text-muted-foreground"
-                          }`}
-                        >
-                          {row.overdueCents > 0 ? formatCents(row.overdueCents) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">
-                          {formatCents(row.totalCents)}
-                        </TableCell>
+            {/* A quién le debes */}
+            <Card className="lg:col-span-7 min-w-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-bold">Por contraparte</CardTitle>
+                <CardDescription className="text-xs">
+                  Ordenado por lo vencido primero (proveedores, arrendadores o categoría).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableCaption className="sr-only">
+                      Deuda agrupada por contraparte (proveedor de mercancía, arrendador o servicio,
+                      o categoría del gasto casual): total, monto vencido y número de partidas.
+                    </TableCaption>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Contraparte</TableHead>
+                        <TableHead className="text-center w-20">Partidas</TableHead>
+                        <TableHead className="text-right">Vencido</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {data.byCounterparty.length > 10 && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Mostrando los 10 con mayor exposición de {data.byCounterparty.length}.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {data.byCounterparty.slice(0, 6).map((row) => (
+                        <TableRow key={row.supplierId ?? row.name} className="hover:bg-muted/40">
+                          <TableCell className="font-medium whitespace-normal break-words max-w-[220px]">
+                            {row.name}
+                          </TableCell>
+                          <TableCell className="text-center text-sm tabular-nums">{row.count}</TableCell>
+                          <TableCell
+                            className={`text-right tabular-nums ${
+                              row.overdueCents > 0 ? "text-destructive font-semibold" : "text-muted-foreground"
+                            }`}
+                          >
+                            {row.overdueCents > 0 ? formatCents(row.overdueCents) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold tabular-nums">
+                            {formatCents(row.totalCents)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {data.byCounterparty.length > 6 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Mostrando los 6 con mayor exposición de {data.byCounterparty.length}.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Barra de acción para programar lote de pago con partidas seleccionadas */}
           {selectedItemIds.size > 0 && (
@@ -478,7 +482,7 @@ function PayablesContent() {
           )}
 
           {/* Detalle */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-base font-bold">Detalle de partidas</CardTitle>
@@ -540,14 +544,11 @@ function PayablesContent() {
                           aria-label="Seleccionar todas las partidas elegibles"
                         />
                       </TableHead>
-                      <TableHead>Referencia</TableHead>
-                      <TableHead>Contraparte</TableHead>
-                      <TableHead>Cuenta Destino</TableHead>
-                      <TableHead>Sucursal</TableHead>
-                      <TableHead>Origen</TableHead>
+                      <TableHead>Referencia y Origen</TableHead>
+                      <TableHead>Contraparte y Cuenta</TableHead>
                       <TableHead>Vence</TableHead>
                       <TableHead className="text-right">Monto</TableHead>
-                      <TableHead className="text-right">3-Way Match / Acción</TableHead>
+                      <TableHead className="text-right">Conciliación / Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -556,7 +557,7 @@ function PayablesContent() {
                         key={`${item.source}-${item.id}`}
                         {...focusProps(item.id, "hover:bg-muted/40")}
                       >
-                        <TableCell className="w-10 text-center">
+                        <TableCell className="w-10 text-center align-top pt-3">
                           <Checkbox
                             checked={selectedItemIds.has(item.id)}
                             onCheckedChange={() => toggleSelectItem(item.id)}
@@ -565,75 +566,83 @@ function PayablesContent() {
                             aria-label={`Seleccionar partida ${item.reference}`}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">
-                          <span className="flex items-center gap-1.5">
+                        <TableCell className="font-medium whitespace-normal min-w-[200px] max-w-[280px] align-top py-2.5">
+                          <div className="flex items-start gap-1.5">
                             {item.source === "INVOICE" ? (
-                              <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                              <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
                             ) : (
-                              <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
+                              <Receipt className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
                             )}
-                            {item.reference}
-                          </span>
+                            <span className="text-sm font-medium leading-snug break-words">
+                              {item.reference}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1 pl-5">
+                            <Badge variant="outline" className="text-xs font-normal py-0">
+                              {SOURCE_LABEL[item.source]}
+                            </Badge>
+                            {item.branchName && (
+                              <span className="text-xs text-muted-foreground">
+                                · {item.branchName}
+                              </span>
+                            )}
+                          </div>
                           {item.hasDiscrepancy && (
-                            <span className="text-xs text-warning-text block mt-0.5 font-medium">
+                            <span className="text-xs text-warning-text block mt-1 pl-5 font-medium leading-snug">
                               Discrepancia en conciliación
                             </span>
                           )}
                           {item.blockedReason && !item.hasDiscrepancy && (
-                            <span className="text-xs text-warning-text block mt-0.5">
+                            <span className="text-xs text-warning-text block mt-1 pl-5 leading-snug">
                               {item.blockedReason}
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>{item.counterparty}</TableCell>
-                        <TableCell>
-                          {item.bankAccountStatus === "VERIFIED" ? (
-                            <Badge
-                              variant="outline"
-                              className={`${statusBadgeClasses("success")} text-xs inline-flex items-center gap-1`}
-                            >
-                              <ShieldCheck className="w-3 h-3" />
-                              CLABE Verificada
-                            </Badge>
-                          ) : item.bankAccountStatus === "UNVERIFIED" ? (
-                            <Link
-                              href={
-                                item.source === "INVOICE"
-                                  ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
-                                  : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
-                              }
-                              className="inline-flex items-center gap-1 text-xs text-info hover:underline font-medium"
-                              title="Cuenta registrada pendiente de validación CEP"
-                            >
-                              <Clock className="w-3.5 h-3.5" />
-                              CLABE por verificar
-                            </Link>
-                          ) : (
-                            <Link
-                              href={
-                                item.source === "INVOICE"
-                                  ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
-                                  : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
-                              }
-                              className="inline-flex items-center gap-1 text-xs text-warning-text hover:underline font-medium"
-                              title="Registrar cuenta bancaria CLABE para poder pagar"
-                            >
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              Sin CLABE (Registrar)
-                            </Link>
-                          )}
+                        <TableCell className="whitespace-normal min-w-[180px] max-w-[240px] align-top py-2.5">
+                          <div className="font-medium text-sm leading-snug break-words">
+                            {item.counterparty}
+                          </div>
+                          <div className="mt-1">
+                            {item.bankAccountStatus === "VERIFIED" ? (
+                              <Badge
+                                variant="outline"
+                                className={`${statusBadgeClasses("success")} text-xs inline-flex items-center gap-1 py-0`}
+                              >
+                                <ShieldCheck className="w-3 h-3" />
+                                CLABE Verificada
+                              </Badge>
+                            ) : item.bankAccountStatus === "UNVERIFIED" ? (
+                              <Link
+                                href={
+                                  item.source === "INVOICE"
+                                    ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
+                                    : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
+                                }
+                                className="inline-flex items-center gap-1 text-xs text-info hover:underline font-medium"
+                                title="Cuenta registrada pendiente de validación CEP"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                                CLABE por verificar
+                              </Link>
+                            ) : (
+                              <Link
+                                href={
+                                  item.source === "INVOICE"
+                                    ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
+                                    : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
+                                }
+                                className="inline-flex items-center gap-1 text-xs text-warning-text hover:underline font-medium"
+                                title="Registrar cuenta bancaria CLABE para poder pagar"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                Sin CLABE (Registrar)
+                              </Link>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {item.branchName ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {SOURCE_LABEL[item.source]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top py-2.5">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-sm">{item.dueDate ?? "Sin fecha"}</span>
+                            <span className="text-sm tabular-nums">{item.dueDate ?? "Sin fecha"}</span>
                             <span
                               className={`text-xs px-1.5 py-0.5 rounded-full border w-fit ${statusBadgeClasses(
                                 BUCKET_TONE[item.bucket],
@@ -649,17 +658,17 @@ function PayablesContent() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">
+                        <TableCell className="text-right font-semibold tabular-nums align-top py-2.5">
                           {formatCents(item.amountCents)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right align-top py-2.5">
                           {item.source === "INVOICE" ? (
                             item.matchStatus === "EXCEPTION_APPROVED" ? (
                               <Badge variant="outline" className={`${statusBadgeClasses("success")} text-xs`}>
                                 Excepción Autorizada
                               </Badge>
                             ) : item.hasDiscrepancy || item.matchStatus === "DISCREPANCY" ? (
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex flex-col items-end gap-1.5">
                                 <Badge variant="outline" className={`${statusBadgeClasses("warning")} text-xs`}>
                                   Bloqueada
                                 </Badge>
