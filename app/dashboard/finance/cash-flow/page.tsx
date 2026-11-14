@@ -6,6 +6,7 @@ import {
   CashFlowCalendar,
   type CashFlowProjection,
 } from "@/components/finance/cash-flow-calendar";
+import { AccountingCashFlow } from "@/components/finance/accounting-cash-flow";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBranch } from "@/lib/branch-context";
@@ -254,6 +255,18 @@ function CashFlowContent() {
           onActionDone={fetchProjection}
         />
       )}
+
+      <section className="space-y-4 border-t pt-6">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">
+            Flujo realizado contable y puente con P&L operativo
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Clasificación por operación, inversión y financiamiento (excluyendo transferencias internas) y explicación de diferencias por fuente, fecha o estimación.
+          </p>
+        </div>
+        <AccountingCashFlow branchId={selectedBranchId} />
+      </section>
     </div>
   );
 }

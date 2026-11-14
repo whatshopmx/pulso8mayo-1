@@ -603,15 +603,20 @@ Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint
 
 ## FC-18: Explicar flujo realizado y diferencias con P&L
 
-- [ ] Completada con evidencia.
+- [x] Completada con evidencia.
 - **Tamaño:** M. **Dependencias:** FC-12, FC-15, FC-17.
 - **Descripción:** Añadir flujo realizado y puente hacia P&L operativo manteniendo proyección existente.
 - **Aceptación:**
-  - [ ] Flujo clasifica operación/inversión/financiamiento y excluye transferencias propias.
-  - [ ] variación de efectivo coincide con apertura/cierre.
-  - [ ] diferencias operativas se explican por fuente, fecha o estimación.
+  - [x] Flujo clasifica operación/inversión/financiamiento y excluye transferencias propias.
+  - [x] variación de efectivo coincide con apertura/cierre.
+  - [x] diferencias operativas se explican por fuente, fecha o estimación.
 - **Verificación:** Comparación con fixture y recorrido UI de diferencia por liquidación del mes siguiente.
 - **Archivos previstos:** `lib/services/accounting/cash-flow-service.ts`, `lib/services/accounting/pnl-bridge-service.ts`, `app/api/finance/accounting/cash-flow/route.ts`, `components/finance/accounting-cash-flow.tsx`, `tests/integration/accounting/cash-flow.test.ts`.
+- **Implementación y evidencia (2026-11-14):**
+  - **Servicios y API:** `lib/services/accounting/cash-flow-service.ts` (`getRealizedCashFlow`), `lib/services/accounting/pnl-bridge-service.ts` (`getPnlToCashBridge`) y `app/api/finance/accounting/cash-flow/route.ts` (`GET` con `journalPrincipal(req, "read")`). Clasifica pólizas `POSTED` con impacto neto en cuentas de efectivo/banco en `OPERATING`, `INVESTING` y `FINANCING`; excluye transferencias internas (`cashDeltaCents === 0`) reportándolas en `excludedTransfers`; valida `closingCashCents - openingCashCents === netCashFlowCents` (`reconcilesWithCashBalances`); y construye el puente entre P&L operativo, resultado contable y flujo operativo por `ESTIMACION`, `FECHA` (cobros/pagos diferidos y liquidaciones del mes siguiente) y `FUENTE` (eventos pendientes, borradores y brecha de alcance).
+  - **Interfaz:** `components/finance/accounting-cash-flow.tsx` integrado en `app/dashboard/finance/cash-flow/page.tsx` conservando intacta la proyección existente (`CashFlowCalendar`).
+  - **Pruebas:** `tests/integration/accounting/cash-flow.test.ts` **2/2, exit 0** en Postgres aislado (`NOBYPASSRLS`, clasificación + exclusión de reposición de caja chica + cuadre apertura/cierre, y escenario julio→agosto con liquidación de adquirente al mes siguiente, estimación de comisión y evento pendiente); ESLint sobre los 6 archivos FC-18 **0 errores, 0 warnings**; `tsc --noEmit --incremental false` **exit 0**.
+  - **Límites:** recorrido E2E en navegador queda para **FC-19** (`tests/e2e/accounting.spec.ts`); en `cash-flow.test.ts` se mockea `getPnLByBranch` para el fixture de estimación. Siguiente tarea: **FC-19 (Exportar expediente del cierre)**.
 
 ## FC-19: Exportar expediente del cierre
 
