@@ -8,6 +8,9 @@ vi.mock("@/lib/db", () => ({ db: { select: () => ({ from: () => ({ where: () => 
 vi.mock("@/lib/inngest/client", () => ({ inngest: {
   createFunction: (config: unknown, handler: unknown) => ({ config, handler }),
 } }));
+vi.mock("@/lib/services/accounting/activation-service", () => ({
+  isCompanyPostingEnabled: vi.fn(async () => true),
+}));
 vi.mock("@/lib/services/accounting/event-service", async original => ({
   ...await original<typeof import("@/lib/services/accounting/event-service")>(),
   listPendingAccountingEvents: mocks.list, retryAccountingEvent: mocks.retry,

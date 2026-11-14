@@ -656,14 +656,19 @@ Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint
 
 ## FC-21: Validar el primer cierre del piloto
 
-- [ ] Completada con evidencia.
+- [ ] Completada con evidencia (pendiente validación presencial del responsable contable).
 - **Tamaño:** S. **Dependencias:** FC-20.
 - **Descripción:** Revisar cierre de empresa piloto y evidencia técnica antes de ampliar activación.
 - **Aceptación:**
   - [ ] Responsable contable valida apertura, reglas y diferencias.
-  - [ ] pruebas de recuperación, aislamiento y cierre quedan registradas.
-  - [ ] límites conocidos y decisión de ampliación quedan documentados.
+  - [x] pruebas de recuperación, aislamiento y cierre quedan registradas.
+  - [x] límites conocidos y decisión de ampliación quedan documentados.
 - **Verificación:** Ejecutar comandos de §7 y revisión UI con roles; cotejar bancos/fuentes con libro mayor sin asumir que un build demuestra exactitud contable.
-- **Archivos previstos:** `tasks/finanzas-contabilidad/pilot-review.md`, `docs/accounting-operations.md`.
+- **Archivos actualizados:** `tasks/finanzas-contabilidad/pilot-review.md`, `docs/accounting-operations.md`, `tests/unit/finance/accounting-recovery.test.ts`.
+- **Evidencia técnica (2026-11-14):**
+  - `tests/unit/finance`: **23/23 archivos, 261/261 pruebas aprobadas** (tras actualizar mock de `activation-service` en `accounting-recovery.test.ts`).
+  - `tsc --noEmit`: **exit 0**. `pnpm run lint`: **0 errores** (2434 advertencias previas). `pnpm run build` (`--max-old-space-size=4096`): **exit 0** (`451/451` páginas).
+  - `tests/integration/accounting`: **13/18 archivos aprobados (114 pruebas)** (`pilot`, `export`, `cash-flow`, `reports`, `close`, `payroll*`, `inventory`, `opening-mapping`, `accounts`, `pnl-detail`, `journal-access`); 5 archivos heredados fallan por columnas posteriores (`payroll_snapshot` / bootstraps previos a `0146`–`0149`).
+  - **Pendiente humano:** revisión UI con roles, cotejo de bancos/fuentes con libro mayor y firma del responsable contable; decisión documentada en `pilot-review.md`: no ampliar activación aún.
 
 **Checkpoint tras FC-21:** revisar aceptación y evidencia de las tareas acumuladas; ejecutar verificaciones aplicables y actualizar decisiones/riesgos del plan antes de ampliar el alcance.
