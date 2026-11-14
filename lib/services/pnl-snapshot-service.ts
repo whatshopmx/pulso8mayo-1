@@ -21,7 +21,15 @@ export interface FreezeResult {
   branchCount: number;
   /** Sucursales congeladas con al menos un renglón que no se midió. */
   estimatedBranchCount: number;
+  rows?: Record<string, unknown>[];
 }
+
+export interface FreezeCloseMeta {
+  accountingCloseId?: string | null;
+  closeVersion?: number | null;
+}
+
+type DbExecutor = Pick<typeof db, "insert">;
 
 /**
  * Calcula y congela el P&L de todas las sucursales de la company para el
@@ -32,18 +40,20 @@ export interface FreezeResult {
  * conserva los números pero pierde el `source` vuelve a ser un P&L que no se
  * puede auditar.
  */
-export async function freezePnLPeriod(
+export async function freezePnLPeriodIn(
+  executor: DbExecutor,
   companyId: string,
   periodStart: string,
   periodEnd: string,
   frozenBy?: string,
+  closeMeta?: FreezeCloseMeta,
 ): Promise<FreezeResult> {
   const startDay = periodStart.slice(0, 10);
   const endDay = periodEnd.slice(0, 10);
 
   const pnl = await getPnLByBranch(companyId, startDay, endDay);
   if (pnl.length === 0) {
-    return { periodStart: startDay, periodEnd: endDay, branchCount: 0, estimatedBranchCount: 0 };
+    return { periodStart: startDay, periodEnd: endDay, branchCount: 0, estimatedBranchCount: 0, rows: [] };
   }
 
   const rows = pnl.map((b) => ({
@@ -65,10 +75,12 @@ export async function freezePnLPeriod(
     operatingProfitCents: b.operatingProfit.cents,
     weakestLine: b.weakestLine,
     lines: b as unknown as Record<string, unknown>,
+    accountingCloseId: closeMeta?.accountingCloseId ?? null,
+    closeVersion: closeMeta?.closeVersion ?? null,
     frozenBy: frozenBy ?? null,
   }));
 
-  await db
+  await executor
     .insert(pnlSnapshots)
     .values(rows)
     .onConflictDoUpdate({
@@ -83,6 +95,9 @@ export async function freezePnLPeriod(
         operatingProfitCents: sqlExcluded("operating_profit_cents"),
         weakestLine: sqlExcluded("weakest_line"),
         lines: sqlExcluded("lines"),
+        accountingCloseId: sqlExcluded("accounting_close_id"),
+        closeVersion: sqlExcluded("close_version"),
+        frozenBy: sqlExcluded("frozen_by"),
         frozenAt: new Date(),
       },
     });
@@ -92,7 +107,18 @@ export async function freezePnLPeriod(
     periodEnd: endDay,
     branchCount: pnl.length,
     estimatedBranchCount: pnl.filter((b) => b.weakestLine !== "MEASURED").length,
+    rows,
   };
+}
+
+export async function freezePnLPeriod(
+  companyId: string,
+  periodStart: string,
+  periodEnd: string,
+  frozenBy?: string,
+  closeMeta?: FreezeCloseMeta,
+): Promise<FreezeResult> {
+  return freezePnLPeriodIn(db, companyId, periodStart, periodEnd, frozenBy, closeMeta);
 }
 
 /** Helper tipado para referenciar `excluded.<col>` en el upsert. */

@@ -567,29 +567,39 @@ Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint
 
 ## FC-16: Cerrar el periodo con consistencia
 
-- [ ] Completada con evidencia.
+- [x] Completada con evidencia.
 - **Tamaño:** M. **Dependencias:** FC-10–15.
 - **Descripción:** Extender cierre financiero y snapshots con protocolo compartido de bloqueo y versiones contables.
 - **Aceptación:**
-  - [ ] Publicación y cierre concurrentes no generan corte inconsistente.
-  - [ ] pendientes bloqueantes impiden cierre definitivo y muestran motivo.
-  - [ ] reapertura exige permiso/motivo y conserva exportaciones/versiones anteriores.
+  - [x] Publicación y cierre concurrentes no generan corte inconsistente.
+  - [x] pendientes bloqueantes impiden cierre definitivo y muestran motivo.
+  - [x] reapertura exige permiso/motivo y conserva exportaciones/versiones anteriores.
 - **Verificación:** Pruebas de carrera cierre/publicación, fallo de snapshot y reapertura con/sin permiso.
 - **Archivos previstos:** `lib/services/financial-period-service.ts`, `lib/services/pnl-snapshot-service.ts`, `lib/services/accounting/close-service.ts`, `lib/services/accounting/journal-service.ts`, `tests/integration/accounting/close.test.ts`.
+- **Implementación y evidencia (2026-11-14):**
+  - **Esquema y migración `0149_fc16_period_close.sql`:** tabla `accounting_period_closes` con RLS + `FORCE ROW LEVEL SECURITY` (`accounting_period_closes_tenant`), versiones consecutivas (`ACTIVE` / `SUPERSEDED`), snapshot JSONB de balanza de comprobación (`trial_balance`) y P&L (`pnl_snapshot`), columnas de trazabilidad en `financial_periods` (`close_version`, `reopened_at`, `reopened_by`, `reopen_reason`) y `pnl_snapshots` (`accounting_close_id`, `close_version`), y guardas SQL (`accounting_period_closes_guard`, `financial_periods_close_guard`) bajo lock compartido `pg_advisory_xact_lock(hashtextextended(company_id, 505))` en `READ COMMITTED`.
+  - **Servicios y API:** `lib/services/accounting/close-service.ts`, `lib/services/pnl-snapshot-service.ts` (`freezePnLPeriodIn`), `lib/services/financial-period-service.ts` y `app/api/finance/periods/route.ts` (`GET` con bloqueadores/versiones y `POST` `CLOSE`/`REOPEN`). Cierre ejecuta detección de bloqueadores (`DRAFT_JOURNALS`, `PENDING_EVENTS`, `PENDING_INVENTORY_VALUATIONS`, `UNBALANCED_JOURNALS`, `OPENING_OVERLAP`), snapshot de balanza y congelamiento de P&L en una sola transacción atómica; cualquier fallo revierte el periodo a `OPEN`. Reapertura exige permiso `accounting:reverse` (`OWNER` / `SUPER_ADMIN`) y motivo (`>= 5` chars), marca la versión activa como `SUPERSEDED` conservando sus totales e inmutabilidad SQL.
+  - **Pruebas:** `tests/integration/accounting/close.test.ts` **4/4, exit 0** en Postgres aislado (`NOBYPASSRLS`, carrera cierre vs publicación, bloqueadores + cierre + bloqueo de póliza en periodo cerrado, rollback completo ante fallo de snapshot, permisos/motivo/preservación de versiones en reapertura y aislamiento cross-tenant); unidad `lib/services/__tests__/financial-period-service.test.ts` + `tests/unit/finance` **24 archivos, 268/268 aprobadas, exit 0**; ESLint sobre archivos FC-16 **0 errores**; `tsc --noEmit --incremental false` **exit 0**.
+  - **Límites operativos:** migración `0149_fc16_period_close.sql` permanece local sin aplicar a `.env`; en `close.test.ts` se mockea `getPnLByBranch` (conservando el `INSERT/UPDATE` real de `pnl_snapshots` en la transacción) para no acoplar el test de cierre a 15+ tablas operativas.
 
-**Checkpoint tras FC-16:** revisar aceptación y evidencia de las tareas acumuladas; ejecutar verificaciones aplicables y actualizar decisiones/riesgos del plan antes de ampliar el alcance.
+**Checkpoint tras FC-16 (2026-11-14):** FC-16 completada y verificada; siguiente tarea: **FC-17 (Consultar balanza y estados contables)**.
 
 ## FC-17: Consultar balanza y estados contables
 
-- [ ] Completada con evidencia.
+- [x] Completada con evidencia.
 - **Tamaño:** M. **Dependencias:** FC-16.
 - **Descripción:** Crear consultas de balanza, resultados y balance con drill-down al mayor.
 - **Aceptación:**
-  - [ ] Apertura más movimientos explica saldos a fecha.
-  - [ ] balance incluye resultado y arrastre de ejercicios sin ajuste oculto.
-  - [ ] reporte por sucursal declara partidas corporativas no asignadas.
+  - [x] Apertura más movimientos explica saldos a fecha.
+  - [x] balance incluye resultado y arrastre de ejercicios sin ajuste oculto.
+  - [x] reporte por sucursal declara partidas corporativas no asignadas.
 - **Verificación:** Comparar consultas con resultados independientes del mes y cambio de ejercicio.
 - **Archivos previstos:** `lib/services/accounting/report-service.ts`, `app/api/finance/accounting/reports/route.ts`, `components/finance/accounting-statements.tsx`, `app/dashboard/finance/results/accounting/page.tsx`, `tests/integration/accounting/reports.test.ts`.
+- **Implementación y evidencia (2026-11-14):**
+  - **Servicio y API:** `lib/services/accounting/report-service.ts` (`getAccountingStatements`, `getAccountLedger`) y `app/api/finance/accounting/reports/route.ts` (`GET` con `requirePermissionApi("accounting", "read")` y `ACCOUNTING_REVIEW_ENABLED === "1"`). Balanza calcula `apertura (< fromDate) + movimientos ([fromDate, toDate]) = cierre (<= toDate)` exclusivamente sobre pólizas `POSTED`; Balance General calcula `retainedEarningsPriorYearsCents` (`< YYYY-01-01`) + `currentYearNetIncomeCents` (`[YYYY-01-01, toDate]`) sin ajuste oculto y reporta `isBalanced`/`differenceCents`; filtro por sucursal declara explícitamente las pólizas corporativas (`branch_id IS NULL`) ocultando el detalle de cuentas corporativas a roles restringidos por sucursal.
+  - **Interfaz:** `components/finance/accounting-statements.tsx` y `app/dashboard/finance/results/accounting/page.tsx` con pestañas de Balanza, Estado de Resultados, Balance General, banner de partidas corporativas no asignadas y auxiliar de mayor (`getAccountLedger`) con saldo acumulado.
+  - **Pruebas:** `tests/integration/accounting/reports.test.ts` **2/2, exit 0** en Postgres aislado (`NOBYPASSRLS`, cambio de ejercicio `2025 -> 2026`, exclusión de borradores `DRAFT`, auxiliar de mayor, declaración corporativa por sucursal y aislamiento cross-tenant/rol); ESLint sobre los 5 archivos FC-17 **0 errores, 0 warnings**; `tsc --noEmit --incremental false` **exit 0**.
+  - **Límites:** la UI nueva aún no se ejecutó en navegador contra servidor dev ni en E2E Playwright (cubierto hasta FC-19 en `tests/e2e/accounting.spec.ts`). Siguiente tarea: **FC-18 (Explicar flujo realizado y diferencias con P&L)**.
 
 ## FC-18: Explicar flujo realizado y diferencias con P&L
 

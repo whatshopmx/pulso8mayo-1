@@ -5,7 +5,7 @@ import { users } from "./auth";
 import { costCenters } from "./service-orders";
 import { companyBankAccounts } from "./treasury";
 import { terminalAcquirerEnum } from "./finance";
-import { inventoryMovements, payrollRuns, payrollPayslips, paymentRunItems, pettyCashFunds, pettyCashTransactions } from "../schema";
+import { financialPeriods, inventoryMovements, payrollRuns, payrollPayslips, paymentRunItems, pettyCashFunds, pettyCashTransactions } from "../schema";
 
 // Ledger structure only. Operational classification remains in cost_centers;
 // bank numbers/purpose remain in company_bank_accounts. No default mappings.
@@ -482,6 +482,41 @@ export const accountingInventoryValuations = pgTable("accounting_inventory_valua
   check("accounting_inventory_cost_check", sql`${table.unitCostCents} IS NULL OR ${table.unitCostCents} BETWEEN 0 AND 9007199254740991`),
   check("accounting_inventory_pending_check", sql`${table.amountCents} IS NOT NULL OR ${table.pendingReason} IS NOT NULL`),
   pgPolicy("accounting_inventory_tenant", { for: "all", to: "public",
+    using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
+    withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
+]).enableRLS();
+
+/** FC-16: versioned immutable close snapshots so reopenings preserve prior closes and exports. */
+export const accountingPeriodCloses = pgTable("accounting_period_closes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  periodId: uuid("period_id").notNull().references(() => financialPeriods.id),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  version: integer("version").notNull(),
+  status: text("status", { enum: ["ACTIVE", "SUPERSEDED"] }).notNull().default("ACTIVE"),
+  journalCount: integer("journal_count").notNull().default(0),
+  maxJournalNumber: integer("max_journal_number").notNull().default(0),
+  totalDebitCents: bigint("total_debit_cents", { mode: "number" }).notNull().default(0),
+  totalCreditCents: bigint("total_credit_cents", { mode: "number" }).notNull().default(0),
+  trialBalance: jsonb("trial_balance").$type<Record<string, unknown>[]>().notNull(),
+  pnlSnapshot: jsonb("pnl_snapshot").$type<Record<string, unknown>[]>(),
+  closedBy: text("closed_by").notNull().references(() => users.id),
+  closedAt: timestamp("closed_at", { withTimezone: true }).defaultNow().notNull(),
+  reopenedBy: text("reopened_by").references(() => users.id),
+  reopenedAt: timestamp("reopened_at", { withTimezone: true }),
+  reopenReason: text("reopen_reason"),
+}, table => [
+  uniqueIndex("accounting_period_closes_version_unique").on(table.companyId, table.year, table.month, table.version),
+  uniqueIndex("accounting_period_closes_active_unique").on(table.companyId, table.year, table.month)
+    .where(sql`${table.status} = 'ACTIVE'`),
+  index("accounting_period_closes_period_idx").on(table.companyId, table.periodId),
+  check("accounting_period_closes_period_check", sql`${table.year} BETWEEN 2000 AND 2100 AND ${table.month} BETWEEN 1 AND 12 AND ${table.version} >= 1`),
+  check("accounting_period_closes_status_check", sql`(${table.status} = 'ACTIVE' AND ${table.reopenedBy} IS NULL AND ${table.reopenedAt} IS NULL AND ${table.reopenReason} IS NULL)
+    OR (${table.status} = 'SUPERSEDED' AND ${table.reopenedBy} IS NOT NULL AND ${table.reopenedAt} IS NOT NULL AND ${table.reopenReason} = btrim(${table.reopenReason}) AND length(${table.reopenReason}) BETWEEN 5 AND 500)`),
+  check("accounting_period_closes_balance_check", sql`${table.journalCount} >= 0 AND ${table.maxJournalNumber} >= 0 AND ${table.totalDebitCents} >= 0 AND ${table.totalDebitCents} = ${table.totalCreditCents}`),
+  check("accounting_period_closes_snapshot_check", sql`jsonb_typeof(${table.trialBalance}) = 'array' AND (${table.pnlSnapshot} IS NULL OR jsonb_typeof(${table.pnlSnapshot}) = 'array')`),
+  pgPolicy("accounting_period_closes_tenant", { for: "all", to: "public",
     using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid`,
     withCheck: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true),'')::uuid` }),
 ]).enableRLS();

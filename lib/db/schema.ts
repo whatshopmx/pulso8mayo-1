@@ -4058,6 +4058,10 @@ export const pnlSnapshots = pgTable("pnl_snapshots", {
     /** Método de costeo vigente al congelar, para poder explicar el número después. */
     costingMethod: text("costing_method"),
 
+    /** FC-16 — vínculo con la versión de cierre contable que originó el snapshot. */
+    accountingCloseId: uuid("accounting_close_id"),
+    closeVersion: integer("close_version"),
+
     frozenAt: timestamp("frozen_at").defaultNow().notNull(),
     frozenBy: text("frozen_by").references(() => users.id),
 }, (table) => ({
@@ -4352,8 +4356,12 @@ export const financialPeriods = pgTable("financial_periods", {
     year: integer("year").notNull(),
     month: integer("month").notNull(), // 1 a 12
     status: financialPeriodStatusEnum("status").notNull().default('OPEN'),
+    closeVersion: integer("close_version").notNull().default(0),
     closedAt: timestamp("closed_at"),
     closedBy: text("closed_by").references(() => users.id),
+    reopenedAt: timestamp("reopened_at", { withTimezone: true }),
+    reopenedBy: text("reopened_by").references(() => users.id),
+    reopenReason: text("reopen_reason"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
