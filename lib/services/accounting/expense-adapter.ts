@@ -25,6 +25,7 @@ import { resolveRuleIn, ruleBlockerMessage } from "./mapping-service";
 import { recordAccountingEventIn, finishAccountingEventIn } from "./event-store";
 import { normalizeAccountingVoucherKey } from "./petty-cash-contract";
 import { hasDuplicateVoucherIn, pettyCashLock } from "./petty-cash-adapter";
+import { serviceInvoiceBlocker, mirrorExpenseInvoicePaid } from "../expense-invoice-evidence";
 
 /**
  * FC-09 — gasto reconocido y pagos parciales.
@@ -174,7 +175,6 @@ function expenseBlocker(expense: ExpenseRow, date: string | null): string | null
       return error instanceof Error ? error.message : "La clave documental del comprobante del gasto es inválida.";
     }
   }
-  if (expense.invoiceId) return "El gasto está vinculado a una factura; requiere resolver la fuente canónica antes de contabilizar.";
   return null;
 }
 
@@ -265,7 +265,7 @@ async function expenseRecognitionPlanIn(tx: Tx, companyId: string, expense: Expe
   const preview = await resolveRuleIn(tx, companyId, EXPENSE_RECOGNIZED, date ?? "0001-01-01");
   let debit = entryOf(preview.entries, EXPENSE_ROLES.debit);
   const credit = entryOf(preview.entries, EXPENSE_ROLES.credit);
-  const blocked = expenseBlocker(expense, date);
+  const blocked = expenseBlocker(expense, date) ?? await serviceInvoiceBlocker(tx, companyId, expense);
   if (blocked || !date) return { date, preview, debit, credit, reason: blocked ?? "Falta la fecha de negocio del gasto." };
   if (expense.voucherReference) {
     await pettyCashLock(tx, companyId);
@@ -513,6 +513,7 @@ export async function settleExpenseIn(tx: Tx, companyId: string, actorId: string
     paidBy: actorId, ...(latest?.method ? { paymentMethod: latest.method } : {}), updatedAt: new Date(),
   }).where(and(eq(operatingExpenses.companyId, companyId), eq(operatingExpenses.id, expenseId),
     eq(operatingExpenses.status, expense.status))).returning();
+  if (updated) await mirrorExpenseInvoicePaid(tx, companyId, actorId, [expenseId]);
   return updated ?? expense;
 }
 

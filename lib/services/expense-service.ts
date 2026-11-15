@@ -35,6 +35,7 @@ import { getTenantOperatingConfig } from "./tenant-config-service";
 import { checkBudgetAvailability } from "./budget-service";
 import { emitDomainEvent } from "./domain-event-service";
 import { isPeriodClosed } from "./financial-period-service";
+import { serviceInvoiceBlocker, mirrorExpenseInvoicePaid } from "./expense-invoice-evidence";
 import { setTenantContext } from "@/lib/db/tenant-context";
 import {
   confirmedPaidCents,
@@ -221,6 +222,9 @@ export async function resolverRolExigido(
 }
 
 export async function createOperatingExpense(input: CreateExpenseInput) {
+  if (input.invoiceId) {
+    throw ApiError.badRequest("Registra el gasto y asocia su factura desde la ficha de la contraparte para validar que no se duplique la obligación.");
+  }
   // Validar si el periodo financiero de la fecha asignada está CERRADO
   const opDate = input.businessDate || new Date().toISOString().slice(0, 10);
   if (await isPeriodClosed(input.companyId, opDate)) {
@@ -836,7 +840,14 @@ export async function markPaidOperatingExpense(
     return markExpensePaidWithApplication({ expenseId, companyId, scope, actorId, paymentMethod, paidAt });
   }
 
-  const [updated] = await db
+  return db.transaction(async tx => {
+  const [current] = await tx.select().from(operatingExpenses).where(and(
+    eq(operatingExpenses.id, expenseId), eq(operatingExpenses.companyId, companyId))).for("update");
+  if (!current) throw ApiError.notFound("Gasto no encontrado.");
+  if (current.status === "PAID") return current;
+  const invoiceBlocker = await serviceInvoiceBlocker(tx, companyId, current);
+  if (invoiceBlocker) throw ApiError.badRequest(invoiceBlocker);
+  const [updated] = await tx
     .update(operatingExpenses)
     .set({
       status: "PAID",
@@ -872,7 +883,9 @@ export async function markPaidOperatingExpense(
     )
     .returning();
 
-  return updated ?? expense;
+  if (updated) await mirrorExpenseInvoicePaid(tx, companyId, actorId, [expenseId]);
+  return updated ?? current;
+  });
 }
 
 function isoDay(value: Date) {

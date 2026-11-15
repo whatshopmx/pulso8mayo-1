@@ -9,6 +9,9 @@ import {
   salaryHistory,
   shiftSessions,
   vacationRequests,
+  leaveRequests,
+  leaveTypes,
+  branches,
   users,
   payrollRuns,
   payrollPayslips,
@@ -22,6 +25,8 @@ import { capturePayrollRunIn } from "./accounting/payroll-adapter";
 import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
 import { AGUINALDO_DAYS_VIGENTE } from "@/lib/company/labor-reform-status-catalog";
 import { differenceInDays, parseISO, addDays, format } from "date-fns";
+import { diaCivilEnZona } from "./aguinaldo-days-adapter";
+import { resolveSeveranceMinimumWage, type MinimumWageZone } from "./severance-minimum-wage";
 
 export interface ValidatedPayrollPeriod {
   startDate: string;
@@ -237,6 +242,376 @@ export async function isPayrollPeriodFrozen(
   return Boolean(completed);
 }
 
+export interface AttendancePeriodResolution {
+  calendarDays: number;
+  effectiveDaysInPeriod: number;
+  approvedAttendanceDays: number;
+  holidayDaysWorked: number;
+  holidayDaysRested: number;
+  paidLeaveDays: number;
+  unpaidAbsenceDays: number;
+  payableDays: number;
+  hasPendingAttendance: boolean;
+  pendingAttendanceDetails: Array<{
+    sessionId: string;
+    date: string;
+    reason: string;
+    status?: string | null;
+  }>;
+  operationalZone: {
+    timezone: string;
+    geographicZone: MinimumWageZone;
+    minimumWageDailyCents: number;
+  };
+}
+
+export interface ResolveAttendanceInput {
+  userId: string;
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  effectiveDaysInPeriod?: number;
+  branchId?: string | null;
+  geographicZone?: MinimumWageZone;
+  timezone?: string;
+  sessions?: Array<{
+    id: string;
+    startedAt: Date | string;
+    status: string | null;
+    requiresApproval?: boolean | null;
+    approvedAt?: Date | string | null;
+    approvedBy?: string | null;
+    branchId?: string | null;
+  }>;
+  holidays?: Array<{
+    date: Date | string;
+    isMandatory?: boolean | null;
+  }>;
+  vacations?: Array<{
+    startDate: Date | string;
+    endDate: Date | string;
+    totalDays?: number | null;
+    status?: string | null;
+  }>;
+  leaves?: Array<{
+    startDate: Date | string;
+    endDate: Date | string;
+    totalDays?: number | null;
+    isPaid?: boolean | null;
+    status?: string | null;
+  }>;
+  dbInstance?: any;
+}
+
+/**
+ * Resuelve la asistencia, faltas, festivos y licencias para un empleado y período determinado.
+ * Convierte los instantes de checada a fecha civil local según la zona horaria de la sucursal.
+ * Detecta y detalla cualquier sesión pendiente de aprobación o activa (rechazo estricto).
+ * Calcula días pagaderos y deduce ausencias no justificadas / no pagadas del salario base.
+ */
+export async function resolveAttendanceForPeriod(
+  input: ResolveAttendanceInput
+): Promise<AttendancePeriodResolution> {
+  const {
+    userId,
+    companyId,
+    startDate,
+    endDate,
+    effectiveDaysInPeriod: inputEffectiveDays,
+    branchId,
+    geographicZone: inputZone,
+    timezone: inputTimezone,
+    sessions: preloadedSessions,
+    holidays: preloadedHolidays,
+    vacations: preloadedVacations,
+    leaves: preloadedLeaves,
+    dbInstance = db,
+  } = input;
+
+  const { calendarDays } = validatePayrollPeriod(startDate, endDate);
+  const effectiveDaysInPeriod = inputEffectiveDays ?? calendarDays;
+
+  const isPreloaded =
+    preloadedSessions !== undefined ||
+    preloadedHolidays !== undefined ||
+    preloadedVacations !== undefined ||
+    preloadedLeaves !== undefined;
+
+  // 1. Zona horaria operativa
+  let timezone = inputTimezone;
+  if (!timezone && branchId && !isPreloaded) {
+    try {
+      const [br] = await dbInstance
+        .select({ timezone: branches.timezone })
+        .from(branches)
+        .where(eq(branches.id, branchId))
+        .limit(1);
+      if (br?.timezone) timezone = br.timezone;
+    } catch {
+      // Fallback a default si la consulta falla
+    }
+  }
+  if (!timezone) {
+    timezone = "America/Mexico_City";
+  }
+
+  // 2. Zona geográfica CONASAMI y salario mínimo aplicable
+  const geographicZone: MinimumWageZone = inputZone ?? "GENERAL";
+  let minimumWageDailyCents = 31504; // 2026 default GENERAL
+  try {
+    const wageRes = resolveSeveranceMinimumWage(endDate, geographicZone);
+    minimumWageDailyCents = wageRes.dailyCents;
+  } catch {
+    minimumWageDailyCents = geographicZone === "ZLFN" ? 44087 : 31504;
+  }
+
+  const localCivilDate = (d: Date | string): string => {
+    try {
+      return diaCivilEnZona(typeof d === "string" ? new Date(d) : d, timezone);
+    } catch {
+      return typeof d === "string" ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10);
+    }
+  };
+
+  // 3. Obtener y clasificar sesiones de turno
+  let rawSessions: Array<{
+    id: string;
+    startedAt: Date | string;
+    status: string | null;
+    requiresApproval?: boolean | null;
+    approvedAt?: Date | string | null;
+    approvedBy?: string | null;
+    branchId?: string | null;
+  }> = [];
+
+  if (preloadedSessions) {
+    rawSessions = preloadedSessions;
+  } else if (!isPreloaded) {
+    const bufferStart = new Date(`${startDate}T00:00:00Z`);
+    bufferStart.setUTCDate(bufferStart.getUTCDate() - 2);
+    const bufferEnd = new Date(`${endDate}T23:59:59Z`);
+    bufferEnd.setUTCDate(bufferEnd.getUTCDate() + 2);
+
+    try {
+      rawSessions = await dbInstance
+        .select({
+          id: shiftSessions.id,
+          startedAt: shiftSessions.startedAt,
+          status: shiftSessions.status,
+          requiresApproval: shiftSessions.requiresApproval,
+          approvedAt: shiftSessions.approvedAt,
+          approvedBy: shiftSessions.approvedBy,
+          branchId: shiftSessions.branchId,
+        })
+        .from(shiftSessions)
+        .where(
+          and(
+            eq(shiftSessions.userId, userId),
+            gte(shiftSessions.startedAt, bufferStart),
+            lte(shiftSessions.startedAt, bufferEnd)
+          )
+        );
+    } catch {
+      rawSessions = [];
+    }
+  }
+
+  const pendingAttendanceDetails: AttendancePeriodResolution["pendingAttendanceDetails"] = [];
+  const approvedDates = new Set<string>();
+  const noShowDates = new Set<string>();
+
+  for (const s of rawSessions) {
+    if (!s.startedAt) continue;
+    const sessionDate = localCivilDate(s.startedAt);
+    if (sessionDate < startDate || sessionDate > endDate) continue;
+
+    const status = (s.status || "PENDING").toUpperCase();
+
+    // Detección estricta de asistencia pendiente o en curso
+    if (status === "PENDING") {
+      pendingAttendanceDetails.push({
+        sessionId: s.id,
+        date: sessionDate,
+        reason: "Sesión de turno en estado PENDING",
+        status: s.status,
+      });
+    } else if (status === "ACTIVE") {
+      pendingAttendanceDetails.push({
+        sessionId: s.id,
+        date: sessionDate,
+        reason: "Sesión activa en curso (sin check-out registrado)",
+        status: s.status,
+      });
+    } else if (s.requiresApproval && !s.approvedAt && status !== "REJECTED" && status !== "CANCELLED") {
+      pendingAttendanceDetails.push({
+        sessionId: s.id,
+        date: sessionDate,
+        reason: "Sesión de turno requiere aprobación de manager y aún no ha sido aprobada",
+        status: s.status,
+      });
+    }
+
+    // Clasificación de asistencia aprobada y faltas
+    if (status === "COMPLETED" && (!s.requiresApproval || s.approvedAt != null)) {
+      approvedDates.add(sessionDate);
+    } else if (status === "NO_SHOW") {
+      noShowDates.add(sessionDate);
+    }
+  }
+
+  const hasPendingAttendance = pendingAttendanceDetails.length > 0;
+
+  // 4. Obtener y evaluar días festivos oficiales obligatorios (LFT Arts. 74 & 75)
+  let rawHolidays: Array<{ date: Date | string; isMandatory?: boolean | null }> = [];
+  if (preloadedHolidays) {
+    rawHolidays = preloadedHolidays;
+  } else if (!isPreloaded) {
+    try {
+      rawHolidays = await dbInstance
+        .select({
+          date: holidays.date,
+          isMandatory: holidays.isMandatory,
+        })
+        .from(holidays)
+        .where(
+          and(
+            eq(holidays.companyId, companyId),
+            gte(holidays.date, startDate),
+            lte(holidays.date, endDate)
+          )
+        );
+    } catch {
+      rawHolidays = [];
+    }
+  }
+
+  const holidayWorkedDates = new Set<string>();
+  const holidayRestedDates = new Set<string>();
+
+  for (const h of rawHolidays) {
+    if (h.isMandatory === false) continue;
+    const hDate = typeof h.date === "string" ? h.date.slice(0, 10) : localCivilDate(h.date);
+    if (hDate < startDate || hDate > endDate) continue;
+
+    if (approvedDates.has(hDate)) {
+      holidayWorkedDates.add(hDate);
+    } else if (!noShowDates.has(hDate)) {
+      holidayRestedDates.add(hDate);
+    }
+  }
+
+  // 5. Evaluar vacaciones y permisos aprobados
+  let rawVacations: Array<{ startDate: Date | string; endDate: Date | string; status?: string | null }> = [];
+  if (preloadedVacations) {
+    rawVacations = preloadedVacations;
+  } else if (!isPreloaded) {
+    try {
+      rawVacations = await dbInstance
+        .select({
+          startDate: vacationRequests.startDate,
+          endDate: vacationRequests.endDate,
+          status: vacationRequests.status,
+        })
+        .from(vacationRequests)
+        .where(
+          and(
+            eq(vacationRequests.userId, userId),
+            eq(vacationRequests.status, "APPROVED")
+          )
+        );
+    } catch {
+      rawVacations = [];
+    }
+  }
+
+  const paidLeaveDates = new Set<string>();
+  for (const v of rawVacations) {
+    if (v.status !== "APPROVED") continue;
+    const vStart = typeof v.startDate === "string" ? v.startDate.slice(0, 10) : localCivilDate(v.startDate);
+    const vEnd = typeof v.endDate === "string" ? v.endDate.slice(0, 10) : localCivilDate(v.endDate);
+
+    const cur = parseISO(vStart > startDate ? vStart : startDate);
+    const limit = parseISO(vEnd < endDate ? vEnd : endDate);
+    if (cur <= limit) {
+      let d = cur;
+      while (d <= limit) {
+        paidLeaveDates.add(format(d, "yyyy-MM-dd"));
+        d = addDays(d, 1);
+      }
+    }
+  }
+
+  let rawLeaves: Array<{ startDate: Date | string; endDate: Date | string; isPaid?: boolean | null; status?: string | null }> = [];
+  if (preloadedLeaves) {
+    rawLeaves = preloadedLeaves;
+  } else if (!isPreloaded) {
+    try {
+      rawLeaves = await dbInstance
+        .select({
+          startDate: leaveRequests.startDate,
+          endDate: leaveRequests.endDate,
+          status: leaveRequests.status,
+          isPaid: leaveTypes.isPaid,
+        })
+        .from(leaveRequests)
+        .leftJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+        .where(
+          and(
+            eq(leaveRequests.userId, userId),
+            eq(leaveRequests.status, "APPROVED")
+          )
+        );
+    } catch {
+      rawLeaves = [];
+    }
+  }
+
+  const unpaidLeaveDates = new Set<string>();
+  for (const l of rawLeaves) {
+    if (l.status !== "APPROVED") continue;
+    const lStart = typeof l.startDate === "string" ? l.startDate.slice(0, 10) : localCivilDate(l.startDate);
+    const lEnd = typeof l.endDate === "string" ? l.endDate.slice(0, 10) : localCivilDate(l.endDate);
+
+    const cur = parseISO(lStart > startDate ? lStart : startDate);
+    const limit = parseISO(lEnd < endDate ? lEnd : endDate);
+    if (cur <= limit) {
+      let d = cur;
+      while (d <= limit) {
+        const formatted = format(d, "yyyy-MM-dd");
+        if (l.isPaid === false) {
+          unpaidLeaveDates.add(formatted);
+        } else {
+          paidLeaveDates.add(formatted);
+        }
+        d = addDays(d, 1);
+      }
+    }
+  }
+
+  // 6. Cálculo de faltas y días pagaderos
+  const unpaidAbsenceDates = new Set([...noShowDates, ...unpaidLeaveDates]);
+  const unpaidAbsenceDays = unpaidAbsenceDates.size;
+  const payableDays = Math.max(0, effectiveDaysInPeriod - unpaidAbsenceDays);
+
+  return {
+    calendarDays,
+    effectiveDaysInPeriod,
+    approvedAttendanceDays: approvedDates.size,
+    holidayDaysWorked: holidayWorkedDates.size,
+    holidayDaysRested: holidayRestedDates.size,
+    paidLeaveDays: paidLeaveDates.size,
+    unpaidAbsenceDays,
+    payableDays,
+    hasPendingAttendance,
+    pendingAttendanceDetails,
+    operationalZone: {
+      timezone,
+      geographicZone,
+      minimumWageDailyCents,
+    },
+  };
+}
+
 export interface PayrollPreStampingValidation {
   canStamp: boolean;
   totalActiveEmployees: number;
@@ -246,7 +621,7 @@ export interface PayrollPreStampingValidation {
     userId: string;
     employeeName: string;
     error: string;
-    code: 'GHOST_EMPLOYEE' | 'MISSING_RFC' | 'MISSING_CURP' | 'NO_CONTRACT' | 'UNSUPPORTED_CURRENCY' | 'INVALID_SALARY' | 'INACTIVE_CONTRACT_PERIOD' | 'PERIOD_ALREADY_COMPLETED' | 'INVALID_PERIOD' | string;
+    code: 'GHOST_EMPLOYEE' | 'MISSING_RFC' | 'MISSING_CURP' | 'NO_CONTRACT' | 'UNSUPPORTED_CURRENCY' | 'INVALID_SALARY' | 'INACTIVE_CONTRACT_PERIOD' | 'PERIOD_ALREADY_COMPLETED' | 'INVALID_PERIOD' | 'PENDING_ATTENDANCE' | string;
     severity: 'BLOCKING' | 'WARNING';
   }>;
   financialSummary: {
@@ -322,8 +697,13 @@ export async function validatePayrollPreStamping(
   companyId: string,
   startDate: string,
   endDate: string,
-  branchId?: string
+  branchId?: string,
+  options?: {
+    dbInstance?: any;
+    geographicZone?: MinimumWageZone;
+  }
 ): Promise<PayrollPreStampingValidation> {
+  const dbInstance = options?.dbInstance ?? db;
   const validationErrors: PayrollPreStampingValidation["validationErrors"] = [];
 
   // 1. Validar fechas del calendario del período
@@ -353,7 +733,7 @@ export async function validatePayrollPreStamping(
   }
 
   // 2. Verificar si el período ya fue completado y está congelado
-  const isFrozen = await isPayrollPeriodFrozen(companyId, startDate, endDate);
+  const isFrozen = await isPayrollPeriodFrozen(companyId, startDate, endDate, dbInstance);
   if (isFrozen) {
     validationErrors.push({
       userId: "PERIOD_CHECK",
@@ -364,13 +744,11 @@ export async function validatePayrollPreStamping(
     });
   }
 
-  const start = new Date(`${startDate}T00:00:00Z`);
-  const end = new Date(`${endDate}T23:59:59Z`);
-
-  const activeStaff = await db
+  const activeStaff = await dbInstance
     .select({
       userId: users.id,
       name: users.name,
+      branchId: users.branchId,
       rfc: employeeProfiles.rfc,
       curp: employeeProfiles.curp,
       nss: employeeProfiles.nss,
@@ -428,6 +806,7 @@ export async function validatePayrollPreStamping(
     }
 
     // Check Contract
+    let contractRes: ContractSalaryResolution | null = null;
     if (!emp.contractId || !emp.baseSalary) {
       validationErrors.push({
         userId: emp.userId,
@@ -462,7 +841,7 @@ export async function validatePayrollPreStamping(
       }
 
       try {
-        const res = resolveContractSalaryForPeriod({
+        contractRes = resolveContractSalaryForPeriod({
           contract: {
             id: emp.contractId,
             userId: emp.userId,
@@ -474,7 +853,6 @@ export async function validatePayrollPreStamping(
           periodStart: startDate,
           periodEnd: endDate,
         });
-        totalGrossSalaryCents += res.baseSalaryCents;
       } catch (err: any) {
         validationErrors.push({
           userId: emp.userId,
@@ -487,31 +865,47 @@ export async function validatePayrollPreStamping(
       }
     }
 
-    // Check Attendance Sessions vs Vacations/Leaves (Detección de Empleados Fantasma)
-    const sessions = await db
-      .select({ id: shiftSessions.id })
-      .from(shiftSessions)
-      .where(
-        and(
-          eq(shiftSessions.userId, emp.userId),
-          gte(shiftSessions.startedAt, start),
-          lte(shiftSessions.startedAt, end)
-        )
-      );
+    // Check Attendance, Absences, Holidays and Operational Zone
+    const attendance = await resolveAttendanceForPeriod({
+      userId: emp.userId,
+      companyId,
+      startDate,
+      endDate,
+      branchId: branchId ?? emp.branchId,
+      geographicZone: options?.geographicZone,
+      dbInstance,
+    });
 
-    const vacations = await db
-      .select({ id: vacationRequests.id })
-      .from(vacationRequests)
-      .where(
-        and(
-          eq(vacationRequests.userId, emp.userId),
-          eq(vacationRequests.status, "APPROVED"),
-          gte(vacationRequests.startDate, start),
-          lte(vacationRequests.startDate, end)
-        )
-      );
+    // Validar salario contra salario mínimo de la zona geográfica
+    if (emp.baseSalary && emp.baseSalary > 0 && emp.baseSalary < attendance.operationalZone.minimumWageDailyCents) {
+      validationErrors.push({
+        userId: emp.userId,
+        employeeName: emp.name || "Sin Nombre",
+        error: `El salario base registrado (${emp.baseSalary}¢) es inferior al salario mínimo CONASAMI para la zona ${attendance.operationalZone.geographicZone} (${attendance.operationalZone.minimumWageDailyCents}¢).`,
+        code: "INVALID_SALARY",
+        severity: "BLOCKING",
+      });
+      hasBlockingError = true;
+    }
 
-    if (sessions.length === 0 && vacations.length === 0) {
+    // Rechazo estricto de asistencia pendiente
+    if (attendance.hasPendingAttendance) {
+      validationErrors.push({
+        userId: emp.userId,
+        employeeName: emp.name || "Sin Nombre",
+        error: `Asistencia pendiente: el empleado tiene ${attendance.pendingAttendanceDetails.length} sesión(es) en estado PENDING, ACTIVE o pendiente de aprobación por el manager.`,
+        code: "PENDING_ATTENDANCE",
+        severity: "BLOCKING",
+      });
+      hasBlockingError = true;
+    }
+
+    // Detección de Empleados Fantasma (sin asistencia aprobada, sin permisos/vacaciones aprobados y sin sesiones pendientes)
+    if (
+      attendance.approvedAttendanceDays === 0 &&
+      attendance.paidLeaveDays === 0 &&
+      !attendance.hasPendingAttendance
+    ) {
       validationErrors.push({
         userId: emp.userId,
         employeeName: emp.name || "Sin Nombre",
@@ -520,6 +914,12 @@ export async function validatePayrollPreStamping(
         severity: "BLOCKING",
       });
       hasBlockingError = true;
+    }
+
+    if (contractRes) {
+      const unpaidDeduction = attendance.unpaidAbsenceDays * contractRes.dailySalaryCents;
+      const employeeGross = Math.max(0, contractRes.baseSalaryCents - unpaidDeduction);
+      totalGrossSalaryCents += employeeGross;
     }
 
     if (!hasBlockingError) {
@@ -548,21 +948,39 @@ export async function validatePayrollPreStamping(
   };
 }
 
-export async function calculateEmployeePayroll(userId: string, startDate: string, endDate: string) {
+export async function calculateEmployeePayroll(
+  userId: string,
+  startDate: string,
+  endDate: string,
+  options?: {
+    dbInstance?: any;
+    branchId?: string;
+    geographicZone?: MinimumWageZone;
+    attendanceInput?: Partial<ResolveAttendanceInput>;
+  }
+) {
+  const dbInstance = options?.dbInstance ?? db;
+
   // 0. Validar período y usuario
   const { calendarDays } = validatePayrollPeriod(startDate, endDate);
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { id: true, companyId: true, name: true }
-  });
+  const [user] = await dbInstance
+    .select({
+      id: users.id,
+      companyId: users.companyId,
+      name: users.name,
+      branchId: users.branchId,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
 
   if (!user || !user.companyId) {
     throw new Error(`Empleado ${userId} no encontrado o sin empresa asignada.`);
   }
 
   // 1. Calculate tips
-  const propinasSum = await db
+  const propinasSum = await dbInstance
     .select({
       totalTips: sum(propinaAsignaciones.assignedAmountCents)
     })
@@ -579,7 +997,7 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
   const tipsCents = Number(propinasSum[0]?.totalTips || 0);
 
   // 2. Base salary & Contract Resolution
-  const contracts = await db
+  const contracts = await dbInstance
     .select()
     .from(employeeContracts)
     .where(
@@ -598,7 +1016,7 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
   const contract = contracts[0];
 
   // Historial salarial hasta el fin del período (cambios posteriores no alteran este período)
-  const history = await db
+  const history = await dbInstance
     .select({
       id: salaryHistory.id,
       contractId: salaryHistory.contractId,
@@ -622,67 +1040,37 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
     periodEnd: endDate,
   });
 
-  const baseSalaryCents = contractResolution.baseSalaryCents;
   const salarioDiarioCents = contractResolution.dailySalaryCents;
 
-  // 3. Holiday extra pay (LFT Art. 75): Salario doble ADICIONAL por laborar en día de descanso obligatorio
-  let holidayPayCents = 0;
-  let holidayDaysWorked = 0;
+  // 3. Resolve Attendance, Absences, Holidays and Operational Zone
+  const attendance = await resolveAttendanceForPeriod({
+    userId,
+    companyId: user.companyId,
+    startDate,
+    endDate,
+    effectiveDaysInPeriod: contractResolution.effectiveDaysInPeriod,
+    branchId: options?.branchId ?? user.branchId,
+    geographicZone: options?.geographicZone,
+    dbInstance,
+    ...options?.attendanceInput,
+  });
 
-  if (contractResolution.baseSalaryCents > 0) {
-    const holidayList = await db
-      .select({
-        date: holidays.date,
-        isMandatory: holidays.isMandatory
-      })
-      .from(holidays)
-      .where(
-        and(
-          eq(holidays.companyId, user.companyId),
-          gte(holidays.date, startDate),
-          lte(holidays.date, endDate)
-        )
-      );
-
-    const holidaySet = new Set(
-      holidayList
-        .filter((h) => h.isMandatory !== false)
-        .map((h) => (typeof h.date === "string" ? h.date.slice(0, 10) : new Date(h.date).toISOString().slice(0, 10)))
+  // Strict rejection of pending attendance
+  if (attendance.hasPendingAttendance) {
+    const first = attendance.pendingAttendanceDetails[0];
+    throw new RangeError(
+      `Asistencia pendiente en el período ${startDate} - ${endDate}: ` +
+      `el empleado ${user.name || userId} tiene ${attendance.pendingAttendanceDetails.length} sesión(es) en estado PENDING, ACTIVE o sin aprobación del manager (ej. sesión ${first.sessionId} el ${first.date}: ${first.reason}).`
     );
-
-    if (holidaySet.size > 0) {
-      const periodStart = new Date(`${startDate}T00:00:00`);
-      const periodEnd = new Date(`${endDate}T23:59:59`);
-
-      const sessions = await db
-        .select({
-          startedAt: shiftSessions.startedAt,
-        })
-        .from(shiftSessions)
-        .where(
-          and(
-            eq(shiftSessions.userId, userId),
-            eq(shiftSessions.status, "COMPLETED"),
-            gte(shiftSessions.startedAt, periodStart),
-            lte(shiftSessions.startedAt, periodEnd)
-          )
-        );
-
-      const workedDays = new Set<string>();
-      for (const s of sessions) {
-        if (s.startedAt) {
-          const day = new Date(s.startedAt).toISOString().slice(0, 10);
-          if (holidaySet.has(day)) {
-            workedDays.add(day);
-          }
-        }
-      }
-
-      holidayDaysWorked = workedDays.size;
-      // Salario doble adicional por cada festivo trabajado (Art. 75 LFT)
-      holidayPayCents = holidayDaysWorked * salarioDiarioCents * 2;
-    }
   }
+
+  // Deduct unpaid absences from base salary
+  const unpaidDeductionCents = attendance.unpaidAbsenceDays * salarioDiarioCents;
+  const baseSalaryCents = Math.max(0, contractResolution.baseSalaryCents - unpaidDeductionCents);
+
+  // Worked holiday extra pay (LFT Art. 75): Salario doble ADICIONAL por laborar en día de descanso obligatorio
+  const holidayPayCents = attendance.holidayDaysWorked * salarioDiarioCents * 2;
+  const holidayDaysWorked = attendance.holidayDaysWorked;
 
   const totalPercepcionesCents = baseSalaryCents + tipsCents + holidayPayCents;
 
@@ -713,6 +1101,18 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
       calendarDays,
       isProrated: contractResolution.isProrated,
       salaryChangesApplied: contractResolution.salaryChangesApplied,
+    },
+    attendanceBreakdown: {
+      calendarDays: attendance.calendarDays,
+      effectiveDaysInPeriod: attendance.effectiveDaysInPeriod,
+      approvedAttendanceDays: attendance.approvedAttendanceDays,
+      holidayDaysWorked: attendance.holidayDaysWorked,
+      holidayDaysRested: attendance.holidayDaysRested,
+      paidLeaveDays: attendance.paidLeaveDays,
+      unpaidAbsenceDays: attendance.unpaidAbsenceDays,
+      payableDays: attendance.payableDays,
+      hasPendingAttendance: attendance.hasPendingAttendance,
+      operationalZone: attendance.operationalZone,
     },
   };
 }
@@ -776,17 +1176,22 @@ export async function executePayrollRun(
   startDate: string,
   endDate: string,
   /** Quién corrió la nómina. Viaja al timbrado, que ahora deja constancia. */
-  performedBy?: string
+  performedBy?: string,
+  options?: {
+    dbInstance?: any;
+    geographicZone?: MinimumWageZone;
+  }
 ) {
   validatePayrollPeriod(startDate, endDate);
-  const isFrozen = await isPayrollPeriodFrozen(companyId, startDate, endDate);
+  const dbInstance = options?.dbInstance ?? db;
+  const isFrozen = await isPayrollPeriodFrozen(companyId, startDate, endDate, dbInstance);
   if (isFrozen) {
     throw new Error(`El período de nómina ${startDate} - ${endDate} ya fue completado y se encuentra congelado.`);
   }
 
   const scope = { companyId, actorId: performedBy };
   // 0. Pre-Flight Validation Check (Módulo 7.1 & 7.2)
-  const validation = await validatePayrollPreStamping(companyId, startDate, endDate);
+  const validation = await validatePayrollPreStamping(companyId, startDate, endDate, undefined, options);
   if (!validation.canStamp) {
     const errorDetails = validation.validationErrors
       .filter((e) => e.severity === "BLOCKING")
@@ -797,16 +1202,20 @@ export async function executePayrollRun(
     );
   }
 
+  const runExecutor = options?.dbInstance
+    ? async <T>(fn: (tx: any) => Promise<T>): Promise<T> => fn(options.dbInstance)
+    : <T>(fn: (tx: any) => Promise<T>): Promise<T> => withCompanyContext(scope, fn) as Promise<T>;
+
   // 1. Create a payroll run
-  const [run] = await withCompanyContext(scope, (tx) => tx.insert(payrollRuns).values({
+  const [run] = (await runExecutor((tx) => tx.insert(payrollRuns).values({
     companyId,
     periodStart: startDate,
     periodEnd: endDate,
     status: 'PROCESSING'
-  }).returning());
+  }).returning())) as any[];
 
   // 2. Get all active employees in company
-  const activeStaff = await db
+  const activeStaff = await dbInstance
     .select({
       userId: users.id,
       name: users.name,
@@ -831,7 +1240,7 @@ export async function executePayrollRun(
          throw new Error(`Empleado ${emp.name} no tiene RFC configurado.`);
       }
 
-      const payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate);
+      const payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate, options);
       const desglose = construirDesgloseNomina(payrollCalc);
       
       // Timbrar nómina
@@ -851,7 +1260,7 @@ export async function executePayrollRun(
       });
 
       // Save payslip
-      const [payslip] = await withCompanyContext(scope, (tx) => tx.insert(payrollPayslips).values({
+      const [payslip] = (await runExecutor((tx) => tx.insert(payrollPayslips).values({
         runId: run.id,
         userId: emp.userId,
         baseSalaryCents: payrollCalc.baseSalaryCents,
@@ -863,7 +1272,7 @@ export async function executePayrollRun(
         cfdiUuid: timbrado.uuid,
         cfdiStatus: timbrado.status,
         selloDigital: timbrado.selloDigital,
-      }).returning());
+      }).returning())) as any[];
       
       results.push({ success: true, userId: emp.userId, payslip });
     } catch (err: any) {
@@ -872,11 +1281,11 @@ export async function executePayrollRun(
       // Guardar payslip con error
       let payrollCalc: any = null;
       try {
-        payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate);
+        payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate, options);
       } catch {
         payrollCalc = null;
       }
-      await withCompanyContext(scope, (tx) => tx.insert(payrollPayslips).values({
+      await runExecutor((tx) => tx.insert(payrollPayslips).values({
         runId: run.id,
         userId: emp.userId,
         baseSalaryCents: payrollCalc?.baseSalaryCents ?? 0,
@@ -892,7 +1301,7 @@ export async function executePayrollRun(
 
   // Update run status
   const hasErrors = results.some(r => !r.success);
-  await withCompanyContext(scope, async (tx) => {
+  await runExecutor(async (tx) => {
     await tx.update(payrollRuns).set({
       status: hasErrors ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED'
     }).where(and(eq(payrollRuns.id, run.id), eq(payrollRuns.companyId, companyId)));

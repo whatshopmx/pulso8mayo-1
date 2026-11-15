@@ -1619,6 +1619,22 @@
         "INV-01.c.recovery.historical",
         "INV-01.c.recovery.provenance"
       ]
+    },
+    {
+      "id": "INV-01.c.recovery.decision.service",
+      "title": "Decisión administrativa independiente ligada a propuesta y estado verificado",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.proposal.service"
+      ]
     }
   ],
   "rows": [
@@ -4786,47 +4802,137 @@
       ]
     },
     "NOM-01": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
           "file": "tasks/evidencia/2026-11-11/NOM-01/README.md",
-          "head": "35c5dcf3d05a4b991d60e7d8c1f10f22b433e12c",
-          "environment": "Windows local (V1 Vitest; V2 Postgres aislado pendiente)",
+          "head": "eba576d2c8910b26a13a2249504b9b60696f026a",
+          "environment": "Windows local + Neon Postgres aislado br-round-voice-belheola (rol pulso_app NOBYPASSRLS)",
           "commands": [
             {
               "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/payroll-nom01-contract.test.ts lib/services/__tests__/payroll-validation.test.ts lib/services/__tests__/payroll-holiday.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd exec eslint lib/services/payroll-service.ts lib/services/compliance/payroll-calculator.ts lib/services/__tests__/payroll-nom01-contract.test.ts",
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts --pool=threads --maxWorkers=1",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "NOM-02.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/NOM-01/README.md",
+          "head": "eba576d2c8910b26a13a2249504b9b60696f026a",
+          "environment": "Windows local + Neon Postgres aislado br-round-voice-belheola (rol pulso_app NOBYPASSRLS)",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/payroll-nom01-contract.test.ts lib/services/__tests__/payroll-holiday.test.ts lib/services/__tests__/payroll-validation.test.ts --pool=threads --maxWorkers=1",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts --pool=threads --maxWorkers=1",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
           ]
         }
       ]
     },
     "AUD-02": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
           "file": "tasks/evidencia/2026-11-11/AUD-02/README.md",
-          "head": "35c5dcf3d05a4b991d60e7d8c1f10f22b433e12c",
-          "environment": "Windows local con PGlite en memoria (V2 Neon Postgres aislado pulso_app pendiente)",
+          "head": "eba576d2c8910b26a13a2249504b9b60696f026a",
+          "environment": "Windows local (PGlite) + Neon Postgres aislado br-round-voice-belheola (rol pulso_app NOBYPASSRLS)",
           "commands": [
             {
               "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/audit/audit-02.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd exec eslint lib/services/audit-service.ts lib/security/audit.ts app/api/inventory/waste/[id]/approval/route.ts tests/unit/audit/audit-02.test.ts",
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/audit-02-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "EVI-02.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/EVI-02.a/README.md",
+          "head": "eba576d2c8910b26a13a2249504b9b60696f026a",
+          "environment": "Windows local + Neon Postgres aislado br-round-voice-belheola (rol pulso_app NOBYPASSRLS)",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/evidence/evidence-subject-access.test.ts tests/unit/audit/audit-02.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/evidence-subjects-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.decision.service": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.decision.service/README.md",
+          "head": "eba576d2c8910b26a13a2249504b9b60696f026a",
+          "environment": "Windows local + Neon Postgres aislado br-round-voice-belheola (rol pulso_app NOBYPASSRLS); dependencia INV-01.b pendiente",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-decision.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-decision-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
           ]
         }
       ]

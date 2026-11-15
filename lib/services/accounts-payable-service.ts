@@ -14,6 +14,7 @@
 import { db } from "@/lib/db";
 import { invoices, operatingExpenses, suppliers, branches, payees, supplierBankAccounts, payeeBankAccounts, recurringPayables } from "@/lib/db/schema";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { expenseOutstandingCents, invoiceOutstandingCents } from "./payable-balances";
 import {
   AGING_BUCKET_ORDER,
   PAYABLES_ITEMS_LIMIT,
@@ -66,6 +67,9 @@ export async function getAccountsPayable(
     eq(invoices.companyId, filter.companyId),
     // CANCELLED no se debe; PAID ya salió.
     eq(invoices.paymentStatus, "PENDING"),
+    // Las facturas de servicios asociadas respaldan el gasto autorizado.
+    // El gasto es su única fuente de pago y de contabilización.
+    sql`not exists (select 1 from ${operatingExpenses} e where e.company_id = ${invoices.companyId} and e.invoice_id = ${invoices.id})`,
   ];
   if (filter.branchId) invoiceConditions.push(eq(invoices.branchId, filter.branchId));
   if (filter.supplierId) invoiceConditions.push(eq(invoices.supplierId, filter.supplierId));
@@ -108,7 +112,7 @@ export async function getAccountsPayable(
         id: invoices.id,
         folio: invoices.folio,
         serie: invoices.serie,
-        total: invoices.total,
+        total: invoiceOutstandingCents(),
         dueDate: invoices.dueDate,
         supplierId: invoices.supplierId,
         supplierName: suppliers.name,
@@ -138,7 +142,7 @@ export async function getAccountsPayable(
             id: operatingExpenses.id,
             description: operatingExpenses.description,
             category: operatingExpenses.category,
-            amount: operatingExpenses.amount,
+            amount: expenseOutstandingCents(),
             dueDate: operatingExpenses.dueDate,
             branchId: operatingExpenses.branchId,
             branchName: branches.name,
@@ -232,6 +236,7 @@ export async function getAccountsPayable(
   let missingDueDateCount = 0;
 
   for (const row of invoiceRows) {
+    if (row.total <= 0) continue;
     const due = row.dueDate ?? null;
     if (due === null) missingDueDateCount++;
     const days = due ? daysUntil(due, todayMs) : null;
@@ -290,6 +295,7 @@ export async function getAccountsPayable(
   }
 
   for (const row of expenseRows) {
+    if (row.amount <= 0) continue;
     const due = row.dueDate ?? null;
     const days = due ? daysUntil(due, todayMs) : null;
 
@@ -409,7 +415,7 @@ export async function getAccountsPayable(
     // La llave de agrupación separa los tres orígenes de identidad para que
     // nunca colisionen entre sí: un proveedor (factura), un payee (gasto con
     // contraparte) y una categoría (gasto casual) viven en espacios distintos.
-    const key = item.supplierId ?? (item.payeeId ? `payee:${item.payeeId}` : `label:${item.counterparty}`);
+    const key = item.payeeId ? `payee:${item.payeeId}` : item.supplierId ? `supplier:${item.supplierId}` : `label:${item.counterparty}`;
     const existing = counterpartyMap.get(key);
     if (existing) {
       existing.totalCents += item.amountCents;
@@ -434,6 +440,9 @@ export async function getAccountsPayable(
     items: items.slice(0, itemsLimit),
     itemsTotal: items.length,
     totalCents,
+    confirmedCents: items.filter(i => i.source !== "RECURRING_ESTIMATE").reduce((sum, i) => sum + i.amountCents, 0),
+    confirmedOverdueCents: items.filter(i => i.source !== "RECURRING_ESTIMATE" && i.bucket === "OVERDUE").reduce((sum, i) => sum + i.amountCents, 0),
+    estimatedCents: items.filter(i => i.source === "RECURRING_ESTIMATE").reduce((sum, i) => sum + i.amountCents, 0),
     overdueCents,
     overdueCount,
     dueThisWeekCents,

@@ -5,10 +5,12 @@ import {
   employeeContracts, 
   shiftSessions, 
   vacationRequests, 
-  leaveRequests 
+  leaveRequests,
+  branches
 } from '@/lib/db/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { validatePayrollPeriod, resolveContractSalaryForPeriod } from '@/lib/services/payroll-service';
+import { diaCivilEnZona } from '@/lib/services/aguinaldo-days-adapter';
 
 export interface PayrollEmployeeRecord {
   employeeNumber: string;
@@ -55,6 +57,7 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
       userId: users.id,
       name: users.name,
       email: users.email,
+      branchId: users.branchId,
       employeeNumber: employeeProfiles.employeeNumber,
       department: employeeProfiles.department,
       position: employeeProfiles.position,
@@ -87,26 +90,55 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
   const records: PayrollEmployeeRecord[] = [];
 
   for (const emp of employeesData) {
-    // 2. Get shift sessions for this period
-    const sessions = await db
+    // 2. Get shift sessions for this period resolved in branch operational timezone
+    let timezone = 'America/Mexico_City';
+    const targetBranchId = branchId ?? emp.branchId;
+    if (targetBranchId) {
+      try {
+        const [br] = await db
+          .select({ timezone: branches.timezone })
+          .from(branches)
+          .where(eq(branches.id, targetBranchId))
+          .limit(1);
+        if (br?.timezone) timezone = br.timezone;
+      } catch {
+        // Fallback
+      }
+    }
+
+    const bufferStart = new Date(`${startDate}T00:00:00Z`);
+    bufferStart.setUTCDate(bufferStart.getUTCDate() - 2);
+    const bufferEnd = new Date(`${endDate}T23:59:59Z`);
+    bufferEnd.setUTCDate(bufferEnd.getUTCDate() + 2);
+
+    const rawSessions = await db
       .select({
         totalWorkMinutes: shiftSessions.totalWorkMinutes,
         overtimeMinutes: shiftSessions.overtimeMinutes,
         lateMinutes: shiftSessions.lateMinutes,
         status: shiftSessions.status,
+        startedAt: shiftSessions.startedAt,
+        requiresApproval: shiftSessions.requiresApproval,
+        approvedAt: shiftSessions.approvedAt,
       })
       .from(shiftSessions)
       .where(and(
         eq(shiftSessions.userId, emp.userId),
-        gte(shiftSessions.startedAt, start),
-        lte(shiftSessions.startedAt, end),
-        eq(shiftSessions.status, 'COMPLETED')
+        gte(shiftSessions.startedAt, bufferStart),
+        lte(shiftSessions.startedAt, bufferEnd)
       ));
 
-    const totalWorkMinutes = sessions.reduce((sum, s) => sum + (s.totalWorkMinutes || 0), 0);
-    const totalOvertimeMinutes = sessions.reduce((sum, s) => sum + (s.overtimeMinutes || 0), 0);
-    const totalLateMinutes = sessions.reduce((sum, s) => sum + (s.lateMinutes || 0), 0);
-    const daysWorked = sessions.length;
+    const approvedSessions = rawSessions.filter(s => {
+      if (!s.startedAt) return false;
+      const date = diaCivilEnZona(new Date(s.startedAt), timezone);
+      if (date < startDate || date > endDate) return false;
+      return s.status === 'COMPLETED' && (!s.requiresApproval || s.approvedAt != null);
+    });
+
+    const totalWorkMinutes = approvedSessions.reduce((sum, s) => sum + (s.totalWorkMinutes || 0), 0);
+    const totalOvertimeMinutes = approvedSessions.reduce((sum, s) => sum + (s.overtimeMinutes || 0), 0);
+    const totalLateMinutes = approvedSessions.reduce((sum, s) => sum + (s.lateMinutes || 0), 0);
+    const daysWorked = approvedSessions.length;
 
     // 3. Get vacation requests for this period
     const vacations = await db

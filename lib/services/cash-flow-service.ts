@@ -14,6 +14,7 @@ import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers,
 import { eq, and, gte, lte, sql, inArray, asc, isNull } from "drizzle-orm";
 import { addCalendarDays, localDateString } from "@/lib/workflows/today";
 import { projectRecurringContracts } from "@/lib/services/recurring-contract-projection";
+import { expenseOutstandingCents, invoiceOutstandingCents } from "./payable-balances";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -643,7 +644,7 @@ export async function getCashFlowProjection(
     .select({
       id: operatingExpenses.id,
       dueDate: operatingExpenses.dueDate,
-      amountCents: operatingExpenses.amount,
+      amountCents: expenseOutstandingCents(),
       description: operatingExpenses.description,
       category: operatingExpenses.category,
       status: operatingExpenses.status,
@@ -668,7 +669,7 @@ export async function getCashFlowProjection(
     .select({
       id: operatingExpenses.id,
       dueDate: operatingExpenses.dueDate,
-      amountCents: operatingExpenses.amount,
+      amountCents: expenseOutstandingCents(),
       description: operatingExpenses.description,
       category: operatingExpenses.category,
       status: operatingExpenses.status,
@@ -738,7 +739,7 @@ export async function getCashFlowProjection(
     .select({
       id: invoices.id,
       folio: invoices.folio,
-      total: invoices.total,
+      total: invoiceOutstandingCents(),
       fecha: invoices.fecha,
       dueDate: invoices.dueDate,
       branchId: invoices.branchId,
@@ -751,6 +752,7 @@ export async function getCashFlowProjection(
       and(
         eq(invoices.companyId, companyId),
         eq(invoices.paymentStatus, "PENDING"),
+        sql`not exists (select 1 from ${operatingExpenses} e where e.company_id = ${invoices.companyId} and e.invoice_id = ${invoices.id})`,
         ...(branchId
           ? [
               sql`(${invoices.branchId} = ${branchId} OR ${invoices.branchId} IS NULL)`,

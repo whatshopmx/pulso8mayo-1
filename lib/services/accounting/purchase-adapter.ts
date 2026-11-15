@@ -5,7 +5,7 @@ import { resolveBranchScope } from "@/lib/branch-scope";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { accountingAccounts, accountingEvents, accountingJournalLines, accountingJournals, accountingPurchaseFacts,
   accountingSourceLinks, branches, companyBankAccounts, creditNotes, financialPeriods, inventoryBatches,
-  inventoryItems, inventoryMovements, invoices, paymentRunItems, paymentRuns, receivingReportItems, receivingReports, suppliers, users } from "@/lib/db/schema";
+  inventoryItems, inventoryMovements, invoices, operatingExpenses, paymentRunItems, paymentRuns, receivingReportItems, receivingReports, suppliers, users } from "@/lib/db/schema";
 import { hasPermission } from "@/lib/permissions";
 import { assertCents, sumCents } from "./amounts";
 import { finishAccountingEventIn, recordAccountingEventIn } from "./event-store";
@@ -38,7 +38,8 @@ const invoiceColumns = { id: invoices.id, companyId: invoices.companyId, branchI
   supplierId: invoices.supplierId, receivingReportId: invoices.receivingReportId, subtotal: invoices.subtotal,
   taxAmount: invoices.taxAmount, total: invoices.total, currency: invoices.currency, matchStatus: invoices.matchStatus,
   paymentStatus: invoices.paymentStatus, satStatus: invoices.satStatus, exceptionApprovedBy: invoices.exceptionApprovedBy,
-  exceptionApprovedAt: invoices.exceptionApprovedAt, exceptionReason: invoices.exceptionReason };
+  exceptionApprovedAt: invoices.exceptionApprovedAt, exceptionReason: invoices.exceptionReason,
+  serviceExpenseBacked: sql<boolean>`exists (select 1 from ${operatingExpenses} e where e.company_id = ${invoices.companyId} and e.invoice_id = ${invoices.id})` };
 
 export async function purchaseLock(tx: Tx, companyId: string) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId}, 614))`);
@@ -328,6 +329,7 @@ async function postedApplications(tx: Tx, companyId: string, invoiceId: string) 
 }
 
 function invoiceBlocker(invoice: Awaited<ReturnType<typeof invoiceOf>>) {
+  if (invoice.serviceExpenseBacked) return "Esta factura respalda un gasto operativo; se contabiliza y paga mediante ese gasto para evitar duplicados.";
   if (invoice.currency !== "MXN" || invoice.paymentStatus === "CANCELLED" || invoice.satStatus === "CANCELADO") {
     return "La factura está cancelada o no es una compra vigente en MXN.";
   }

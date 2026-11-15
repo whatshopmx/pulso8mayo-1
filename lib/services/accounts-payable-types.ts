@@ -102,6 +102,10 @@ export interface AccountsPayableResult {
   totalCents: number;
   overdueCents: number;
   overdueCount: number;
+  /** Deuda documentada; excluye estimados recurrentes. */
+  confirmedCents: number;
+  confirmedOverdueCents: number;
+  estimatedCents: number;
   /** Lo que vence dentro de los próximos 7 días, sin contar lo ya vencido. */
   dueThisWeekCents: number;
   buckets: BucketTotal[];

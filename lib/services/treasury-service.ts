@@ -67,6 +67,7 @@ import { payrollNetCents } from "./accounting/payroll-contract";
 import { sumCents } from "./accounting/amounts";
 import { loadPayrollPaymentSnapshot } from "@/lib/treasury/payroll-payment-source";
 import { samePayrollSnapshot, type PayrollPaymentSnapshot } from "@/lib/treasury/payroll-snapshot";
+import { serviceInvoiceBlocker, mirrorExpenseInvoicePaid } from "./expense-invoice-evidence";
 
 function payrollNetTotal(receipts: Parameters<typeof payrollNetCents>[0][]) {
   try { return sumCents(receipts.map(payrollNetCents)); }
@@ -349,6 +350,7 @@ async function saldarDocumentosDePartidas(
       .update(operatingExpenses)
       .set({ status: "PAID", paidAt: new Date(), paidBy: userId })
       .where(inArray(operatingExpenses.id, gastos.map((p) => p.referenceId)));
+    await mirrorExpenseInvoicePaid(tx, companyId, userId, gastos.map(p => p.referenceId));
     return;
   }
 
@@ -543,7 +545,10 @@ export class TreasuryService {
       orderBy: (inv, { asc }) => [asc(inv.fecha)],
     });
     const programadas = await referenciasProgramadas(companyId, "INVOICE");
-    return candidatas.filter((factura) => !programadas.has(factura.id));
+    const linked = await db.select({ invoiceId: operatingExpenses.invoiceId }).from(operatingExpenses)
+      .where(eq(operatingExpenses.companyId, companyId));
+    const linkedIds = new Set(linked.map(e => e.invoiceId));
+    return candidatas.filter((factura) => !programadas.has(factura.id) && !linkedIds.has(factura.id));
   }
 
   /**
@@ -682,6 +687,10 @@ export class TreasuryService {
         // Mismo 404 para "no existe" y "es de otra empresa": distinguirlos
         // filtra la existencia de documentos ajenos.
         if (!invoice) throw ApiError.notFound("Factura no encontrada");
+
+        const [linkedExpense] = await executor.select({ id: operatingExpenses.id }).from(operatingExpenses)
+          .where(and(eq(operatingExpenses.companyId, companyId), eq(operatingExpenses.invoiceId, invoice.id))).limit(1);
+        if (linkedExpense) throw ApiError.badRequest("Esta factura respalda un gasto operativo. Programa el gasto aprobado para evitar un pago duplicado.");
 
         if (invoice.matchStatus === "DISCREPANCY") {
           throw ApiError.badRequest(
@@ -833,6 +842,9 @@ export class TreasuryService {
         });
 
         if (!expense) throw ApiError.notFound("Gasto operativo no encontrado");
+        const invoiceBlocker = await serviceInvoiceBlocker(executor, companyId, expense);
+        if (invoiceBlocker) throw ApiError.badRequest(invoiceBlocker);
+
 
         if (expense.status === "PAID") {
           throw ApiError.badRequest("Este gasto ya está marcado como pagado.");

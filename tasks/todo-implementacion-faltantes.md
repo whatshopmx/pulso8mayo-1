@@ -56,6 +56,7 @@ Continuación 2026-11-11: [mapa ejecutable de 239 filas](mapa-implementacion-fal
 - [ ] **INV-01.c.recovery.provenance** [I/M] Vincular expediente con atestación exacta y precisión nativa — código implementado; 65 unitarias de regresión + 21 finales con solapamiento, 15 SQL, tipos/lint correctos; build en curso y aceptación pendiente. [Evidencia](evidencia/2026-11-11/INV-01.c.recovery.provenance/README.md).
 - [ ] **INV-01.c.recovery.sources** [I/M] Leer fuentes SALE/NO_PRIOR_CONSUMPTION desde documentos atestiguados — código implementado; 9 unitarias nuevas, 10 SQL con regresión, tipos/lint y trazabilidad correctos; build exit 0; suite global con timeout del seed (reintento aislado exit 1). Expediente/aprobación/aplicación pendientes. [Evidencia](evidencia/2026-11-11/INV-01.c.recovery.sources/README.md).
 - [ ] **INV-01.c.recovery.proposal.service** [I/M] Preparar y registrar expediente desde las tres fuentes del servidor — código implementado; 47 unitarias focales, 8 SQL propias finales + 17 regresiones, tipos/lint correctos y build exit 0. Suite global exit 1; decisión independiente y aplicación pendientes. [Evidencia](evidencia/2026-11-11/INV-01.c.recovery.proposal.service/README.md).
+- [ ] **INV-01.c.recovery.decision.service** [I/M] Decisión administrativa independiente ligada a propuesta y estado verificado — código implementado (A2); V1 (14/14 + 17 regresión) y V2 en Neon aislado `pulso_app` (5/5), tipos/lint exit 0; dependencia `INV-01.b` y aplicación auditada (`A3`) pendientes. [Evidencia](evidencia/2026-11-11/INV-01.c.recovery.decision.service/README.md).
 - [ ] **Checkpoint 1.1** — revisar los últimos 2–3 hijos ejecutados: pruebas del recorrido, tipos/lint, evidencia y regresión aplicable.
 - [ ] **INV-01.d** [A/M] Aceptar corrección y anulación por API/UI
 - [ ] **INV-02** [I/M] Definir quién consume cada receta
@@ -63,8 +64,8 @@ Continuación 2026-11-11: [mapa ejecutable de 239 filas](mapa-implementacion-fal
 
 ## 2. Nómina calculada y explicable
 
-- [ ] **NOM-01** [I/M] Fijar unidad salarial y vigencias
-- [ ] **NOM-02.a** [I/M] Calcular base desde asistencia aprobada
+- [x] **NOM-01** [I/M] Fijar unidad salarial y vigencias — aceptado V1/V2 (`B1+B2`, `eba576d`); [evidencia](evidencia/2026-11-11/NOM-01/README.md).
+- [x] **NOM-02.a** [I/M] Calcular base desde asistencia aprobada — aceptado V1/V2 (`B2`, `eba576d`); [evidencia](evidencia/2026-11-11/NOM-01/README.md).
 - [ ] **NOM-02.b** [I/M] Incorporar horas extra aprobadas
 - [ ] **Checkpoint 2.1** — revisar los últimos 2–3 hijos ejecutados: pruebas del recorrido, tipos/lint, evidencia y regresión aplicable.
 - [ ] **NOM-02.c1** [I/M] Incorporar vacaciones y permisos
@@ -101,8 +102,8 @@ Continuación 2026-11-11: [mapa ejecutable de 239 filas](mapa-implementacion-fal
 
 ## 4. Evidencia, excepciones y aprobaciones
 
-- [ ] **AUD-02** [I/M] Hacer obligatoria la auditoría crítica
-- [ ] **EVI-02.a** [I/M] Añadir sujetos de evidencia
+- [x] **AUD-02** [I/M] Hacer obligatoria la auditoría crítica — aceptado V1/V2 (`C1+C2`, `eba576d`); [evidencia](evidencia/2026-11-11/AUD-02/README.md) y [cierre V2](evidencia/2026-11-11/EVI-02.a/README.md).
+- [x] **EVI-02.a** [I/M] Añadir sujetos de evidencia — aceptado V1/V2 (`C2`, `eba576d`); [evidencia](evidencia/2026-11-11/EVI-02.a/README.md).
 - [ ] **EVI-02.b** [I/M] Conectar evidencia al recorrido visible
 - [ ] **Checkpoint 4.1** — revisar los últimos 2–3 hijos ejecutados: pruebas del recorrido, tipos/lint, evidencia y regresión aplicable.
 - [ ] **EXC-01** [A/M] Aceptar persistencia canónica de excepciones
@@ -217,8 +218,11 @@ Continuación 2026-11-11: [mapa ejecutable de 239 filas](mapa-implementacion-fal
 | INV-01.c.races | V2 comprobada; aceptación dependiente pendiente | fddc05d inicial → a816208 concurrente + test nuevo | br-round-voice-belheola, conexiones reales pulso_app | 5 carreras nuevas + 16 regresiones SQL: 21/21 exit 0; tipado focal ES2017/lint exit 0 | [Concurrencia y manifiestos](evidencia/2026-11-11/INV-01.c.races/README.md) | 11.11 sigue parcial | INV-01.b sin aceptar; reparación auditada en c.recovery pendiente; fixtures sintéticas append-only retenidas |
 | INV-01.c.recovery.contract | Código implementado; V1 comprobada, dependencias sin aceptar | 3a5d60c + diff compartido | Windows local; contrato puro, sin DB | 54/54 unitarias; tipos globales, lint y build exit 0 | [Contrato y resultados](evidencia/2026-11-11/INV-01.c.recovery.contract/README.md) | 11.11 sigue parcial | Persistencia, lectura de pruebas verificadas y aplicación auditada pendientes |
 | INV-01.c.recovery.* (10 hijos: objects, persistence, subject.schema/access, attestation.schema/service, historical, provenance, sources, proposal.service) | código implementado (en mapa; ver filas 49–58) | árbol local + 0143–0145 | local + br-round-voice-belheola | unitarias/SQL focales en evidencias propias; build en proposal.service exit 0 (suite global con timeout seed) | [Propuestas](evidencia/2026-11-11/INV-01.c.recovery.proposal.service/README.md) | 11.11 sigue parcial | Decisión administrativa independiente, aplicación auditada/idempotente, rutas/UI y aceptación con sesión/R2 reales |
-| NOM-01 | código implementado; V1 comprobada (pendiente V2) | 35c5dcf + diff B1 | Windows local (Vitest) | 17/17 NOM-01 + 7/7 nómina (24/24 exit 0); eslint 0 errores | [NOM-01](evidencia/2026-11-11/NOM-01/README.md) | 12.x parcial | Ejecutar V2 en Postgres aislado (`isPayrollPeriodFrozen` / `executePayrollRun` con `pulso_app`) antes de aceptar |
-| AUD-02 | código implementado; V1 + PGlite comprobadas (pendiente V2) | 35c5dcf + diff C1 + fix enum TS (S) | Windows local (PGlite) | 19/19 audit-02 exit 0; 46/46 batch-access; eslint 0 errores; `audit-service.ts` alineado a enum `inventory_audit_entity` | [AUD-02](evidencia/2026-11-11/AUD-02/README.md) | 01.06 parcial | Ejecutar V2 en Postgres aislado (`pulso_app`); migración `inventory_audit_entity` para `SALE_RECOVERY_APPLY`/`SALE_VOID` en A3/INV-01.d |
+| NOM-01 | aceptado V1,V2 | eba576d + diff B2 | local + br-round-voice-belheola (pulso_app) | 17/17 + 7/7 unitarias y 6/6 SQL Neon (con NOM-02.a), tsc/lint exit 0 | [NOM-01](evidencia/2026-11-11/NOM-01/README.md) | 12.x parcial | NOM-02.b..e y NOM-03..06 pendientes |
+| NOM-02.a | aceptado V1,V2 | eba576d + diff B2 | local + br-round-voice-belheola (pulso_app) | 14/14 NOM-02.a (38/38 nómina) y 6/6 SQL Neon, tsc/lint exit 0 | [NOM-01](evidencia/2026-11-11/NOM-01/README.md) | 12.x parcial | Siguiente: NOM-02.b (horas extra) |
+| AUD-02 | aceptado V1,V2 | eba576d + diff C1/S/C2 | PGlite + br-round-voice-belheola (pulso_app) | 19/19 PGlite + 10/10 SQL Neon atomicidad, tsc/lint exit 0 | [AUD-02](evidencia/2026-11-11/AUD-02/README.md) | 01.06 parcial | Enum `SALE_RECOVERY_APPLY`/`SALE_VOID` diferido a migración A3/INV-01.d |
+| EVI-02.a | aceptado V1,V2 | eba576d + diff C2 | local + br-round-voice-belheola (pulso_app) | 18/18 unitarias + 7/7 SQL Neon, tsc/lint exit 0 | [EVI-02.a](evidencia/2026-11-11/EVI-02.a/README.md) | 01.07 parcial | Siguiente: EVI-02.b (recorrido visible/UI) |
+| INV-01.c.recovery.decision.service | código implementado; V1/V2 comprobadas | eba576d + diff A2 | local + br-round-voice-belheola (pulso_app) | 14/14 + 17 regresión y 5/5 SQL Neon, tsc/lint exit 0 | [Decisión recovery](evidencia/2026-11-11/INV-01.c.recovery.decision.service/README.md) | 11.11 sigue parcial | Dependencia INV-01.b y aplicación auditada (A3) pendientes |
 
 ## Reglas para los padres
 
