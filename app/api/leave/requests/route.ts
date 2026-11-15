@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { leaveRequests, leaveBalances, users, branches } from '@/lib/db/schema';
-import { eq, and, desc, or, gte, lte, sql } from 'drizzle-orm';
+import { leaveRequests, leaveBalances, leaveTypes, users } from '@/lib/db/schema';
+import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { withTenantAuth } from '@/lib/api/with-auth';
+
+const APPROVER_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
 
 // Validation schemas — userId and companyId come from session, not body
 const createLeaveRequestSchema = z.object({
@@ -66,9 +68,11 @@ export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
         createdAt: leaveRequests.createdAt,
         userName: users.name,
         userPhoto: users.image,
+        leaveTypeName: leaveTypes.name,
       })
       .from(leaveRequests)
       .leftJoin(users, eq(leaveRequests.userId, users.id))
+      .leftJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
       .where(and(...conditions))
       .orderBy(desc(leaveRequests.requestedAt))
       .limit(limit)
@@ -106,6 +110,13 @@ export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   }
 
   const data = validated.data;
+
+  if (new Date(data.endDate) < new Date(data.startDate)) {
+    return NextResponse.json(
+      { error: 'La fecha de fin debe ser igual o posterior a la fecha de inicio' },
+      { status: 400 }
+    );
+  }
 
   // Check leave balance
     const [balance] = await db
@@ -177,6 +188,32 @@ export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
       );
     }
 
+    if ((action === 'approve' || action === 'reject') && !APPROVER_ROLES.has(auth.user.role)) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para autorizar o rechazar solicitudes' },
+        { status: 403 }
+      );
+    }
+
+    const [existingRequest] = await db
+      .select()
+      .from(leaveRequests)
+      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)));
+
+    if (!existingRequest) {
+      return NextResponse.json(
+        { error: 'Leave request not found' },
+        { status: 404 }
+      );
+    }
+
+    if ((action === 'approve' || action === 'reject') && existingRequest.status !== 'PENDING') {
+      return NextResponse.json(
+        { error: 'Solo se pueden procesar solicitudes pendientes' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
 
     let updateData: any = {
@@ -214,7 +251,7 @@ export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
     const [updatedRequest] = await db
       .update(leaveRequests)
       .set(updateData)
-      .where(eq(leaveRequests.id, requestId))
+      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)))
       .returning();
 
     if (!updatedRequest) {
@@ -305,7 +342,7 @@ export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
     const [leaveRequest] = await db
       .select()
       .from(leaveRequests)
-      .where(eq(leaveRequests.id, requestId));
+      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)));
 
     if (!leaveRequest) {
       return NextResponse.json(
@@ -314,7 +351,14 @@ export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
       );
     }
 
-    if (leaveRequest.userId !== userId && leaveRequest.status !== 'PENDING') {
+    if (leaveRequest.userId !== userId && !APPROVER_ROLES.has(auth.user.role)) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para cancelar esta solicitud' },
+        { status: 403 }
+      );
+    }
+
+    if (leaveRequest.status !== 'PENDING') {
       return NextResponse.json(
         { error: 'Only pending requests can be cancelled' },
         { status: 400 }
@@ -327,7 +371,7 @@ export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
         status: 'CANCELLED',
         updatedAt: new Date(),
       })
-      .where(eq(leaveRequests.id, requestId))
+      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)))
       .returning();
 
     // Reduce pending balance
@@ -336,7 +380,7 @@ export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
       .from(leaveBalances)
       .where(
         and(
-          eq(leaveBalances.userId, userId),
+          eq(leaveBalances.userId, leaveRequest.userId),
           eq(leaveBalances.leaveTypeId, leaveRequest.leaveTypeId),
           eq(leaveBalances.year, new Date().getFullYear())
         )

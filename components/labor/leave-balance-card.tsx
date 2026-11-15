@@ -1,9 +1,9 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CalendarDays, CheckCircle2, Clock } from 'lucide-react';
+import { CalendarDays, Clock } from 'lucide-react';
 
 interface LeaveBalanceCardProps {
   balance: {
@@ -20,19 +20,22 @@ interface LeaveBalanceCardProps {
 }
 
 export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
-  const usagePercentage = balance.totalEntitlement > 0 
-    ? Math.round((balance.used / balance.totalEntitlement) * 100) 
-    : 0;
+  const usagePercentage =
+    balance.totalEntitlement > 0
+      ? Math.min(100, Math.round((balance.used / balance.totalEntitlement) * 100))
+      : 0;
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{balance.leaveTypeName}</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold leading-none">
+            {balance.leaveTypeName}
+          </h2>
           {balance.isPaid ? (
-            <Badge variant="default">Paid</Badge>
+            <Badge variant="default">Con goce</Badge>
           ) : (
-            <Badge variant="secondary">Unpaid</Badge>
+            <Badge variant="secondary">Sin goce</Badge>
           )}
         </div>
         {balance.leaveTypeDescription && (
@@ -42,46 +45,58 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Balance Overview */}
+        {/* Resumen de saldo */}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
-            <div className="text-2xl font-bold">{balance.totalEntitlement}</div>
-            <div className="text-xs text-muted-foreground">Total</div>
+            <div className="text-2xl font-bold tabular-nums">
+              {balance.totalEntitlement}
+            </div>
+            <div className="text-xs text-muted-foreground">Asignados</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-green-600">{balance.used}</div>
-            <div className="text-xs text-muted-foreground">Used</div>
+            <div className="text-2xl font-bold tabular-nums text-muted-foreground">
+              {balance.used}
+            </div>
+            <div className="text-xs text-muted-foreground">Usados</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-blue-600">{balance.balance}</div>
-            <div className="text-xs text-muted-foreground">Available</div>
+            <div className="text-2xl font-bold tabular-nums text-success-text">
+              {balance.balance}
+            </div>
+            <div className="text-xs text-muted-foreground">Disponibles</div>
           </div>
         </div>
 
-        {/* Progress Bar */}
+        {/* Barra de uso */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span>Usage</span>
-            <span className="font-medium">{usagePercentage}%</span>
+            <span>Uso</span>
+            <span className="font-medium tabular-nums">{usagePercentage}%</span>
           </div>
-          <Progress value={usagePercentage} className="h-2" />
+          <Progress
+            value={usagePercentage}
+            className="h-2"
+            aria-label={`Uso de ${balance.leaveTypeName}: ${usagePercentage}%`}
+          />
         </div>
 
-        {/* Details */}
+        {/* Detalles */}
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span>Pending Approval</span>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span>Por aprobar</span>
             </div>
-            <span className="font-medium">{balance.pending} days</span>
+            <span className="font-medium tabular-nums">
+              {balance.pending} {balance.pending === 1 ? 'día' : 'días'}
+            </span>
           </div>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <span>Year</span>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CalendarDays className="h-4 w-4" />
+              <span>Año</span>
             </div>
-            <span className="font-medium">{balance.year}</span>
+            <span className="font-medium tabular-nums">{balance.year}</span>
           </div>
         </div>
       </CardContent>

@@ -2,6 +2,7 @@
 
 import { useRequireRole } from "@/hooks/use-session"
 import { ApprovalManager } from "@/components/labor/approval-manager"
+import { LeaveRequestsList } from "@/components/labor/leave-requests-list"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Clock, CheckCircle, AlertTriangle } from "lucide-react"
 
@@ -25,6 +26,18 @@ export default function LaborApprovalsPage() {
       </div>
 
       <ApprovalManager companyId={companyId} userRole={userRole} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Solicitudes de Permisos Pendientes</CardTitle>
+          <CardDescription>
+            Autoriza o rechaza permisos y días libres solicitados por tus colaboradores
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LeaveRequestsList mode="approvals" />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
