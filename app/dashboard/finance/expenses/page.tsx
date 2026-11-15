@@ -483,7 +483,7 @@ function ExpensesContent() {
             </Link>
           </Button>
 
-          <ExpenseForm branches={branches} onSuccess={handleExpenseCreated} />
+          <ExpenseForm branches={branches} onSuccess={handleExpenseCreated} defaultPayeeId={payeeId || undefined} />
         </div>
       </div>
 
@@ -638,7 +638,7 @@ function ExpensesContent() {
               icon={Receipt}
               title="Sin gastos operativos registrados"
               description="Registra tu primer gasto operativo (renta, luz, gas, mantenimiento) para iniciar la cadena de autorización."
-              action={<ExpenseForm branches={branches} onSuccess={handleExpenseCreated} />}
+              action={<ExpenseForm branches={branches} onSuccess={handleExpenseCreated} defaultPayeeId={payeeId || undefined} />}
             />
           ) : visibleExpenses.length === 0 ? (
             <EmptyState

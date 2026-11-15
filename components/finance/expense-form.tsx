@@ -12,6 +12,8 @@ import { Plus, Receipt, Loader2, ImagePlus, X, Check, UserPlus, Building2 } from
 interface ExpenseFormProps {
   branches: Array<{ id: string; name: string }>;
   onSuccess?: () => void;
+  defaultPayeeId?: string;
+  defaultBranchId?: string;
 }
 
 interface Payee {
@@ -36,10 +38,10 @@ interface CostCenter {
   name: string;
 }
 
-export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
+export function ExpenseForm({ branches, onSuccess, defaultPayeeId, defaultBranchId }: ExpenseFormProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [branchId, setBranchId] = useState<string>(branches[0]?.id || "");
+  const [branchId, setBranchId] = useState<string>(defaultBranchId || branches[0]?.id || "");
   const [category, setCategory] = useState<string>("RENTA");
   const [amount, setAmount] = useState<string>("");
   const [description, setDescription] = useState<string>("");
@@ -52,7 +54,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   // Contrapartes (Fase 1 — tasks/plan-payees-contrapartes.md). El campo es
   // OPCIONAL: un gasto casual (taxi, hielo) no debe forzar el catálogo.
   const [payees, setPayees] = useState<Payee[]>([]);
-  const [payeeId, setPayeeId] = useState<string>(NO_PAYEE);
+  const [payeeId, setPayeeId] = useState<string>(defaultPayeeId || NO_PAYEE);
   const [payeesLoading, setPayeesLoading] = useState(false);
 
   // Centro de costo (F3.1). Opcional: es lo que conecta el gasto con el
@@ -221,7 +223,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   };
 
   const resetPayeeState = () => {
-    setPayeeId(NO_PAYEE);
+    setPayeeId(defaultPayeeId || NO_PAYEE);
     setCostCenterId(NO_COST_CENTER);
     setShowQuickCreate(false);
     setNewPayeeName("");
@@ -336,7 +338,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
                     if (v === "") return;
                     setPayeeId(v);
                   }}
-                  disabled={payeesLoading}
+                  disabled={payeesLoading || Boolean(defaultPayeeId)}
                 >
                   <SelectTrigger id="expense-payee">
                     <SelectValue placeholder="Sin contraparte" />

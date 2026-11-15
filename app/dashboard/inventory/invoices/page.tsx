@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -258,7 +258,7 @@ export default function InvoiceUploadPage() {
         }
     };
 
-    const handleViewInvoiceDetail = async (id: string) => {
+    const handleViewInvoiceDetail = useCallback(async (id: string) => {
         setIsLoadingDetail(true);
         setSelectedReceivingReportId("");
         try {
@@ -276,7 +276,12 @@ export default function InvoiceUploadPage() {
         } finally {
             setIsLoadingDetail(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        const target = new URLSearchParams(window.location.search).get("focus");
+        if (target && /^[0-9a-f-]{36}$/i.test(target)) void handleViewInvoiceDetail(target);
+    }, [handleViewInvoiceDetail]);
 
     const handleAssociateReceiving = async () => {
         if (!selectedInvoiceDetail || !selectedReceivingReportId) return;

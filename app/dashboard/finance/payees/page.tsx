@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -41,13 +41,10 @@ import { mensajeDeError } from "@/lib/api/client-error";
 import {
   ArrowRight,
   Building2,
-  FileText,
   Handshake,
-  Landmark,
   Loader2,
   Pencil,
   Plus,
-  Receipt,
   RefreshCw,
   Search,
   Trash2,
@@ -79,6 +76,7 @@ export default function PayeesPage() {
   const [payees, setPayees] = useState<Payee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const editLinkHandled = useRef(false);
   // A18 — `search` es lo que el usuario ve escrito; `busqueda` es lo que se
   // consulta. Antes eran lo mismo y cada tecla disparaba un `fetch` con `ILIKE`:
   // "Inmobiliaria" pedía trece veces el catálogo entero.
@@ -120,6 +118,15 @@ export default function PayeesPage() {
         const data = await res.json();
         if (res.ok && data.success) {
           setPayees(data.data || []);
+          if (!editLinkHandled.current) {
+            const editId = new URL(window.location.href).searchParams.get("edit");
+            const requested = (data.data as Payee[]).find(p => p.id === editId);
+            if (requested) {
+              editLinkHandled.current = true;
+              setEditPayee(requested); setEditTaxId(requested.taxId ?? "");
+              setEditContactName(requested.contactName ?? ""); setEditEmail(requested.email ?? ""); setEditPhone(requested.phone ?? "");
+            }
+          }
         } else {
           setError(mensajeDeError(data, "No se pudieron cargar las contrapartes."));
           setPayees([]);
@@ -426,7 +433,7 @@ export default function PayeesPage() {
                 <TableBody>
                   {payees.map((payee) => (
                     <TableRow key={payee.id} className="hover:bg-muted/40 transition text-xs">
-                      <TableCell className="font-medium whitespace-nowrap">{payee.name}</TableCell>
+                      <TableCell className="font-medium whitespace-nowrap"><Link className="text-primary underline-offset-4 hover:underline" href={`/dashboard/finance/payees/${payee.id}`}>{payee.name}</Link></TableCell>
                       <TableCell className="tabular-nums">
                         {payee.taxId || <span className="text-muted-foreground/40">—</span>}
                       </TableCell>
@@ -454,32 +461,10 @@ export default function PayeesPage() {
                               variant="ghost"
                               className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
                               asChild
-                              title="Ver gastos registrados para esta contraparte"
+                              title="Consultar saldo, gastos, facturas y cuentas"
                             >
-                              <Link href={`/dashboard/finance/expenses?payeeId=${payee.id}`}>
-                                <Receipt className="w-3.5 h-3.5" /> Ver gastos
-                              </Link>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                              asChild
-                              title="Ver facturas y gastos por pagar de esta contraparte"
-                            >
-                              <Link href={`/dashboard/finance/payables?payeeId=${payee.id}`}>
-                                <FileText className="w-3.5 h-3.5" /> Ver facturas
-                              </Link>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                              asChild
-                              title="Cuenta bancaria verificada para pagarle por tesorería"
-                            >
-                              <Link href={`/dashboard/finance/payee-bank-accounts?payeeId=${payee.id}`}>
-                                <Landmark className="w-3.5 h-3.5" /> Cuenta bancaria
+                              <Link href={`/dashboard/finance/payees/${payee.id}`}>
+                                <ArrowRight className="w-3.5 h-3.5" /> Abrir ficha
                               </Link>
                             </Button>
                             <Button
@@ -502,7 +487,7 @@ export default function PayeesPage() {
                             </Button>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground/40">—</span>
+                          <Link className="text-sm text-primary hover:underline" href={`/dashboard/finance/payees/${payee.id}`}>Consultar historial</Link>
                         )}
                       </TableCell>
                     </TableRow>
