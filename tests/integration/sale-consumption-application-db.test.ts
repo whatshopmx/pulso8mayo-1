@@ -9,6 +9,7 @@ import { applySaleConsumptionInTransaction } from "@/lib/services/sale-consumpti
 import { buildSaleRecipeSnapshot } from "@/lib/services/sale-consumption-snapshot";
 import { saleRecipeReader } from "@/lib/services/sale-consumption-reader";
 import { provisionRuntimeRole } from "./helpers/runtime-role";
+import { SalesIngestService } from "@/lib/services/sales-ingest-service";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Fixture = { company: string[]; branch: string[]; item: string[]; recipe: string[]; batch: string[] };
@@ -22,6 +23,8 @@ async function probe(check: (tx: Tx, f: Fixture) => Promise<void>) {
     await tx.insert(recipes).values(f.recipe.map((id, i) => ({ id, companyId: f.company[i === 2 ? 1 : 0], name: "Receta aplicación", baseYield: "1", unit: "PORTION" })));
     await tx.insert(recipeItems).values(f.recipe.map((id, i) => ({ recipeId: id, itemId: f.item[i], quantity: "1", unit: "KG", yieldPercent: 100 })));
     await tx.insert(inventoryBatches).values(f.batch.map((id, i) => ({ id, itemId: f.item[i < 2 ? 0 : i === 2 ? 1 : 2], branchId: f.branch[i === 3 ? 2 : 0], initialQuantity: i === 0 ? "6" : i === 1 ? "14" : "20", currentQuantity: i === 0 ? "6" : i === 1 ? "14" : "20", status: "AVAILABLE" as const, expirationDate: new Date(i === 0 ? "2098-01-01" : "2099-01-01"), receivedAt: new Date("2026-01-01") })));
+    // Prueba la migración aditiva sin aplicarla persistentemente al entorno.
+    await tx.execute(sql.raw(readFileSync("drizzle/0141_inv01b_import_recipe_name.sql", "utf8")));
     await tx.execute(sql.raw("SET LOCAL ROLE pulso_app"));
     await check(tx, f);
     throw new Error("application rollback esperado");
@@ -51,6 +54,97 @@ describe("INV-01.b3: aplicación atómica real con runtime", () => {
     if (operational) expect(host(process.env.TEST_DATABASE_URL!)).not.toBe(host(operational));
     await provisionRuntimeRole([]);
     await db.execute(sql`DO $$ BEGIN EXECUTE format('GRANT pulso_app TO %I', current_user); END $$`);
+  });
+  it("bloquea movimientos huérfanos compensados cuando no hay revisión que demuestre el consumo", async () => {
+    await probe(async (tx, f) => {
+      await tx.execute(sql`SELECT set_config('app.current_company_id', ${f.company[0]}, true), set_config('app.current_branch_id', ${f.branch[0]}, true)`);
+      const [identity] = await tx.insert(salesConsumptionIdentities).values({ companyId: f.company[0], branchId: f.branch[0],
+        source: "pos:test", productKey: "SKU-1", saleDay: "2026-11-12" }).returning();
+      const [original] = (await tx.execute<{ id: string }>(sql`INSERT INTO inventory_movements
+        (branch_id,item_id,batch_id,type,quantity_change,reference_id,performed_by)
+        VALUES (${f.branch[0]},${f.item[0]},${f.batch[0]},'USAGE',-1,${`salecons:${identity.id}`},'synthetic-orphan') RETURNING id`)).rows;
+      await tx.execute(sql`INSERT INTO inventory_movements (branch_id,item_id,batch_id,type,quantity_change,reference_id,performed_by)
+        VALUES (${f.branch[0]},${f.item[0]},${f.batch[0]},'USAGE',1,${`salecons:${identity.id}:reverse:${original.id}`},'synthetic-orphan')`);
+      const before = await stocks(tx);
+      const readMovements = () => tx.select({ id: inventoryMovements.id, quantity: inventoryMovements.quantityChange,
+        batchId: inventoryMovements.batchId, reference: inventoryMovements.referenceId }).from(inventoryMovements).orderBy(inventoryMovements.id);
+      const movements = await readMovements();
+      // No SAVEPOINT auxiliar: el writer debe revertir por sí mismo antes de devolver el error.
+      await expect(applySaleConsumptionInTransaction(tx, input(f))).rejects.toMatchObject({ code: "PENDING_RECOVERY" });
+      expect(await stocks(tx)).toEqual(before);
+      expect(await readMovements()).toEqual(movements);
+      expect(await tx.select().from(salesEntries)).toEqual([]);
+      expect(await tx.select().from(salesConsumptionRevisions)).toEqual([]);
+    });
+  });
+  it("importa cantidades sin ingreso, repite, corrige y completa ingreso sin duplicar consumo", async () => {
+    await probe(async (tx, f) => {
+      const params = { companyId: f.company[0], branchId: f.branch[0], userId: "synthetic-import", rows: [
+        { rowNumber: 2, productKey: "SKU-1", recipeRef: f.recipe[0], saleDay: "2026-11-12", quantitySold: 2, totalRevenueCents: null },
+        { rowNumber: 3, productKey: "SKU-1", recipeRef: f.recipe[0], saleDay: "2026-11-12", quantitySold: 3, totalRevenueCents: 300 },
+      ] };
+      const first = await SalesIngestService.ingestInTransaction(tx, params);
+      expect(first).toMatchObject({ inserted: 1, skipped: 0, errors: [], revenueComplete: false });
+      expect((await tx.select().from(salesConsumptionRevisions))[0]).toMatchObject({ quantitySold: "5.00", totalRevenue: null });
+      const before = await stocks(tx);
+      expect(await SalesIngestService.ingestInTransaction(tx, params)).toMatchObject({ inserted: 0, skipped: 1, errors: [], revenueComplete: false });
+      expect(await stocks(tx)).toEqual(before);
+      const complete = { ...params, rows: [{ ...params.rows[0], quantitySold: 5, totalRevenueCents: 500 }] };
+      expect(await SalesIngestService.ingestInTransaction(tx, complete)).toMatchObject({ updated: 1, errors: [], revenueComplete: true });
+      expect(await stocks(tx)).toEqual(before);
+      expect((await tx.select().from(salesEntries))[0]).toMatchObject({ quantitySold: "5.00", totalRevenue: 500 });
+      expect(await SalesIngestService.ingestInTransaction(tx, { ...complete, rows: [{ ...complete.rows[0], quantitySold: 0, totalRevenueCents: 0 }] })).toMatchObject({ updated: 1, errors: [] });
+      expect((await stocks(tx)).find(row => row.id === f.batch[0])?.quantity).toBe("6.0000");
+    });
+  });
+  it("captura manual atómica revierte grupos anteriores si falta stock o hay receta ajena", async () => {
+    await probe(async (tx, f) => {
+      const base = { companyId: f.company[0], branchId: f.branch[0], userId: "synthetic-manual", source: "manual:recipe", atomic: true };
+      const row = (recipeRef: string, quantitySold: number, rowNumber: number) => ({ recipeRef, productKey: recipeRef, saleDay: "2026-11-12", quantitySold, totalRevenueCents: null, rowNumber });
+      await tx.execute(sql`SELECT set_config('app.current_company_id', ${f.company[0]}, true), set_config('app.current_branch_id', ${f.branch[0]}, true)`);
+      const before = await stocks(tx);
+      for (const second of [row(f.recipe[1], 21, 2), row(f.recipe[2], 1, 2)]) {
+        await expect(SalesIngestService.ingestInTransaction(tx, { ...base, rows: [row(f.recipe[0], 2, 1), second] })).rejects.toMatchObject({ code: second.recipeRef === f.recipe[1] ? "INSUFFICIENT_STOCK" : "INVALID_INPUT" });
+        expect(await stocks(tx)).toEqual(before);
+        expect(await tx.select().from(salesConsumptionIdentities)).toEqual([]);
+        expect(await tx.select().from(salesEntries)).toEqual([]);
+        expect(await tx.select().from(salesConsumptionRevisions)).toEqual([]);
+      }
+      const params = { ...base, rows: [row(f.recipe[0], 2, 1)] };
+      expect(await SalesIngestService.ingestInTransaction(tx, params)).toMatchObject({ inserted: 1, errors: [] });
+      expect(await SalesIngestService.ingestInTransaction(tx, params)).toMatchObject({ skipped: 1, errors: [] });
+    });
+  });
+  it("ingestión resuelve nombres bajo runtime, rechaza receta ajena/ambigua y revierte grupos sin stock", async () => {
+    await probe(async (tx, f) => {
+      const params = { companyId: f.company[0], branchId: f.branch[0], userId: "synthetic-import", rows: [
+        { rowNumber: 2, productKey: "bad", recipeRef: f.recipe[2], saleDay: "2026-11-12", quantitySold: 1, totalRevenueCents: 100 },
+        { rowNumber: 3, productKey: "ambiguous", recipeRef: "Receta aplicación", saleDay: "2026-11-12", quantitySold: 1, totalRevenueCents: 100 },
+        { rowNumber: 4, productKey: "short", recipeRef: f.recipe[0], saleDay: "2026-11-12", quantitySold: 21, totalRevenueCents: 2100 },
+        { rowNumber: 5, productKey: "ok", recipeRef: f.recipe[0], saleDay: "2026-11-12", quantitySold: 2, totalRevenueCents: 200 },
+      ] };
+      const result = await SalesIngestService.ingestInTransaction(tx, params);
+      expect(result).toMatchObject({ inserted: 1, updated: 0, skipped: 0 });
+      expect(result.errors.map(row => row.rowNumber)).toEqual([2, 3, 4]);
+      expect(await tx.select().from(salesConsumptionIdentities)).toHaveLength(1);
+      expect((await tx.select().from(salesEntries))[0]).toMatchObject({ quantitySold: "2.00", totalRevenue: 200 });
+      expect((await stocks(tx)).find(row => row.id === f.batch[0])?.quantity).toBe("4.0000");
+      await expect(SalesIngestService.ingestInTransaction(tx, { ...params, branchId: f.branch[2] })).rejects.toMatchObject({ code: "INVALID_SCOPE" });
+    });
+  });
+  it("permiso de nombre mantiene RLS sin contexto y entre empresas; permite nombre propio único", async () => {
+    await probe(async (tx, f) => {
+      expect(await SalesIngestService.resolveRecipeRefs(f.company[0], [f.recipe[0]], tx)).toEqual(new Map([[f.recipe[0], null]]));
+      await tx.execute(sql.raw("RESET ROLE"));
+      await tx.update(recipes).set({ name: "Nombre único" }).where(eq(recipes.id, f.recipe[0]));
+      await tx.execute(sql.raw("SET LOCAL ROLE pulso_app"));
+      await tx.execute(sql`SELECT set_config('app.current_company_id', ${f.company[0]}, true)`);
+      expect(await SalesIngestService.resolveRecipeRefs(f.company[1], [f.recipe[2]], tx)).toEqual(new Map([[f.recipe[2], null]]));
+      const result = await SalesIngestService.ingestInTransaction(tx, { companyId: f.company[0], branchId: f.branch[0], userId: "synthetic-import",
+        rows: [{ rowNumber: 2, recipeRef: " nombre ÚNICO ", saleDay: "2026-11-12", quantitySold: 1, totalRevenueCents: 100 }] });
+      expect(result).toMatchObject({ inserted: 1, errors: [], revenueComplete: true });
+      await failed(tx, "42501", () => tx.execute(sql`UPDATE recipes SET name='Forbidden' WHERE id=${f.recipe[0]}`));
+    });
   });
   it("10→12 descuenta solo 2; 12→8 devuelve 4; repetir no mueve stock; anular devuelve a lotes originales", async () => {
     await probe(async (tx, f) => {

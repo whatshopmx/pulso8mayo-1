@@ -1,44 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { salesEntries, recipes } from "@/lib/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { salesEntries } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ApiError, isApiError } from "@/lib/api/error";
 import { assertBranchOfCompany, resolveBranchScope } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
 import { hasPermission } from "@/lib/permissions";
-import { TheoreticalConsumptionService } from "@/lib/services/theoretical-consumption-service";
+import { SalesIngestService } from "@/lib/services/sales-ingest-service";
+import { SaleConsumptionError } from "@/lib/services/sale-consumption-service";
+import { soldQuantity } from "@/lib/services/sale-consumption-contract";
+import { normalizeDay } from "@/lib/services/sales-ingest-pure";
 
 /**
  * Registro manual de ventas por receta.
  *
- * La versión anterior comprobaba sesión, pero aceptaba `branchId` y `recipeId`
- * del cuerpo sin verificar que fueran de la empresa ni que el rol pudiera
- * registrar ventas; el consumo (`TheoreticalConsumptionService.consume`) busca
- * la receta por ID, así que un `recipeId` ajeno descontaba insumos de otra
- * empresa y una sucursal ajena ensuciaba su venta. Además, el actor no pasaba
- * por un guard de permiso.
- *
- * Ahora, antes de la primera escritura:
- * 1. El rol necesita `inventory:manage` (misma regla que la importación bulk).
- * 2. La sucursal se resuelve con `resolveBranchScope` — a un rol de sucursal no
- *    se le concede otra; se rechaza en vez de reescribirla en silencio.
- * 3. `assertBranchOfCompany` exige que la sucursal sea de la empresa.
- * 4. Todas las recetas deben pertenecer a la empresa.
+ * Permiso y alcance antes de escribir; catálogo, venta y stock se verifican
+ * en la misma transacción del writer. La captura representa el total de una
+ * receta/día del origen manual: repetir conserva, corregir reemplaza, cero anula.
  */
 
 const salesSchema = z.object({
     branchId: z.string().uuid().optional(),
     sales: z.array(z.object({
         recipeId: z.string().uuid(),
-        quantitySold: z.number().positive(),
-        totalRevenue: z.number().nonnegative().optional(),
+        quantitySold: z.number().nonnegative().refine(value => {
+            try { soldQuantity(String(value)); return true; } catch { return false; }
+        }, "Cantidad fuera de rango o con más de dos decimales"),
+        totalRevenue: z.number().nonnegative().max(21474836.47)
+            .refine(value => /^\d+(?:\.\d{1,2})?$/.test(String(value)), "Ingreso con hasta dos decimales requerido")
+            .nullable().optional(),
     })).min(1),
-    saleDate: z.string().optional(),
+    saleDate: z.string().refine(value => normalizeDay(value) !== null, "Fecha de venta inválida").optional(),
 });
 
 function errorResponse(error: unknown) {
+    if (error instanceof SaleConsumptionError) {
+        const status = error.code === "INVALID_INPUT" ? 400 : error.code === "INVALID_SCOPE" ? 403 : 409;
+        return NextResponse.json({ error: error.message, code: error.code }, { status });
+    }
     if (isApiError(error)) {
         return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
@@ -91,47 +92,18 @@ export async function POST(req: NextRequest) {
         // Frontera de tenant: la sucursal debe ser de esta empresa.
         await assertBranchOfCompany(session.user.companyId, targetBranchId);
 
-        // Todas las recetas deben ser de la empresa: si alguna es ajena, se
-        // rechaza el lote completo antes de insertar la primera venta o
-        // descontar el primer insumo.
-        const recipeIds = Array.from(new Set(validated.sales.map((s) => s.recipeId)));
-        const ownedRecipes = await db
-            .select({ id: recipes.id })
-            .from(recipes)
-            .where(and(eq(recipes.companyId, session.user.companyId), inArray(recipes.id, recipeIds)));
-        const owned = new Set(ownedRecipes.map((r) => r.id));
-        const missing = recipeIds.filter((id) => !owned.has(id));
-        if (missing.length > 0) {
-            throw ApiError.badRequest(
-                "Una o más recetas no pertenecen a esta empresa. Recarga el catálogo e inténtalo de nuevo."
-            );
-        }
-
-        const saleDate = validated.saleDate ? new Date(validated.saleDate) : new Date();
-
-        for (const sale of validated.sales) {
-            const revenueCents = sale.totalRevenue ? Math.round(sale.totalRevenue * 100) : 0;
-
-            await db.insert(salesEntries).values({
-                companyId: session.user.companyId,
-                branchId: targetBranchId,
-                recipeId: sale.recipeId,
-                quantitySold: sale.quantitySold.toFixed(2),
-                saleDate,
-                totalRevenue: revenueCents,
-            });
-
-            await TheoreticalConsumptionService.consume({
-                companyId: session.user.companyId,
-                branchId: targetBranchId,
-                recipeId: sale.recipeId,
-                quantitySold: sale.quantitySold,
-                saleDate,
-                userId: session.user.id,
-            });
-        }
-
-        return NextResponse.json({ success: true });
+        const saleDay = validated.saleDate ? normalizeDay(validated.saleDate)! : new Date().toISOString().slice(0, 10);
+        const result = await SalesIngestService.ingest({
+            companyId: session.user.companyId, branchId: targetBranchId, userId: session.user.id,
+            source: "manual:recipe", atomic: true,
+            rows: validated.sales.map((sale, index) => {
+                const money = sale.totalRevenue == null ? null : String(sale.totalRevenue).split(".");
+                return { rowNumber: index + 1, recipeRef: sale.recipeId, productKey: sale.recipeId.toLowerCase(),
+                    quantitySold: sale.quantitySold, saleDay,
+                    totalRevenueCents: money === null ? null : Number(money[0] + (money[1] ?? "").padEnd(2, "0")) };
+            }),
+        });
+        return NextResponse.json({ success: true, ...result });
     } catch (error) {
         console.error("Sales entry error:", error);
         return errorResponse(error);
@@ -164,7 +136,7 @@ export async function GET(req: NextRequest) {
             .where(and(...conditions));
 
         return NextResponse.json(list);
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: "Failed to fetch sales entries" }, { status: 500 });
     }
 }

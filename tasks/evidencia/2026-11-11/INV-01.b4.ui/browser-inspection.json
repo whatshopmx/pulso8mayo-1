@@ -1,0 +1,31 @@
+{
+  "url": "http://127.0.0.1:50505",
+  "environment": "Vite + componente y CSS reales; respuesta HTTP sintética; sin DB",
+  "desktop": {
+    "width": 1280,
+    "scrollWidth": 1280,
+    "live": "polite"
+  },
+  "mobile": {
+    "width": 390,
+    "scrollWidth": 390,
+    "tableWidth": 520,
+    "tableScrollContainerWidth": 308
+  },
+  "errors": [],
+  "warnings": [],
+  "requests": [
+    {
+      "branchId": "b1000000-0000-4000-8000-000000000001",
+      "csvText": "SKU,\"Producto, receta\",Cantidad\nABC,Plato de prueba,2\n",
+      "mapping": {
+        "recipeRef": "Producto, receta",
+        "quantitySold": "Cantidad",
+        "productKey": "SKU"
+      },
+      "defaultDay": "2026-11-13",
+      "delimiter": ","
+    }
+  ],
+  "result": "Importación con pendientes\n1 nueva\n2 corregidas\n3 sin cambios\n1 con error\n\nTotales por producto y día. Repetir la misma venta no vuelve a mover inventario.\n\nIngreso incompleto\n\nNo uses el importe de esta importación como ingreso total. Revisa los errores y los productos sin ingreso reportado.\n\nFila 3: Stock insuficiente para aplicar este producto completo."
+}

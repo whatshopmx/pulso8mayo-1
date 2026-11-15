@@ -6,9 +6,9 @@ import {
   propinaAsignaciones, 
   employeeProfiles, 
   employeeContracts, 
+  salaryHistory,
   shiftSessions,
   vacationRequests,
-  leaveRequests,
   users,
   payrollRuns,
   payrollPayslips,
@@ -21,7 +21,221 @@ import { calcularAguinaldoAnual, DIAS_PRORRATEO } from "./aguinaldo-service";
 import { capturePayrollRunIn } from "./accounting/payroll-adapter";
 import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
 import { AGUINALDO_DAYS_VIGENTE } from "@/lib/company/labor-reform-status-catalog";
-import { differenceInDays, parseISO } from "date-fns";
+import { differenceInDays, parseISO, addDays, format } from "date-fns";
+
+export interface ValidatedPayrollPeriod {
+  startDate: string;
+  endDate: string;
+  calendarDays: number;
+}
+
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Valida un período de nómina según calendario.
+ * Exige formato YYYY-MM-DD y que startDate <= endDate.
+ */
+export function validatePayrollPeriod(startDate: string, endDate: string): ValidatedPayrollPeriod {
+  if (!startDate || !endDate || !ISO_DATE_REGEX.test(startDate) || !ISO_DATE_REGEX.test(endDate)) {
+    throw new RangeError("Periodo de nómina inválido: las fechas deben tener formato YYYY-MM-DD.");
+  }
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || startDate > endDate) {
+    throw new RangeError("Periodo de nómina inválido: la fecha de inicio no puede ser posterior a la fecha de fin.");
+  }
+  const calendarDays = differenceInDays(end, start) + 1;
+  return { startDate, endDate, calendarDays };
+}
+
+export interface ContractSalaryResolutionInput {
+  contract: {
+    id: string;
+    userId: string;
+    contractNumber?: string | null;
+    baseSalary: number; // Sueldo diario en centavos
+    currency?: string | null;
+    workRegime?: string | null;
+    startDate: Date | string;
+    endDate?: Date | string | null;
+    status?: string | null;
+  };
+  salaryHistory?: Array<{
+    id?: string;
+    contractId?: string | null;
+    newSalary: number; // Sueldo diario en centavos
+    previousSalary?: number | null;
+    effectiveDate: Date | string;
+  }>;
+  periodStart: string;
+  periodEnd: string;
+}
+
+export interface ContractSalaryResolution {
+  userId: string;
+  contractId: string;
+  currency: string;
+  dailySalaryCents: number; // Salario diario vigente al cierre del período
+  periodicity: "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+  contractStartDate: string;
+  contractEndDate: string | null;
+  overlapStartDate: string;
+  overlapEndDate: string;
+  calendarDaysInPeriod: number;
+  effectiveDaysInPeriod: number;
+  baseSalaryCents: number; // Total devengado en centavos en el período
+  isProrated: boolean;
+  salaryChangesApplied: number;
+}
+
+function toIsoDate(d: Date | string): string {
+  if (typeof d === "string") {
+    return d.slice(0, 10);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Resuelve el contrato salarial y las vigencias temporales efectivas para un período calendario.
+ * - Verifica moneda soportada (MXN).
+ * - Rechaza salarios <= 0 o contratos no vigentes en el período.
+ * - Prorratea días si el inicio/fin del contrato corta el período.
+ * - Aplica historial salarial según fechas efectivas; cambios posteriores al período se ignoran.
+ */
+export function resolveContractSalaryForPeriod(
+  input: ContractSalaryResolutionInput
+): ContractSalaryResolution {
+  const { contract, salaryHistory: historyList = [], periodStart, periodEnd } = input;
+
+  const { calendarDays } = validatePayrollPeriod(periodStart, periodEnd);
+
+  const currency = (contract.currency || "MXN").trim().toUpperCase();
+  if (currency !== "MXN") {
+    throw new Error(`Moneda no soportada (${contract.currency}). Solo se admite MXN.`);
+  }
+
+  if (typeof contract.baseSalary !== "number" || contract.baseSalary <= 0) {
+    throw new Error("El salario base del contrato debe ser mayor a cero.");
+  }
+
+  const contractStart = toIsoDate(contract.startDate);
+  const contractEnd = contract.endDate ? toIsoDate(contract.endDate) : null;
+
+  if (contractStart > periodEnd) {
+    throw new Error(
+      `El contrato no estuvo vigente durante el período (inicio de contrato ${contractStart} posterior a fin de período ${periodEnd}).`
+    );
+  }
+
+  if (contractEnd && contractEnd < periodStart) {
+    throw new Error(
+      `El contrato no estuvo vigente durante el período (fin de contrato ${contractEnd} anterior a inicio de período ${periodStart}).`
+    );
+  }
+
+  const overlapStart = contractStart > periodStart ? contractStart : periodStart;
+  const overlapEnd = contractEnd && contractEnd < periodEnd ? contractEnd : periodEnd;
+
+  const startDayDate = parseISO(overlapStart);
+  const endDayDate = parseISO(overlapEnd);
+  const effectiveDaysInPeriod = differenceInDays(endDayDate, startDayDate) + 1;
+
+  if (effectiveDaysInPeriod <= 0) {
+    throw new Error("El contrato no estuvo vigente durante el período.");
+  }
+
+  // Ordenar todo el historial salarial cronológicamente por fecha efectiva
+  const sortedHistory = historyList
+    .map((h) => ({
+      ...h,
+      effectiveDateStr: toIsoDate(h.effectiveDate),
+    }))
+    .sort((a, b) => a.effectiveDateStr.localeCompare(b.effectiveDateStr));
+
+  let totalBaseSalaryCents = 0;
+  const appliedChangeDates = new Set<string>();
+  let lastDailySalary = contract.baseSalary;
+
+  for (let i = 0; i < effectiveDaysInPeriod; i++) {
+    const currentDayDate = addDays(startDayDate, i);
+    const dayStr = format(currentDayDate, "yyyy-MM-dd");
+
+    // Salario aplicable en el día calendario dayStr:
+    // 1. Si hay registros en el historial con fecha efectiva <= dayStr, tomamos el más reciente.
+    // 2. Si no hay registros <= dayStr (todos son futuros respecto a dayStr), tomamos el previousSalary
+    //    del primer cambio futuro si existe; de lo contrario el baseSalary del contrato.
+    let applicableSalary = contract.baseSalary;
+    const pastChanges = sortedHistory.filter((h) => h.effectiveDateStr <= dayStr);
+    if (pastChanges.length > 0) {
+      const latestPast = pastChanges[pastChanges.length - 1];
+      applicableSalary = latestPast.newSalary;
+      if (latestPast.effectiveDateStr >= overlapStart && latestPast.effectiveDateStr <= overlapEnd) {
+        appliedChangeDates.add(latestPast.effectiveDateStr);
+      }
+    } else {
+      const futureChanges = sortedHistory.filter((h) => h.effectiveDateStr > dayStr);
+      if (futureChanges.length > 0 && typeof futureChanges[0].previousSalary === "number") {
+        applicableSalary = futureChanges[0].previousSalary;
+      }
+    }
+
+    totalBaseSalaryCents += applicableSalary;
+    lastDailySalary = applicableSalary;
+  }
+
+  let periodicity: "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY" = "BIWEEKLY";
+  if (contract.workRegime === "DAILY" || calendarDays <= 1) {
+    periodicity = "DAILY";
+  } else if (contract.workRegime === "WEEKLY" || calendarDays === 7) {
+    periodicity = "WEEKLY";
+  } else if (calendarDays >= 28) {
+    periodicity = "MONTHLY";
+  }
+
+  const isProrated = effectiveDaysInPeriod < calendarDays;
+
+  return {
+    userId: contract.userId,
+    contractId: contract.id,
+    currency,
+    dailySalaryCents: lastDailySalary,
+    periodicity,
+    contractStartDate: contractStart,
+    contractEndDate: contractEnd,
+    overlapStartDate: overlapStart,
+    overlapEndDate: overlapEnd,
+    calendarDaysInPeriod: calendarDays,
+    effectiveDaysInPeriod,
+    baseSalaryCents: totalBaseSalaryCents,
+    isProrated,
+    salaryChangesApplied: appliedChangeDates.size,
+  };
+}
+
+/**
+ * Determina si un período de nómina ya está completado y por tanto congelado e inmutable.
+ */
+export async function isPayrollPeriodFrozen(
+  companyId: string,
+  startDate: string,
+  endDate: string,
+  dbInstance = db
+): Promise<boolean> {
+  const [completed] = await dbInstance
+    .select({ id: payrollRuns.id })
+    .from(payrollRuns)
+    .where(
+      and(
+        eq(payrollRuns.companyId, companyId),
+        eq(payrollRuns.periodStart, startDate),
+        eq(payrollRuns.periodEnd, endDate),
+        eq(payrollRuns.status, "COMPLETED")
+      )
+    )
+    .limit(1);
+
+  return Boolean(completed);
+}
 
 export interface PayrollPreStampingValidation {
   canStamp: boolean;
@@ -32,7 +246,7 @@ export interface PayrollPreStampingValidation {
     userId: string;
     employeeName: string;
     error: string;
-    code: 'GHOST_EMPLOYEE' | 'MISSING_RFC' | 'MISSING_CURP' | 'NO_CONTRACT';
+    code: 'GHOST_EMPLOYEE' | 'MISSING_RFC' | 'MISSING_CURP' | 'NO_CONTRACT' | 'UNSUPPORTED_CURRENCY' | 'INVALID_SALARY' | 'INACTIVE_CONTRACT_PERIOD' | 'PERIOD_ALREADY_COMPLETED' | 'INVALID_PERIOD' | string;
     severity: 'BLOCKING' | 'WARNING';
   }>;
   financialSummary: {
@@ -110,8 +324,48 @@ export async function validatePayrollPreStamping(
   endDate: string,
   branchId?: string
 ): Promise<PayrollPreStampingValidation> {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const validationErrors: PayrollPreStampingValidation["validationErrors"] = [];
+
+  // 1. Validar fechas del calendario del período
+  try {
+    validatePayrollPeriod(startDate, endDate);
+  } catch (err: any) {
+    validationErrors.push({
+      userId: "PERIOD_CHECK",
+      employeeName: "Período de Nómina",
+      error: err.message,
+      code: "INVALID_PERIOD",
+      severity: "BLOCKING",
+    });
+    return {
+      canStamp: false,
+      totalActiveEmployees: 0,
+      verifiedEmployees: 0,
+      blockingErrorsCount: 1,
+      validationErrors,
+      financialSummary: {
+        totalGrossSalaryCents: 0,
+        totalTipsCents: 0,
+        totalEmployerSocialSecurityCents: 0,
+        totalRealLaborCostCents: 0,
+      },
+    };
+  }
+
+  // 2. Verificar si el período ya fue completado y está congelado
+  const isFrozen = await isPayrollPeriodFrozen(companyId, startDate, endDate);
+  if (isFrozen) {
+    validationErrors.push({
+      userId: "PERIOD_CHECK",
+      employeeName: "Período de Nómina",
+      error: `El período de nómina ${startDate} - ${endDate} ya fue completado y se encuentra congelado.`,
+      code: "PERIOD_ALREADY_COMPLETED",
+      severity: "BLOCKING",
+    });
+  }
+
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T23:59:59Z`);
 
   const activeStaff = await db
     .select({
@@ -121,12 +375,18 @@ export async function validatePayrollPreStamping(
       curp: employeeProfiles.curp,
       nss: employeeProfiles.nss,
       employeeNumber: employeeProfiles.employeeNumber,
+      contractId: employeeContracts.id,
       baseSalary: employeeContracts.baseSalary,
+      currency: employeeContracts.currency,
+      contractStartDate: employeeContracts.startDate,
+      contractEndDate: employeeContracts.endDate,
+      contractStatus: employeeContracts.status,
     })
     .from(users)
     .innerJoin(employeeProfiles, eq(users.id, employeeProfiles.userId))
     .leftJoin(employeeContracts, and(
       eq(users.id, employeeContracts.userId),
+      eq(employeeContracts.companyId, companyId),
       eq(employeeContracts.status, 'ACTIVE')
     ))
     .where(
@@ -137,7 +397,6 @@ export async function validatePayrollPreStamping(
       )
     );
 
-  const validationErrors: PayrollPreStampingValidation["validationErrors"] = [];
   let totalGrossSalaryCents = 0;
   const totalTipsCents = 0;
   let verifiedEmployees = 0;
@@ -169,7 +428,7 @@ export async function validatePayrollPreStamping(
     }
 
     // Check Contract
-    if (!emp.baseSalary) {
+    if (!emp.contractId || !emp.baseSalary) {
       validationErrors.push({
         userId: emp.userId,
         employeeName: emp.name || "Sin Nombre",
@@ -178,6 +437,54 @@ export async function validatePayrollPreStamping(
         severity: "BLOCKING",
       });
       hasBlockingError = true;
+    } else {
+      const currency = (emp.currency || "MXN").trim().toUpperCase();
+      if (currency !== "MXN") {
+        validationErrors.push({
+          userId: emp.userId,
+          employeeName: emp.name || "Sin Nombre",
+          error: `Moneda de contrato no soportada (${emp.currency}). Solo se admite MXN.`,
+          code: "UNSUPPORTED_CURRENCY",
+          severity: "BLOCKING",
+        });
+        hasBlockingError = true;
+      }
+
+      if (emp.baseSalary <= 0) {
+        validationErrors.push({
+          userId: emp.userId,
+          employeeName: emp.name || "Sin Nombre",
+          error: "El salario base registrado en el contrato debe ser mayor a cero.",
+          code: "INVALID_SALARY",
+          severity: "BLOCKING",
+        });
+        hasBlockingError = true;
+      }
+
+      try {
+        const res = resolveContractSalaryForPeriod({
+          contract: {
+            id: emp.contractId,
+            userId: emp.userId,
+            baseSalary: emp.baseSalary,
+            currency: emp.currency,
+            startDate: emp.contractStartDate!,
+            endDate: emp.contractEndDate,
+          },
+          periodStart: startDate,
+          periodEnd: endDate,
+        });
+        totalGrossSalaryCents += res.baseSalaryCents;
+      } catch (err: any) {
+        validationErrors.push({
+          userId: emp.userId,
+          employeeName: emp.name || "Sin Nombre",
+          error: err.message,
+          code: "INACTIVE_CONTRACT_PERIOD",
+          severity: "BLOCKING",
+        });
+        hasBlockingError = true;
+      }
     }
 
     // Check Attendance Sessions vs Vacations/Leaves (Detección de Empleados Fantasma)
@@ -218,11 +525,6 @@ export async function validatePayrollPreStamping(
     if (!hasBlockingError) {
       verifiedEmployees++;
     }
-
-    // Aggregate financial amounts
-    const daysInPeriod = differenceInDays(parseISO(endDate), parseISO(startDate)) + 1;
-    const baseCents = (emp.baseSalary || 0) * daysInPeriod;
-    totalGrossSalaryCents += baseCents;
   }
 
   // Carga social patronal estimada (IMSS + Infonavit + ISN = 35% del salario base) (Módulo 7.3)
@@ -247,6 +549,18 @@ export async function validatePayrollPreStamping(
 }
 
 export async function calculateEmployeePayroll(userId: string, startDate: string, endDate: string) {
+  // 0. Validar período y usuario
+  const { calendarDays } = validatePayrollPeriod(startDate, endDate);
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { id: true, companyId: true, name: true }
+  });
+
+  if (!user || !user.companyId) {
+    throw new Error(`Empleado ${userId} no encontrado o sin empresa asignada.`);
+  }
+
   // 1. Calculate tips
   const propinasSum = await db
     .select({
@@ -264,27 +578,58 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
     
   const tipsCents = Number(propinasSum[0]?.totalTips || 0);
 
-  // 2. Base salary
-  const contract = await db.select()
+  // 2. Base salary & Contract Resolution
+  const contracts = await db
+    .select()
     .from(employeeContracts)
-    .where(eq(employeeContracts.userId, userId))
-    .limit(1)
-    .then(res => res[0]);
+    .where(
+      and(
+        eq(employeeContracts.userId, userId),
+        eq(employeeContracts.companyId, user.companyId),
+        eq(employeeContracts.status, 'ACTIVE')
+      )
+    )
+    .orderBy(desc(employeeContracts.startDate));
 
-  // simple calculation: base salary (daily) * days in period
-  const daysInPeriod = differenceInDays(parseISO(endDate), parseISO(startDate)) + 1;
-  const baseSalaryCents = (contract?.baseSalary || 0) * daysInPeriod;
+  if (!contracts || contracts.length === 0) {
+    throw new Error(`Empleado ${user.name || userId} no tiene contrato vigente para el período ${startDate} - ${endDate}.`);
+  }
+
+  const contract = contracts[0];
+
+  // Historial salarial hasta el fin del período (cambios posteriores no alteran este período)
+  const history = await db
+    .select({
+      id: salaryHistory.id,
+      contractId: salaryHistory.contractId,
+      newSalary: salaryHistory.newSalary,
+      previousSalary: salaryHistory.previousSalary,
+      effectiveDate: salaryHistory.effectiveDate,
+    })
+    .from(salaryHistory)
+    .where(
+      and(
+        eq(salaryHistory.userId, userId),
+        lte(salaryHistory.effectiveDate, new Date(`${endDate}T23:59:59Z`))
+      )
+    )
+    .orderBy(desc(salaryHistory.effectiveDate));
+
+  const contractResolution = resolveContractSalaryForPeriod({
+    contract,
+    salaryHistory: history,
+    periodStart: startDate,
+    periodEnd: endDate,
+  });
+
+  const baseSalaryCents = contractResolution.baseSalaryCents;
+  const salarioDiarioCents = contractResolution.dailySalaryCents;
 
   // 3. Holiday extra pay (LFT Art. 75): Salario doble ADICIONAL por laborar en día de descanso obligatorio
   let holidayPayCents = 0;
   let holidayDaysWorked = 0;
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { companyId: true }
-  });
-
-  if (user?.companyId && contract?.baseSalary) {
+  if (contractResolution.baseSalaryCents > 0) {
     const holidayList = await db
       .select({
         date: holidays.date,
@@ -335,7 +680,7 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
 
       holidayDaysWorked = workedDays.size;
       // Salario doble adicional por cada festivo trabajado (Art. 75 LFT)
-      holidayPayCents = holidayDaysWorked * contract.baseSalary * 2;
+      holidayPayCents = holidayDaysWorked * salarioDiarioCents * 2;
     }
   }
 
@@ -356,10 +701,19 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
     employerSocialSecurityCents,
     realLaborCostCents,
     /** Datos reales del contrato para el CFDI (SBC y fecha de contratación). */
-    salarioDiarioCents: contract?.baseSalary || 0,
+    salarioDiarioCents,
     fechaContratacion: contract?.startDate
       ? new Date(contract.startDate).toISOString().slice(0, 10)
       : undefined,
+    contractDetails: {
+      contractId: contract.id,
+      currency: contractResolution.currency,
+      periodicity: contractResolution.periodicity,
+      effectiveDays: contractResolution.effectiveDaysInPeriod,
+      calendarDays,
+      isProrated: contractResolution.isProrated,
+      salaryChangesApplied: contractResolution.salaryChangesApplied,
+    },
   };
 }
 
@@ -424,6 +778,12 @@ export async function executePayrollRun(
   /** Quién corrió la nómina. Viaja al timbrado, que ahora deja constancia. */
   performedBy?: string
 ) {
+  validatePayrollPeriod(startDate, endDate);
+  const isFrozen = await isPayrollPeriodFrozen(companyId, startDate, endDate);
+  if (isFrozen) {
+    throw new Error(`El período de nómina ${startDate} - ${endDate} ya fue completado y se encuentra congelado.`);
+  }
+
   const scope = { companyId, actorId: performedBy };
   // 0. Pre-Flight Validation Check (Módulo 7.1 & 7.2)
   const validation = await validatePayrollPreStamping(companyId, startDate, endDate);
@@ -510,16 +870,21 @@ export async function executePayrollRun(
       console.error(`Error procesando nómina para ${emp.userId}:`, err);
       results.push({ success: false, userId: emp.userId, error: err.message });
       // Guardar payslip con error
-      const payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate);
+      let payrollCalc: any = null;
+      try {
+        payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate);
+      } catch {
+        payrollCalc = null;
+      }
       await withCompanyContext(scope, (tx) => tx.insert(payrollPayslips).values({
         runId: run.id,
         userId: emp.userId,
-        baseSalaryCents: payrollCalc.baseSalaryCents,
-        propinasCents: payrollCalc.propinasCents,
-        holidayPayCents: payrollCalc.holidayPayCents,
-        overtimePayCents: payrollCalc.overtimePayCents,
-        totalPercepcionesCents: payrollCalc.totalPercepcionesCents,
-        totalDeduccionesCents: payrollCalc.totalDeduccionesCents,
+        baseSalaryCents: payrollCalc?.baseSalaryCents ?? 0,
+        propinasCents: payrollCalc?.propinasCents ?? 0,
+        holidayPayCents: payrollCalc?.holidayPayCents ?? 0,
+        overtimePayCents: payrollCalc?.overtimePayCents ?? 0,
+        totalPercepcionesCents: payrollCalc?.totalPercepcionesCents ?? 0,
+        totalDeduccionesCents: payrollCalc?.totalDeduccionesCents ?? 0,
         cfdiStatus: "ERROR",
       }));
     }

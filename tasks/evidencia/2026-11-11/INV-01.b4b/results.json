@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-12",
+  "baseHead": "2be55da631e34203b9f3dc5f9b8c1296751ca1ca",
+  "state": "código implementado; V1/V2 focales y build global acreditados; aceptación funcional pendiente",
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "isolatedBranch": "br-round-voice-belheola",
+    "runtime": "pulso_app NOBYPASSRLS",
+    "fixtures": "dos empresas, tres sucursales, rollback serializable",
+    "migration0141": "generada; ejecutada solo dentro del rollback de fixtures, sin aplicación persistente"
+  },
+  "checks": {
+    "unit": {
+      "passed": 109,
+      "files": 7,
+      "exit": 0
+    },
+    "integration": {
+      "passed": 15,
+      "new": 3,
+      "regression": 12,
+      "exit": 0,
+      "nodeOptions": "--use-system-ca"
+    },
+    "typescriptGlobal": {
+      "command": "pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    "lint": {
+      "files": 4,
+      "exit": 0
+    },
+    "traceability": {
+      "rows": 239,
+      "children": 73,
+      "accepted": 12,
+      "errors": 0,
+      "exit": 0
+    },
+    "diffCheck": {
+      "exit": 0
+    },
+    "build": {
+      "command": "pnpm.cmd run build",
+      "nodeOptions": "--max-old-space-size=4096 --use-system-ca",
+      "exit": 0,
+      "accepted": true,
+      "recordedAt": "2026-11-12T15:29:32.617Z",
+      "compilation": "104s",
+      "staticPages": 444,
+      "log": "tasks/evidencia/2026-11-11/INV-01.b4b/build-success.txt",
+      "warnings": [
+        "fetchConnectionCache deprecated",
+        "DYNAMIC_SERVER_USAGE en /dashboard/labor/documents; ruta final dinámica"
+      ],
+      "previousAttempts": [
+        {
+          "exit": 1,
+          "reason": ".next/lock ocupado"
+        },
+        {
+          "exit": 134,
+          "reason": "Worker TypeScript agotó heap cercano a 2 GB",
+          "log": "tasks/evidencia/2026-11-11/INV-01.b4b/build-retry-default.txt"
+        },
+        {
+          "exit": 1,
+          "reason": "Error de conexión descargando Geist/Geist Mono",
+          "log": "tasks/evidencia/2026-11-11/INV-01.b4b/build-retry-4gb-network.txt"
+        }
+      ]
+    }
+  },
+  "reproductions": [
+    "TLS inicialmente impedía conexión; --use-system-ca resolvió sin desactivar verificación",
+    "Dos pruebas nuevas fallaron con 42501 al leer recipes.name; doce regresiones pasaron",
+    "Migración 0141 concede solo SELECT(name); quince SQL pasan con migración y fixtures revertidos"
+  ],
+  "limits": [
+    "Sin despliegue ni aplicación de migraciones a main",
+    "Sin aceptación de fila 11.11 ni padre INV-01.b",
+    "Lectores legacy de sales_entries requieren propagar cobertura antes de afirmar ingreso completo",
+    "Fronteras manual/bulk/smart-link y feedback API/UI siguen en b4/d"
+  ],
+  "implementationHashes": {
+    "lib/services/sales-ingest-service.ts": "15cd701d8f12908e93c3e17402fcfbfbab6e352702c99928156574099d807c3a",
+    "lib/services/sale-consumption-service.ts": "3e8f02aa27d49358c1d2792d5eebaeca518256f93c12829a0d68c2e363577cb9",
+    "lib/services/__tests__/sales-ingest-service.test.ts": "7ee0549c8866898a0dee810194675a4dae669915abc09ce2af5d625ad7b1c7b1",
+    "tests/integration/sale-consumption-application-db.test.ts": "3aa22a0dfa037ac17cdb230b7caaf1317460afaa2daa920ce522aa71b7258c08",
+    "drizzle/0141_inv01b_import_recipe_name.sql": "8f1a13f2765bd5b1d66ebf3e3c014f63d740910eb955b94792bb9de0a059a8b0",
+    "drizzle/meta/0141_snapshot.json": "f8f908024e0135b2c32f15f9b8fabcb6bde786d2bcf00c44a7f43182a5480baa"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "localDate": "2026-11-12",
+  "head": "b91355ba8a0167aef02089118fb2b1606c9936db",
+  "state": "código implementado; build global y navegador aislado comprobados, aceptación integrada pendiente",
+  "checks": {
+    "browser": {
+      "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts",
+      "passed": 9,
+      "exit": 0,
+      "finalRun": "después del build, con CSS actualizado",
+      "environment": "Chromium aislado; componente/CSS reales, HTTP sintético, sin sesión ni DB operativa"
+    },
+    "visual": {
+      "command": "node .tmp/verify-sales-entry-ui.cjs",
+      "exit": 0,
+      "desktop": "1280x900",
+      "mobile": "390x844",
+      "errors": 0,
+      "warnings": 0,
+      "globalOverflow": false,
+      "mobileTableWidth": 520,
+      "mobileScrollContainerWidth": 308,
+      "evidence": "tasks/evidencia/2026-11-11/INV-01.b4.ui/browser-inspection.json"
+    },
+    "lint": {
+      "files": 4,
+      "exit": 0
+    },
+    "typescript": {
+      "command": "pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    "build": {
+      "command": "pnpm.cmd run build",
+      "nodeOptions": "--max-old-space-size=4096 --use-system-ca",
+      "exit": 0,
+      "accepted": true,
+      "recordedAt": "2026-11-13T03:58:47.299Z",
+      "compilation": "3.0min",
+      "staticPages": 444,
+      "buildId": "Sy_ZUNbEBBLamUI5nSK0Q",
+      "head": "b91355ba8a0167aef02089118fb2b1606c9936db",
+      "log": "tasks/evidencia/2026-11-11/INV-01.b4.ui/build-success.txt",
+      "warnings": [
+        "fetchConnectionCache deprecado",
+        "DYNAMIC_SERVER_USAGE en /dashboard/labor/documents; salida final dinámica"
+      ]
+    },
+    "traceability": {
+      "rows": 239,
+      "children": 77,
+      "acceptedTasks": 12,
+      "errors": 0,
+      "exit": 0
+    },
+    "diffCheck": {
+      "exit": 0
+    }
+  },
+  "sourceHashes": {
+    "app/dashboard/inventory/sales-entry/sales-entry-client.tsx": "ed6b0f7f917531f278bb3570c657e3a9df4d343b1553f8da6bf055ffdfd96e24",
+    "tests/support/sales-entry-browser-server.ts": "ed265c9c0ed554b39d203181c4077103d7cdef203049048c57b5f558ef22b6de",
+    "tests/e2e/sales-entry-feedback.spec.ts": "6c5fe94db7a6f4d43f86d2e29fbbcdf43368964adcfd1e5c1206f120a68036af",
+    "tests/playwright-sales-entry.config.ts": "6d403d55ebeb3bb90d8481d3790ce820f1887881e9f2c1779b4d580924cf06cd"
+  },
+  "limits": [
+    "Sin V3 integrado de sesión/API/DB ni aceptación de fila 11.11",
+    "Sin despliegue ni aplicación de migraciones a main",
+    "Recuperación/carreras y lectores financieros legacy siguen pendientes",
+    "El layout completo de Next no forma parte del harness visual"
+  ]
+}

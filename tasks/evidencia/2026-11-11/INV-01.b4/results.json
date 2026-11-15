@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-15",
+  "session": "A1",
+  "initialHead": "35c5dcf3d05a4b991d60e7d8c1f10f22b433e12c",
+  "state": "código implementado e inventariado; aceptación y checkpoint pendientes",
+  "children": [
+    "INV-01.b4b.rls",
+    "INV-01.b4b",
+    "INV-01.b4.manual",
+    "INV-01.b4.bulk",
+    "INV-01.b4.smartlink",
+    "INV-01.b4.ui"
+  ],
+  "checks": {
+    "unit": {
+      "passed": 124,
+      "files": 10,
+      "exit": 0,
+      "duration": "19.09s",
+      "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/inventory/sales-entry-smart-link.test.ts tests/unit/inventory/sales-entry-bulk.test.ts tests/unit/inventory/sales-entry-access.test.ts lib/services/__tests__/sales-ingest-service.test.ts lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers=1 --pool=threads"
+    },
+    "postgres": {
+      "passed": 17,
+      "files": 1,
+      "exit": 0,
+      "duration": "200.45s",
+      "environment": "br-round-voice-belheola; pulso_app; fixtures y permiso 0141 revertidos en probe",
+      "command": "powershell -Command \"$env:NODE_OPTIONS='--use-system-ca'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads\""
+    },
+    "playwrightBrowser": {
+      "passed": 9,
+      "files": 1,
+      "exit": 0,
+      "duration": "38.4s",
+      "browser": "Chromium headless",
+      "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts"
+    },
+    "lint": {
+      "files": 11,
+      "errors": 0,
+      "warnings": 0,
+      "exit": 0,
+      "fixedWarnings": [
+        "app/api/inventory/sales-entry/route.ts:139: variable error eliminada del catch"
+      ],
+      "command": "pnpm.cmd exec eslint app/api/inventory/sales-entry/route.ts app/api/inventory/sales-entry/bulk/route.ts app/api/workflows/smart-links/upload-pos/route.ts app/dashboard/inventory/sales-entry/sales-entry-client.tsx lib/services/sales-ingest-service.ts tests/unit/inventory/sales-entry-access.test.ts tests/unit/inventory/sales-entry-bulk.test.ts tests/unit/inventory/sales-entry-smart-link.test.ts tests/integration/sale-consumption-application-db.test.ts tests/e2e/sales-entry-feedback.spec.ts tests/support/sales-entry-browser-server.ts"
+    },
+    "traceability": {
+      "rows": 239,
+      "planTasks": 86,
+      "children": 90,
+      "acceptedTasks": 15,
+      "errors": 0,
+      "exit": 0,
+      "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts"
+    },
+    "diffCheck": {
+      "exit": 0,
+      "command": "git diff --check"
+    }
+  },
+  "inventory": {
+    "realTests": [
+      "17 pruebas Postgres reales con conexión TLS contra rama aislada br-round-voice-belheola, rol pulso_app con RLS, aislamiento serializable y rollback",
+      "9 pruebas Playwright E2E reales en Chromium headless con componentes y CSS compilado del cliente",
+      "20 pruebas unitarias de trazabilidad y manifiesto de migración reales"
+    ],
+    "syntheticTests": [
+      "Pruebas de ruta HTTP (sales-entry-access, sales-entry-bulk, sales-entry-smart-link) con NextRequest y mocks de sesión/DB/writer",
+      "Respuestas HTTP interceptadas con page.route() en Playwright para probar feedback y accesibilidad del cliente",
+      "Almacenamiento de smart-link POS usando ruta string sintética (pos-uploads/...) sin persistencia durable en Cloudflare R2"
+    ]
+  },
+  "limits": [
+    "Pruebas HTTP con NextRequest/NextResponse y dobles de frontera no acreditan V3 ni sesión operativa real",
+    "Sin nueva migración, aplicación a main ni despliegue",
+    "UI CSV verificada con servidor efímero; lectores financieros legacy e integración API/DB real pendientes en INV-01.d",
+    "Storage POS placeholder previo no acredita evidencia durable R2 (coordinar con Frente C en EVI-02)",
+    "Sin aceptación prematura de fila 11.11 ni padre INV-01.b; se conservan dependencias pendientes"
+  ]
+}

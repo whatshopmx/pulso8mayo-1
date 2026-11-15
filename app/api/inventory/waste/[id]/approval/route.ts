@@ -24,6 +24,14 @@ import {
  * nacieron PENDING_APPROVAL (las AUTO se rechazan con NOT_PENDING — no tienen
  * flujo de aprobación).
  *
+ * AUD-02:
+ * - Toda mutación (APPROVE o REJECT) se ejecuta atómicamente con su auditoría
+ *   dentro de `db.transaction(async (tx) => ...)`.
+ * - El motivo es obligatorio para la decisión administrativa.
+ * - Si la inserción en `inventory_audit_log` falla, la transacción se revierte
+ *   completamente (no se mueve inventario, no se confirman movimientos y no se
+ *   cambia el estatus de la merma).
+ *
  * Reglas:
  * - Aprueba GERENTE+ (`roleIsAtLeast`), acotado a su sucursal vía
  *   `resolveBranchScope`; ADMIN/SUPER_ADMIN cualquier sucursal del tenant.
@@ -87,28 +95,45 @@ export const POST = withTenantAuth(
       );
     }
 
-    // --- RECHAZO: no toca inventario --------------------------------------------
-    if (action === "REJECT") {
-      const [updated] = await db
-        .update(inventoryWaste)
-        .set({
-          approvalStatus: "REJECTED",
-          approvedBy: auth.user.id,
-          approvedAt: new Date(),
-        })
-        .where(eq(inventoryWaste.id, id))
-        .returning();
+    const reasonInput = (
+      typeof body.reason === "string"
+        ? body.reason
+        : typeof body.notes === "string"
+          ? body.notes
+          : ""
+    ).trim();
 
-      AuditService.logInventoryAction({
-        companyId: auth.tenantId,
-        branchId: waste.branchId,
-        action: "UPDATE",
-        entityType: "WASTE",
-        entityId: id,
-        oldValue: { approvalStatus: "PENDING_APPROVAL" },
-        newValue: { approvalStatus: "REJECTED" },
-        performedBy: auth.user.id,
-        reason: `Waste rejected: ${waste.reason}`,
+    // --- RECHAZO: auditoría y actualización atómica en la misma transacción ---
+    if (action === "REJECT") {
+      const rejectReason = reasonInput;
+      if (!rejectReason || rejectReason.length < 4) {
+        throw ApiError.badRequest("El motivo es obligatorio para rechazar la merma (mínimo 4 caracteres)");
+      }
+
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(inventoryWaste)
+          .set({
+            approvalStatus: "REJECTED",
+            approvedBy: auth.user.id,
+            approvedAt: new Date(),
+          })
+          .where(eq(inventoryWaste.id, id))
+          .returning();
+
+        await AuditService.logCriticalInventoryAction({
+          companyId: auth.tenantId,
+          branchId: waste.branchId,
+          action: "UPDATE",
+          entityType: "WASTE",
+          entityId: id,
+          oldValue: { approvalStatus: "PENDING_APPROVAL" },
+          newValue: { approvalStatus: "REJECTED" },
+          performedBy: auth.user.id,
+          reason: rejectReason,
+        }, tx);
+
+        return row;
       });
 
       return ApiHandler.success({
@@ -160,8 +185,10 @@ export const POST = withTenantAuth(
       });
     }
 
+    const approveReason = reasonInput || `Aprobación de merma: ${waste.reason}`;
+
     // Descuento diferido al momento de aprobar, dentro de una transacción con
-    // lock del lote (el stock pudo cambiar desde el registro).
+    // lock del lote (el stock pudo cambiar desde el registro) y auditoría atómica (AUD-02).
     const updated = await db.transaction(async (tx) => {
       if (waste.batchId) {
         const [batch] = await tx
@@ -220,20 +247,23 @@ export const POST = withTenantAuth(
         .where(eq(inventoryWaste.id, id))
         .returning();
 
-      return row;
-    });
+      // AUD-02: Auditoría obligatoria atómica dentro de la misma transacción.
+      // Si la inserción en la bitácora falla, revierte la aprobación, la deducción del lote
+      // y la creación del movimiento en inventoryMovements.
+      await AuditService.logCriticalInventoryAction({
+        companyId: auth.tenantId,
+        branchId: waste.branchId,
+        action: "UPDATE",
+        entityType: "WASTE",
+        entityId: id,
+        oldValue: { approvalStatus: "PENDING_APPROVAL" },
+        newValue: { approvalStatus: "APPROVED" },
+        performedBy: auth.user.id,
+        reason: approveReason,
+        metadata: { batchId: waste.batchId, totalLoss: waste.totalLoss },
+      }, tx);
 
-    AuditService.logInventoryAction({
-      companyId: auth.tenantId,
-      branchId: waste.branchId,
-      action: "UPDATE",
-      entityType: "WASTE",
-      entityId: id,
-      oldValue: { approvalStatus: "PENDING_APPROVAL" },
-      newValue: { approvalStatus: "APPROVED" },
-      performedBy: auth.user.id,
-      reason: `Waste approved: ${waste.reason}`,
-      metadata: { batchId: waste.batchId, totalLoss: waste.totalLoss },
+      return row;
     });
 
     return ApiHandler.success({

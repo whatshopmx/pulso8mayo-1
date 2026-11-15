@@ -10,8 +10,8 @@ import type { Role } from "@/lib/permissions";
 import { hasPermission } from "@/lib/permissions";
 import {
   SalesIngestService,
-  type SalesColumnMapping,
 } from "@/lib/services/sales-ingest-service";
+import { SaleConsumptionError } from "@/lib/services/sale-consumption-service";
 
 const bulkSchema = z.object({
   branchId: z.string().uuid(),
@@ -21,6 +21,7 @@ const bulkSchema = z.object({
     quantitySold: z.string().min(1),
     saleDate: z.string().optional(),
     totalRevenue: z.string().optional(),
+    productKey: z.string().optional(),
   }),
   defaultDay: z
     .string()
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const role = (session.user as { role?: Role }).role ?? "ADMIN";
+    const role = (session.user as { role?: Role }).role ?? "EMPLEADO";
     if (!hasPermission(role, "inventory", "manage")) {
       return NextResponse.json(
         { error: "No tienes permisos para registrar ventas" },
@@ -79,7 +80,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           inserted: 0,
+          updated: 0,
           skipped: 0,
+          revenueComplete: false,
+          revenueCoverage: [],
           errors: parsed.errors,
           message: "Ninguna fila válida en el archivo",
         },
@@ -91,14 +95,20 @@ export async function POST(req: NextRequest) {
       companyId: session.user.companyId,
       branchId,
       userId: session.user.id,
+      source: "pos:import",
       rows: parsed.rows,
     });
 
     return NextResponse.json({
       ...result,
       errors: [...parsed.errors, ...result.errors],
+      revenueComplete: parsed.errors.length === 0 && result.revenueComplete,
     });
   } catch (error) {
+    if (error instanceof SaleConsumptionError) {
+      const status = error.code === "INVALID_INPUT" ? 400 : error.code === "INVALID_SCOPE" ? 403 : 409;
+      return NextResponse.json({ error: error.message, code: error.code }, { status });
+    }
     console.error("Sales entry bulk error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(

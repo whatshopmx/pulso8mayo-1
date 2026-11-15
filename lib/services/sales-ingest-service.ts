@@ -1,183 +1,101 @@
-// lib/services/sales-ingest-service.ts
-//
-// T6/T7 (`tasks/plan-inventario-desconexion.md`, Phase 2): AD-3 — las ventas
-// son un *ingest*, no un form. Un solo servicio acepta filas normalizadas
-// desde dos vías (pantalla corporativa de CSV y smart-link de cierre POS).
-//
-// La parte PURA (split de CSV, mapeo, normalización, guessMapping) vive en
-// `sales-ingest-pure.ts` y se re-exporta aquí; este módulo solo añade la
-// escritura a DB con idempotencia (`ingest`, AD-4) y la resolución de
-// referencias de receta.
+import type { db } from "@/lib/db";
+import { branches, recipes } from "@/lib/db/schema";
+import { and, eq, sql } from "drizzle-orm";
+import { buildRows, type NormalizedSaleRow, type SalesRowError } from "./sales-ingest-pure";
+import { planSalesImport } from "./sales-ingest-plan";
+import { normalizeSaleConsumptionIdentity } from "./sale-consumption-contract";
 
-import { recipes, salesEntries } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
-import { TheoreticalConsumptionService } from "@/lib/services/theoretical-consumption-service";
-import {
-  buildRows,
-  type NormalizedSaleRow,
-  type SalesRowError,
-} from "@/lib/services/sales-ingest-pure";
-
-export * from "@/lib/services/sales-ingest-pure";
+export * from "./sales-ingest-pure";
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+interface ImportInput {
+  companyId: string; branchId: string; userId: string; rows: NormalizedSaleRow[];
+  /** Namespace estable; jamás usar el nombre del archivo. */
+  source?: string;
+  /** Captura manual: cualquier error revierte el lote completo. CSV mantiene grupos independientes. */
+  atomic?: boolean;
+}
 
 export class SalesIngestService {
-  /**
-   * Fase pura del ingest: CSV crudo + mapeo → filas normalizadas + errores
-   * accionables por fila. Las filas inválidas NO abortan el lote (AD-3).
-   */
   static buildRows = buildRows;
 
-  /**
-   * Resuelve referencias de receta: UUID directo, o nombre exacto
-   * (case-insensitive, trim) dentro de la empresa. Devuelve un mapa
-   * ref → recipeId (null cuando no hay match — la fila va a errores, no
-   * aborta el lote).
-   *
-   * Nota: `recipes` no tiene columna SKU/código (schema.ts:2530); si algún
-   * cliente necesita resolver por SKU de ítem, se agrega aquí una segunda
-   * pasada contra `inventory_items.sku` — hoy no existe ese flujo.
-   */
-  static async resolveRecipeRefs(
-    companyId: string,
-    refs: string[]
-  ): Promise<Map<string, string | null>> {
-    const result = new Map<string, string | null>();
-    const pending = new Set<string>();
-
-    for (const ref of refs) {
-      const trimmed = ref.trim();
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
-        result.set(ref, trimmed.toLowerCase());
-      } else {
-        pending.add(trimmed.toLowerCase());
-      }
-    }
-
-    if (pending.size > 0) {
-      // Resolución por lotes para no reventar con archivos grandes. Import
-      // dinámico: mantiene las funciones puras libres de conexión.
+  /** UUID y nombres se verifican contra catálogo propio; nombres ambiguos no resuelven. */
+  static async resolveRecipeRefs(companyId: string, refs: string[], tx?: Tx): Promise<Map<string, string | null>> {
+    if (!tx) {
       const { db } = await import("@/lib/db");
-      const matches = await db
-        .select({ id: recipes.id, name: sql<string>`lower(${recipes.name})` })
-        .from(recipes)
-        .where(eq(recipes.companyId, companyId));
-
-      const byName = new Map(matches.map((m) => [m.name, m.id]));
-      for (const ref of refs) {
-        if (result.has(ref)) continue;
-        result.set(ref, byName.get(ref.trim().toLowerCase()) ?? null);
-      }
+      return db.transaction(async scoped => {
+        await scoped.execute(sql`SELECT set_config('app.current_company_id', ${companyId}, true)`);
+        return this.resolveRecipeRefs(companyId, refs, scoped);
+      });
     }
-
-    return result;
+    const matches = await tx.select({ id: recipes.id, name: recipes.name }).from(recipes).where(eq(recipes.companyId, companyId));
+    return new Map(refs.map(ref => {
+      const key = ref.trim().toLowerCase();
+      const byId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key);
+      const found = matches.filter(row => byId ? row.id === key : row.name.trim().toLowerCase() === key);
+      return [ref, found.length === 1 ? found[0].id : null];
+    }));
   }
 
-  /**
-   * Escritura idempotente (AD-4 / T7): upsert por
-   * `(companyId, branchId, saleDate, recipeId)`. Reimportar el mismo corte
-   * reemplaza cantidad/ingreso (política keep-latest) y NO vuelve a descontar
-   * consumo teórico — `consume` solo corre en filas realmente nuevas.
-   *
-   * Filas con la misma receta y día dentro del archivo se agregan antes de
-   * escribir (un POS puede exportar varias líneas por hora).
-   *
-   * Devuelve `{inserted, skipped, errors[]}`: los errores incluyen las filas
-   * cuya referencia de receta no resolvió (no abortan el lote, AD-3).
-   */
-  static async ingest(params: {
-    companyId: string;
-    branchId: string;
-    userId: string;
-    rows: NormalizedSaleRow[];
-  }): Promise<{ inserted: number; skipped: number; errors: SalesRowError[] }> {
-    const { companyId, branchId, userId } = params;
+  /** Misma conexión para contexto, catálogo y writer. Cada grupo usa el savepoint del writer. */
+  static async ingestInTransaction(tx: Tx, params: ImportInput) {
+    return params.atomic ? tx.transaction(scoped => this.ingestGroups(scoped, params)) : this.ingestGroups(tx, params);
+  }
 
-    // Agregado intra-archivo: receta+día → totales.
-    const byRefDay = new Map<string, NormalizedSaleRow>();
-    for (const row of params.rows) {
-      const key = `${row.recipeRef.toLowerCase()}\u0000${row.saleDay}`;
-      const prev = byRefDay.get(key);
-      if (!prev) {
-        byRefDay.set(key, { ...row });
-      } else {
-        prev.quantitySold += row.quantitySold;
-        if (row.totalRevenueCents != null) {
-          prev.totalRevenueCents = (prev.totalRevenueCents ?? 0) + row.totalRevenueCents;
-        }
+  private static async ingestGroups(tx: Tx, params: ImportInput) {
+    const { companyId, branchId, source } = normalizeSaleConsumptionIdentity({ ...params,
+      source: params.source ?? "pos:import", productKey: "scope-check", saleDay: "2000-01-01" });
+    await tx.execute(sql`SELECT set_config('app.current_company_id', ${companyId}, true), set_config('app.current_branch_id', ${branchId}, true)`);
+    const [branch] = await tx.select({ id: branches.id }).from(branches).where(and(eq(branches.id, branchId), eq(branches.companyId, companyId)));
+    const { applySaleConsumptionInTransaction, SaleConsumptionError } = await import("./sale-consumption-service");
+    if (!branch) throw new SaleConsumptionError("INVALID_SCOPE", "Sucursal fuera de la empresa");
+    const plan = planSalesImport(params.rows);
+    if (params.atomic && plan.errors.length) throw new SaleConsumptionError("INVALID_INPUT", plan.errors.map(row => `Fila ${row.rowNumber}: ${row.message}`).join("; "));
+    const resolved = await this.resolveRecipeRefs(companyId, plan.groups.map(row => row.recipeRef), tx);
+    let inserted = 0, updated = 0, skipped = 0;
+    const errors: SalesRowError[] = [...plan.errors];
+    for (const group of plan.groups) {
+      const recipeId = resolved.get(group.recipeRef);
+      try {
+        if (!recipeId) throw new SaleConsumptionError("INVALID_INPUT", `Producto/receta no encontrada o ambigua: "${group.recipeRef}"`);
+        const result = await applySaleConsumptionInTransaction(tx, { companyId, branchId, source,
+          productKey: group.productKey, saleDay: group.saleDay, recipeId, quantitySold: group.quantitySold,
+          totalRevenueCents: group.totalRevenueCents, userId: params.userId });
+        if (!result.applied) skipped++;
+        else if (result.created) inserted++;
+        else updated++;
+      } catch (error) {
+        // Infraestructura/serialización exige rollback/reintento del lote entero.
+        if (!(error instanceof SaleConsumptionError)) throw error;
+        if (params.atomic) throw error;
+        for (const rowNumber of group.rowNumbers) errors.push({ rowNumber, message: error.message });
       }
     }
-    const aggregated = [...byRefDay.values()];
+    // Cobertura final incluyendo productos/fuentes que comparten receta y proyección.
+    const revenueCoverage: { recipeId: string; saleDay: string; complete: boolean }[] = [];
+    for (const group of plan.groups) {
+      const recipeId = resolved.get(group.recipeRef);
+      if (!recipeId || revenueCoverage.some(row => row.recipeId === recipeId && row.saleDay === group.saleDay)) continue;
+      const result = await tx.execute<{ complete: boolean }>(sql`SELECT bool_and(h.total_revenue IS NOT NULL) AS complete FROM (
+        SELECT DISTINCT ON (r.identity_id) r.total_revenue, r.recipe_id
+        FROM sales_consumption_revisions r JOIN sales_consumption_identities i ON i.id=r.identity_id
+        WHERE i.company_id=${companyId} AND i.branch_id=${branchId} AND i.sale_day=${group.saleDay}::date
+        ORDER BY r.identity_id,r.revision DESC
+      ) h WHERE h.recipe_id=${recipeId}`);
+      revenueCoverage.push({ recipeId, saleDay: group.saleDay, complete: result.rows[0]?.complete === true });
+    }
+    return { inserted, updated, skipped, errors, revenueCoverage,
+      revenueComplete: errors.length === 0 && revenueCoverage.every(row => row.complete) };
+  }
 
-    const resolved = await this.resolveRecipeRefs(
-      companyId,
-      aggregated.map((r) => r.recipeRef)
-    );
-
-    // Import dinámico, mismo criterio que `resolveRecipeRefs`: mantener la
-    // carga del módulo libre de conexión para los scripts `verify-*`.
+  /** Transacción serializable; nunca persiste venta separada del consumo. */
+  static async ingest(params: ImportInput) {
     const { db } = await import("@/lib/db");
-
-    let inserted = 0;
-    let skipped = 0;
-    const errors: SalesRowError[] = [];
-
-    for (const row of aggregated) {
-      const recipeId = resolved.get(row.recipeRef);
-      if (!recipeId) {
-        errors.push({
-          rowNumber: row.rowNumber,
-          message: `Producto/receta no encontrada: "${row.recipeRef}"`,
-        });
-        continue;
-      }
-
-      // Medianoche del día local: `saleDay` ya viene normalizado sin huso, así
-      // que el sello UTC-medianoche hace estable el roundtrip
-      // `toISOString().slice(0,10)` que usan forecast/executive-report.
-      const saleDate = new Date(`${row.saleDay}T00:00:00.000Z`);
-
-      // Truco `xmax`: en Postgres, tras INSERT..ON CONFLICT DO UPDATE,
-      // `xmax = 0` solo en la fila recién insertada.
-      const [written] = await db
-        .insert(salesEntries)
-        .values({
-          companyId,
-          branchId,
-          recipeId,
-          quantitySold: row.quantitySold.toFixed(2),
-          saleDate,
-          totalRevenue: row.totalRevenueCents ?? 0,
-        })
-        .onConflictDoUpdate({
-          target: [
-            salesEntries.companyId,
-            salesEntries.branchId,
-            salesEntries.saleDate,
-            salesEntries.recipeId,
-          ],
-          set: {
-            quantitySold: sql`excluded.quantity_sold`,
-            totalRevenue: sql`excluded.total_revenue`,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ isNew: sql<boolean>`xmax = 0` });
-
-      if (written?.isNew) {
-        inserted++;
-        await TheoreticalConsumptionService.consume({
-          companyId,
-          branchId,
-          recipeId,
-          quantitySold: row.quantitySold,
-          saleDate,
-          userId,
-        });
-      } else {
-        skipped++;
+    for (let attempt = 0; ; attempt++) {
+      try { return await db.transaction(tx => this.ingestInTransaction(tx, params), { isolationLevel: "serializable" }); }
+      catch (error) {
+        const failure = error as { code?: string; cause?: { code?: string } };
+        if (attempt >= 2 || !["40001", "40P01"].includes(failure.cause?.code ?? failure.code)) throw error;
       }
     }
-
-    return { inserted, skipped, errors };
   }
 }

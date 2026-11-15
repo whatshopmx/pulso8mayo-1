@@ -820,7 +820,25 @@
         "INV-01.b4",
         "INV-01.c",
         "INV-01.d",
-        "INV-04"
+        "INV-04",
+        "INV-01.b4b.rls",
+        "INV-01.b4.manual",
+        "INV-01.b4.bulk",
+        "INV-01.b4.smartlink",
+        "INV-01.b4.ui",
+        "INV-01.c.races",
+        "INV-01.c.recovery",
+        "INV-01.c.recovery.contract",
+        "INV-01.c.recovery.objects",
+        "INV-01.c.recovery.persistence",
+        "INV-01.c.recovery.subject.schema",
+        "INV-01.c.recovery.subject.access",
+        "INV-01.c.recovery.attestation.schema",
+        "INV-01.c.recovery.attestation.service",
+        "INV-01.c.recovery.historical",
+        "INV-01.c.recovery.provenance",
+        "INV-01.c.recovery.sources",
+        "INV-01.c.recovery.proposal.service"
       ]
     },
     {
@@ -1234,7 +1252,12 @@
       "dependsOn": [
         "INV-01.a",
         "INV-01.b3",
-        "INV-01.b4b"
+        "INV-01.b4b",
+        "INV-01.b4b.rls",
+        "INV-01.b4.manual",
+        "INV-01.b4.bulk",
+        "INV-01.b4.smartlink",
+        "INV-01.b4.ui"
       ],
       "checks": [
         "V1",
@@ -1293,11 +1316,308 @@
       "dependsOn": [
         "INV-01.a",
         "INV-01.b3",
-        "INV-01.b4a"
+        "INV-01.b4a",
+        "INV-01.b4b.rls"
       ],
       "checks": [
         "V1",
         "V2"
+      ]
+    },
+    {
+      "id": "INV-01.b4b.rls",
+      "title": "Lectura mínima del nombre de receta para ingestión runtime",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b2a"
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "id": "INV-01.b4.manual",
+      "title": "Frontera de venta al writer único: manual",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b"
+      ]
+    },
+    {
+      "id": "INV-01.b4.bulk",
+      "title": "Frontera de venta al writer único: bulk",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b"
+      ]
+    },
+    {
+      "id": "INV-01.b4.smartlink",
+      "title": "Frontera de venta al writer único: smartlink",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b"
+      ]
+    },
+    {
+      "id": "INV-01.b4.ui",
+      "title": "Feedback de corrección, repetición y cobertura en importación",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b4.bulk"
+      ]
+    },
+    {
+      "id": "INV-01.c.races",
+      "title": "Carreras de commits runtime y bloqueo de adopción histórica",
+      "parent": "INV-01.c",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery",
+      "title": "Recuperación histórica con evidencia y aprobación auditadas",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "INV-01.c.races",
+        "INV-01.c.recovery.contract",
+        "INV-01.c.recovery.objects",
+        "INV-01.c.recovery.persistence",
+        "INV-01.c.recovery.subject.schema",
+        "INV-01.c.recovery.subject.access",
+        "INV-01.c.recovery.attestation.schema",
+        "INV-01.c.recovery.attestation.service",
+        "INV-01.c.recovery.historical",
+        "INV-01.c.recovery.provenance",
+        "INV-01.c.recovery.sources",
+        "INV-01.c.recovery.proposal.service"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.contract",
+      "title": "Contrato de preparación y coherencia de revisión histórica",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "INV-01.c.races"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.objects",
+      "title": "Verificar integridad de objetos privados del expediente histórico",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "INV-01.c.recovery.contract"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.persistence",
+      "title": "Persistir expediente y decisión histórica inmutables con aislamiento",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "INV-01.c.recovery.contract",
+        "INV-01.c.recovery.objects"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.subject.schema",
+      "title": "Catálogo canónico de evidencia de recuperación",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.contract"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.subject.access",
+      "title": "Carga y acceso autenticados de evidencia de recuperación",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.subject.schema"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.attestation.schema",
+      "title": "Persistir atestaciones inmutables de evidencia de recuperación",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.subject.schema",
+        "INV-01.c.recovery.subject.access"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.attestation.service",
+      "title": "Verificar bytes y registrar atestación con autoridad del servidor",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.attestation.schema",
+        "INV-01.c.recovery.subject.access"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.historical",
+      "title": "Reconstruir receta histórica desde bytes atestiguados",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.attestation.service"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.provenance",
+      "title": "Vincular expediente a atestaciones y precisión nativa",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "INV-01.c.recovery.contract",
+        "INV-01.c.recovery.attestation.service",
+        "INV-01.c.recovery.historical"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.sources",
+      "title": "Leer fuentes SALE y NO_PRIOR_CONSUMPTION desde documentos atestiguados",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.attestation.service",
+        "INV-01.c.recovery.provenance"
+      ]
+    },
+    {
+      "id": "INV-01.c.recovery.proposal.service",
+      "title": "Preparar y registrar expediente desde las tres fuentes del servidor",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.persistence",
+        "INV-01.c.recovery.sources",
+        "INV-01.c.recovery.historical",
+        "INV-01.c.recovery.provenance"
       ]
     }
   ],
@@ -2235,12 +2555,29 @@
         "INV-01.b3a",
         "INV-01.b3",
         "INV-01.b4a",
+        "INV-01.b4b.rls",
         "INV-01.b4b",
+        "INV-01.b4.manual",
+        "INV-01.b4.bulk",
+        "INV-01.b4.smartlink",
+        "INV-01.b4.ui",
         "INV-01.b4",
-        "INV-01.c",
+        "INV-01.c.races",
+        "INV-01.c.recovery.contract",
+        "INV-01.c.recovery",
         "INV-01.d",
         "INV-02",
-        "VAL-01.M01-M17.M11"
+        "VAL-01.M01-M17.M11",
+        "INV-01.c.recovery.objects",
+        "INV-01.c.recovery.persistence",
+        "INV-01.c.recovery.subject.schema",
+        "INV-01.c.recovery.subject.access",
+        "INV-01.c.recovery.attestation.schema",
+        "INV-01.c.recovery.attestation.service",
+        "INV-01.c.recovery.historical",
+        "INV-01.c.recovery.provenance",
+        "INV-01.c.recovery.sources",
+        "INV-01.c.recovery.proposal.service"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -3618,67 +3955,143 @@
       ]
     },
     "INV-01.b3a": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-11/INV-01.b3a/README.md",
-          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
-          "environment": "local + br-round-voice-belheola; V2 runtime y gate global pendiente por FC-13",
+          "file": "tasks/evidencia/2026-11-11/CHECKPOINT-INV-B3/README.md",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Windows local y Neon aislada con runtime NOBYPASSRLS; main sin cambios",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sales-ingest-pure.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01b3.json",
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts",
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd run build",
-              "exit": 1
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts lib/services/sales-ingest-pure.ts lib/services/sales-ingest-plan.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts lib/services/__tests__/sales-ingest-revisions.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
             }
           ],
           "checks": [
+            "V1",
             "V2"
           ]
         }
       ]
     },
     "INV-01.b3": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/CHECKPOINT-INV-B3/README.md",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Windows local y Neon aislada con runtime NOBYPASSRLS; main sin cambios",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sales-ingest-pure.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts lib/services/sales-ingest-pure.ts lib/services/sales-ingest-plan.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts lib/services/__tests__/sales-ingest-revisions.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/CHECKPOINT-INV-B3/README.md",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Windows local y Neon aislada con runtime NOBYPASSRLS; main sin cambios",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sales-ingest-pure.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts lib/services/sales-ingest-pure.ts lib/services/sales-ingest-plan.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts lib/services/__tests__/sales-ingest-revisions.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4b": {
       "state": "código implementado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-11/INV-01.b3/README.md",
-          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
-          "environment": "local + br-round-voice-belheola; V2 runtime y gate global pendiente por FC-13",
+          "file": "tasks/evidencia/2026-11-11/INV-01.b4b/README.md",
+          "head": "2be55da631e34203b9f3dc5f9b8c1296751ca1ca",
+          "environment": "local + br-round-voice-belheola; 0141 probada con rollback, sin despliegue; build global acreditado exit 0 con heap 4 GB",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers 2",
-              "exit": 0
-            },
-            {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/isolation-harness-db.test.ts --maxWorkers 1 --pool threads",
-              "exit": 0
-            },
-            {
-              "command": "pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01b3.json",
-              "exit": 0
-            },
-            {
-              "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts",
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads (NODE_OPTIONS=--use-system-ca)",
               "exit": 0
             },
             {
               "command": "pnpm.cmd run build",
               "exit": 1
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
             }
           ],
           "checks": [
@@ -3687,16 +4100,455 @@
         }
       ]
     },
-    "INV-01.b4a": {
+    "INV-01.b4b.rls": {
       "state": "código implementado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-11/INV-01.b4a/README.md",
-          "head": "ba88018d2cbd7d879549cfe6476d39e4addfd5d2",
-          "environment": "local Windows; fase pura, sin DB ni activación operativa",
+          "file": "tasks/evidencia/2026-11-11/INV-01.b4b/README.md",
+          "head": "2be55da631e34203b9f3dc5f9b8c1296751ca1ca",
+          "environment": "local + br-round-voice-belheola; 0141 probada con rollback, sin despliegue; build global acreditado exit 0 con heap 4 GB",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts",
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads (NODE_OPTIONS=--use-system-ca)",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd run build",
+              "exit": 1
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.manual": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
+          "head": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
+          "environment": "local + br-round-voice-belheola; sin despliegue; build global acreditado exit 0",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle <10 archivos focales> --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit (heap 4 GB)",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint <8 archivos del incremento>",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads (NODE_OPTIONS=--use-system-ca)",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.bulk": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
+          "head": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
+          "environment": "local + br-round-voice-belheola; sin despliegue; build global acreditado exit 0",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle <10 archivos focales> --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit (heap 4 GB)",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint <8 archivos del incremento>",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.smartlink": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
+          "head": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
+          "environment": "local + br-round-voice-belheola; sin despliegue; build global acreditado exit 0",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle <10 archivos focales> --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit (heap 4 GB)",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint <8 archivos del incremento>",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.ui": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.b4.ui/README.md",
+          "head": "b91355ba8a0167aef02089118fb2b1606c9936db",
+          "environment": "Windows; Chromium aislado, componente/CSS reales, HTTP sintético; sin DB; build global acreditado exit 0",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint app/dashboard/inventory/sales-entry/sales-entry-client.tsx tests/support/sales-entry-browser-server.ts tests/e2e/sales-entry-feedback.spec.ts tests/playwright-sales-entry.config.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit (NODE_OPTIONS=--max-old-space-size=4096)",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.races": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.races/README.md",
+          "head": "fddc05dd92255d3b816b12e83e074eb31d95d57b",
+          "environment": "br-round-voice-belheola; dos conexiones reales pulso_app y fixtures sintéticas confirmadas",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-concurrency-db.test.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01-c.json",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/sale-consumption-concurrency-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.c": {
+      "state": "en curso",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.races/README.md",
+          "head": "fddc05dd92255d3b816b12e83e074eb31d95d57b",
+          "environment": "br-round-voice-belheola; dos conexiones reales pulso_app y fixtures sintéticas confirmadas",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-concurrency-db.test.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01-c.json",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/sale-consumption-concurrency-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery": {
+      "state": "en curso",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.contract/README.md",
+          "head": "3a5d60c010cd292d532706d1c368c2ab56b279f4",
+          "environment": "Windows local; contrato puro, sin API ni DB",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-review.ts lib/services/__tests__/sale-recovery-review.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.contract": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.contract/README.md",
+          "head": "3a5d60c010cd292d532706d1c368c2ab56b279f4",
+          "environment": "Windows local; contrato puro, sin API ni DB",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-review.ts lib/services/__tests__/sale-recovery-review.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.objects": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.objects/README.md",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Windows local, Node 22.17.1; SDK R2 simulado, sin acceso a objetos reales",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-storage.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-evidence.ts lib/storage/r2-client.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.persistence": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.persistence/README.md",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Neon aislada; migración y fixtures revertidos, mínimo runtime con RLS",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-storage.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/db/schema.ts tests/integration/sale-recovery-persistence-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.subject.schema": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.subject.schema/README.md",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Neon aislada; enum aditivo confirmado, datos de prueba revertidos",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-evidence-catalog-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/db/schema/evidence.ts tests/integration/sale-recovery-evidence-catalog-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.subject.access": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.subject.access/README.md",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Windows / Neon aislada; SQL real con sesión y R2 simulados",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-attachments-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-attachments.ts app/api/inventory/sales-entry/recovery-evidence/route.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts tests/integration/sale-recovery-attachments-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "git diff --check",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.attestation.schema": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.attestation.schema/results.json",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Neon aislado con DDL/fixtures rollback; auth/R2 simulados; gate global actual pendiente por Tesorería",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-attestations-schema-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts tests/integration/sale-recovery-attachments-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0,
+              "scope": "Modelo antes del servicio y cambio concurrente"
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/db/schema.ts tests/integration/sale-recovery-attestations-schema-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "git diff --check",
               "exit": 0
             }
           ],
@@ -3704,9 +4556,280 @@
         }
       ]
     },
-    "INV-01.b4b": {
-      "state": "pendiente",
-      "evidence": []
+    "INV-01.c.recovery.attestation.service": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.attestation.service/results.json",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Neon aislado con DDL/fixtures rollback; auth/R2 simulados; gate global actual pendiente por Tesorería",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-attestations-db.test.ts tests/integration/sale-recovery-attestations-schema-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts tests/integration/sale-recovery-attachments-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 2,
+              "scope": "Estado global actual: Tesorería TS2345"
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-attestations.ts app/api/inventory/sales-entry/recovery-attestations/route.ts lib/services/__tests__/sale-recovery-attestations.test.ts tests/integration/sale-recovery-attestations-db.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "git diff --check",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": []
+        }
+      ]
+    },
+    "INV-01.c.recovery.historical": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.historical/results.json",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "Neon aislado rollback; SQL real, auth/R2 simulados; TypeScript aún en proceso; sin aceptación",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-historical.test.ts lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-historical-db.test.ts tests/integration/sale-recovery-attestations-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0,
+              "scope": "Antes del quinto caso y guardia de pertenencia de identidad de receta"
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-historical-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-historical-recipe.ts lib/services/sale-recovery-historical.ts lib/services/__tests__/sale-recovery-historical.test.ts tests/integration/sale-recovery-historical-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "git diff --check",
+              "exit": 0
+            }
+          ],
+          "checks": []
+        }
+      ]
+    },
+    "INV-01.c.recovery.provenance": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.provenance/results.json",
+          "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+          "environment": "SQL nativo/JSONB aislado + regresión runtime rollback; TypeScript/lint verdes; build en curso; sin aceptación",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-historical.test.ts lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-historical.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-review-precision-db.test.ts tests/integration/sale-recovery-historical-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-review.ts lib/services/__tests__/sale-recovery-review.test.ts tests/integration/sale-recovery-review-precision-db.test.ts lib/services/sale-recovery-historical-recipe.ts lib/services/__tests__/sale-recovery-historical.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "git diff --check",
+              "exit": 0
+            }
+          ],
+          "checks": []
+        }
+      ]
+    },
+    "INV-01.c.recovery.sources": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.sources/results.json",
+          "head": "7a0f54b166cfc58f75711085ea0f9f6458cc2886",
+          "environment": "Windows local + Neon aislado, auth/R2 simulados; sin aplicación a main",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-source-documents.test.ts lib/services/__tests__/sale-recovery-sources.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node .tmp/run-recovery-check.mjs integration",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd run test:unit --maxWorkers=2 --pool=threads",
+              "exit": 1
+            },
+            {
+              "command": "node .tmp/run-recovery-check.mjs seed",
+              "exit": 1
+            },
+            {
+              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-source-documents.ts lib/services/sale-recovery-sources.ts lib/services/__tests__/sale-recovery-source-documents.test.ts lib/services/__tests__/sale-recovery-sources.test.ts tests/integration/sale-recovery-sources-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "exit": 0
+            },
+            {
+              "command": "node .tmp/run-recovery-check.mjs traceability",
+              "exit": 0
+            },
+            {
+              "command": "git diff --check",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.proposal.service": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.proposal.service/results.json",
+          "head": "35c5dcf3d05a4b991d60e7d8c1f10f22b433e12c",
+          "environment": "Windows + rama Neon aislada; auth/R2 simulados; sin aplicación a main",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle lib/services/__tests__/sale-recovery-proposals.test.ts lib/services/__tests__/sale-recovery-sources.test.ts lib/services/__tests__/sale-recovery-source-documents.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-historical.test.ts lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-proposals-db.test.ts tests/integration/sale-recovery-sources-db.test.ts tests/integration/sale-recovery-historical-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts --maxWorkers=1 --pool=threads --reporter=verbose",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-proposals-db.test.ts --maxWorkers=1 --pool=threads --reporter=verbose",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-proposals-db.test.ts --maxWorkers=1 --pool=threads --reporter=verbose -t 'cantidades cero'",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads",
+              "exit": 1
+            },
+            {
+              "command": "node node_modules/typescript/bin/tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/sale-recovery-proposals.ts lib/services/sale-recovery-sources.ts lib/services/__tests__/sale-recovery-proposals.test.ts tests/integration/sale-recovery-proposals-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "$env:NODE_OPTIONS='--max-old-space-size=4096 --use-system-ca'\npnpm.cmd run build",
+              "exit": 0
+            },
+            {
+              "command": "git diff --check",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "NOM-01": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/NOM-01/README.md",
+          "head": "35c5dcf3d05a4b991d60e7d8c1f10f22b433e12c",
+          "environment": "Windows local (V1 Vitest; V2 Postgres aislado pendiente)",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/payroll-nom01-contract.test.ts lib/services/__tests__/payroll-validation.test.ts lib/services/__tests__/payroll-holiday.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/payroll-service.ts lib/services/compliance/payroll-calculator.ts lib/services/__tests__/payroll-nom01-contract.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "AUD-02": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-11/AUD-02/README.md",
+          "head": "35c5dcf3d05a4b991d60e7d8c1f10f22b433e12c",
+          "environment": "Windows local con PGlite en memoria (V2 Neon Postgres aislado pulso_app pendiente)",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/audit/audit-02.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/audit-service.ts lib/security/audit.ts app/api/inventory/waste/[id]/approval/route.ts tests/unit/audit/audit-02.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
     }
   }
 }

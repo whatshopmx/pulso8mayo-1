@@ -7,7 +7,8 @@ import {
   vacationRequests, 
   leaveRequests 
 } from '@/lib/db/schema';
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte } from 'drizzle-orm';
+import { validatePayrollPeriod, resolveContractSalaryForPeriod } from '@/lib/services/payroll-service';
 
 export interface PayrollEmployeeRecord {
   employeeNumber: string;
@@ -44,8 +45,9 @@ export interface PayrollPeriod {
 
 export async function calculatePayrollData(period: PayrollPeriod): Promise<PayrollEmployeeRecord[]> {
   const { startDate, endDate, companyId, branchId } = period;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  validatePayrollPeriod(startDate, endDate);
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T23:59:59Z`);
 
   // 1. Get all active employees with profiles and contracts
   const employeesData = await db
@@ -62,14 +64,19 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
       bankName: employeeProfiles.bankName,
       clabe: employeeProfiles.clabe,
       paymentMethod: employeeProfiles.paymentMethod,
+      contractId: employeeContracts.id,
       baseSalary: employeeContracts.baseSalary,
       weeklySalary: employeeContracts.weeklySalary,
       monthlySalary: employeeContracts.monthlySalary,
+      currency: employeeContracts.currency,
+      contractStartDate: employeeContracts.startDate,
+      contractEndDate: employeeContracts.endDate,
     })
     .from(users)
     .leftJoin(employeeProfiles, eq(users.id, employeeProfiles.userId))
     .leftJoin(employeeContracts, and(
       eq(users.id, employeeContracts.userId),
+      eq(employeeContracts.companyId, companyId),
       eq(employeeContracts.status, 'ACTIVE')
     ))
     .where(and(
@@ -132,7 +139,34 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
       // leave_requests table might not exist yet
     }
 
-    const dailySalary = (emp.baseSalary || 0) / 100; // Convert from cents
+    let dailySalary = 0;
+    let weeklySalary = 0;
+    let monthlySalary = 0;
+
+    if (emp.contractId && typeof emp.baseSalary === "number" && emp.baseSalary > 0) {
+      try {
+        const resolution = resolveContractSalaryForPeriod({
+          contract: {
+            id: emp.contractId,
+            userId: emp.userId,
+            baseSalary: emp.baseSalary,
+            currency: emp.currency,
+            startDate: emp.contractStartDate!,
+            endDate: emp.contractEndDate,
+          },
+          periodStart: startDate,
+          periodEnd: endDate,
+        });
+        dailySalary = resolution.dailySalaryCents / 100;
+        weeklySalary = emp.weeklySalary ? emp.weeklySalary / 100 : dailySalary * 7;
+        monthlySalary = emp.monthlySalary ? emp.monthlySalary / 100 : dailySalary * 30;
+      } catch {
+        dailySalary = 0;
+        weeklySalary = 0;
+        monthlySalary = 0;
+      }
+    }
+
     const netWorkDays = daysWorked - vacationDays - sickDays - otherLeaveDays;
 
     records.push({
@@ -145,8 +179,8 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
       department: emp.department || '',
       position: emp.position || '',
       baseSalaryDaily: dailySalary,
-      baseSalaryWeekly: (emp.weeklySalary || 0) / 100,
-      baseSalaryMonthly: (emp.monthlySalary || 0) / 100,
+      baseSalaryWeekly: weeklySalary,
+      baseSalaryMonthly: monthlySalary,
       bankName: emp.bankName || '',
       clabe: emp.clabe || '',
       paymentMethod: emp.paymentMethod || '',
