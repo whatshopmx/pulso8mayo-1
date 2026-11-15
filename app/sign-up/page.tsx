@@ -4,7 +4,8 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { authErrorMessage } from "@/lib/ui/auth-feedback";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -16,39 +17,36 @@ export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const signUp = async () => {
+  const signUp = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (loading) return;
     setLoading(true);
-    await authClient.signUp.email({
-      email,
-      password,
-      name,
-      fetchOptions: {
-        onSuccess: () => {
-          router.push("/onboarding");
-        },
-        onError: (ctx) => {
-          alert(ctx.error.message);
-        }
-      }
-    });
-    setLoading(false);
+    setError(null);
+    try {
+      const result = await authClient.signUp.email({
+        email: email.trim(),
+        password,
+        name: name.trim(),
+      });
+      if (result.error) setError(authErrorMessage(result.error.code));
+      else router.push("/onboarding");
+    } catch {
+      setError("No pudimos conectar. Comprueba tu conexión y vuelve a intentarlo.");
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>{t("title")}</CardTitle>
-          <CardDescription>{t("subtitle")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <AuthShell title={t("title")} description={t("subtitle")}>
+      <form onSubmit={signUp} className="space-y-4" aria-busy={loading} aria-describedby={error ? "auth-error" : undefined}>
           <div className="space-y-2">
             <Label htmlFor="name">{t("fullName")}</Label>
             <Input
               id="name"
               type="text"
+              name="name" autoComplete="name" required maxLength={100} disabled={loading} className="text-base md:text-sm"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("fullNamePlaceholder")}
@@ -59,6 +57,7 @@ export default function SignUp() {
             <Input
               id="email"
               type="email"
+              name="email" autoComplete="email" required disabled={loading} className="text-base md:text-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t("emailPlaceholder")}
@@ -69,24 +68,24 @@ export default function SignUp() {
             <Input
               id="password"
               type="password"
+              name="password" autoComplete="new-password" required minLength={8} maxLength={128} disabled={loading} className="text-base md:text-sm" aria-describedby="password-hint"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t("passwordPlaceholder")}
             />
           </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-4">
-          <Button className="w-full" onClick={signUp} disabled={loading}>
+          <p id="password-hint" className="text-sm text-muted-foreground">Usa entre 8 y 128 caracteres.</p>
+          {error && <p id="auth-error" role="alert" className="text-sm text-destructive">{error}</p>}
+          <Button className="w-full" type="submit" disabled={loading}>
             {loading ? t("creating") : t("createButton")}
           </Button>
           <p className="text-sm text-center">
             {t("haveAccount")}{" "}
-            <Link href="/sign-in" className="text-blue-600 hover:underline">
+            <Link href="/sign-in" className="text-primary underline underline-offset-4">
               {t("signIn")}
             </Link>
           </p>
-        </CardFooter>
-      </Card>
-    </div>
+      </form>
+    </AuthShell>
   );
 }

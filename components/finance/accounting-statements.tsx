@@ -231,7 +231,7 @@ export function AccountingStatements() {
             {data.unassignedCorporate.declared && data.unassignedCorporate.accounts.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {data.unassignedCorporate.accounts.map((acc) => (
-                  <span key={acc.accountId} className="rounded border bg-background px-2 py-0.5 text-[11px]">
+                  <span key={acc.accountId} className="rounded border bg-background px-2 py-0.5 text-xs">
                     {acc.code} {acc.name}: C {formatMxn(acc.debitCents)} / A {formatMxn(acc.creditCents)}
                   </span>
                 ))}

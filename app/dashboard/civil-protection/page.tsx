@@ -235,8 +235,8 @@ export default function CivilProtectionPage() {
     return (
         <PageContainer>
             <PageHeader
-                title="Proteccion Civil"
-                description="Bitacora de simulacros, inspeccion de extintores y checklist fotografico de salidas de emergencia. NOM-002-STPS-2010."
+                title="Protección Civil"
+                description="Bitácora de simulacros, inspección de extintores y checklist fotográfico de salidas de emergencia. NOM-002-STPS-2010."
                 icon={ShieldCheck}
                 actions={
                     <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
@@ -252,13 +252,13 @@ export default function CivilProtectionPage() {
                     label="Simulacros registrados"
                     value={kpis?.drillsTotal ?? "—"}
                     icon={<ShieldCheck className="h-4 w-4" />}
-                    subtitle={kpis?.drillsLastDate ? `Ultimo: ${formatDate(kpis.drillsLastDate)}` : "Sin registros"}
+                    subtitle={kpis?.drillsLastDate ? `Último: ${formatDate(kpis.drillsLastDate)}` : "Sin registros"}
                 />
                 <MetricCard
                     label="Extintores por vencer (30 dias)"
                     value={kpis?.extinguishersExpiringSoon ?? "—"}
                     icon={<Clock className="h-4 w-4" />}
-                    subtitle={kpis?.extinguishersExpired ? `${kpis.extinguishersExpired} vencidos` : "Ninguno vencido"}
+                    subtitle={!kpis ? "Sin información disponible" : kpis.extinguishersExpired ? `${kpis.extinguishersExpired} vencidos` : "Ninguno vencido"}
                     tone="warning"
                 />
                 <MetricCard

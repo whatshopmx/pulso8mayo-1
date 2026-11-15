@@ -186,7 +186,7 @@ export function RestaurantKpiDashboard({ userRole = "GERENTE" }: RestaurantKpiDa
               </CardDescription>
             </div>
             <Badge 
-              className={`${statusColor} text-white text-[10px] ml-2 shrink-0`}
+              className={`${statusColor} text-white text-xs ml-2 shrink-0`}
             >
               {statusText}
             </Badge>

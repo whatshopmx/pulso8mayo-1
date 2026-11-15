@@ -163,7 +163,7 @@ export function AccountingCashFlow({ branchId }: { branchId?: string | null }) {
                       <div key={item.journalId} className="flex items-center justify-between gap-2 py-1.5">
                         <div className="min-w-0">
                           <p className="truncate font-medium">{item.description}</p>
-                          <p className="truncate text-[11px] text-muted-foreground">
+                          <p className="truncate text-xs text-muted-foreground">
                             {item.accountingDate} · {item.counterpartSummary}
                           </p>
                         </div>
@@ -210,7 +210,7 @@ export function AccountingCashFlow({ branchId }: { branchId?: string | null }) {
                   <div key={`${item.code}-${idx}`} className="flex items-start justify-between gap-3 p-3 text-xs">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="rounded border bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase">
+                        <span className="rounded border bg-muted px-1.5 py-0.5 text-xs font-semibold uppercase">
                           {CATEGORY_LABELS[item.category]}
                         </span>
                         <span className="font-medium text-sm">{item.label}</span>

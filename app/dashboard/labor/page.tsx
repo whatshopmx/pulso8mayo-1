@@ -13,6 +13,7 @@ import Link from "next/link"
 import { requireManagementRole } from "@/lib/rbac/require-role"
 import { LaborQuickActionDrawer } from "@/components/labor/labor-quick-action-drawer"
 import { EmergencyDepartureDialog } from "@/components/labor/emergency-departure-dialog"
+import { observedPercent } from "@/lib/ui/observed-percent"
 
 export default async function LaborManagementPage() {
   await requireManagementRole();
@@ -104,8 +105,9 @@ export default async function LaborManagementPage() {
     const weeklyStats = weeklyStatsRes[0];
     const weeklyHours = Math.round((Number(weeklyStats?.totalMinutes || 0)) / 60);
     const weeklyOvertimeHours = Math.round((Number(weeklyStats?.totalOvertime || 0)) / 60);
-    const complianceRate = weeklyStats?.totalSessions ? Math.round((Number(weeklyStats.compliantSessions) / Number(weeklyStats.totalSessions)) * 100) : 100;
-    const onTimeRate = weeklyStats?.totalSessions ? Math.round(((Number(weeklyStats.totalSessions) - Number(weeklyStats.lateSessions)) / Number(weeklyStats.totalSessions)) * 100) : 100;
+    const sessionCount = Number(weeklyStats?.totalSessions || 0);
+    const complianceRate = observedPercent(weeklyStats?.compliantSessions, sessionCount);
+    const onTimeRate = observedPercent(sessionCount - Number(weeklyStats?.lateSessions || 0), sessionCount);
     const avgLateness = Math.round(Number(weeklyStats?.avgLateness || 0));
 
   // --- 3. Requests & Approvals ---
@@ -146,8 +148,12 @@ export default async function LaborManagementPage() {
         docType: employeeDocuments.documentType 
     })
     .from(employeeDocuments)
+    .innerJoin(users, eq(employeeDocuments.userId, users.id))
     .where(and(
         eq(employeeDocuments.companyId, companyId),
+        eq(users.companyId, companyId),
+        isNull(users.deletedAt),
+        ...(branchId ? [eq(users.branchId, branchId)] : []),
         inArray(employeeDocuments.documentType, coreDocTypes),
         eq(employeeDocuments.status, 'VALIDATED'),
         eq(employeeDocuments.isValid, true)
@@ -163,7 +169,7 @@ export default async function LaborManagementPage() {
     const totalTargetDocs = totalCount * coreDocTypes.length;
     let totalPresentDocs = 0;
     userDocMap.forEach(docs => totalPresentDocs += docs.size);
-    const dossierPercent = totalTargetDocs > 0 ? Math.round((totalPresentDocs / totalTargetDocs) * 100) : 100;
+    const dossierPercent = observedPercent(totalPresentDocs, totalTargetDocs);
 
     // --- 5. Breaks & Holidays & Templates & Incidents ---
     const [breakStatsRes, holidayCountRes, templateCountRes, incidentCountRes, newEmployeesRes] = await Promise.all([
@@ -174,12 +180,12 @@ export default async function LaborManagementPage() {
         .from(breakLogs)
         .innerJoin(shiftSessions, eq(breakLogs.sessionId, shiftSessions.id))
         .innerJoin(users, eq(shiftSessions.userId, users.id))
-        .where(and(eq(users.companyId, companyId), gte(breakLogs.startTime, oneWeekAgo))),
+        .where(and(eq(users.companyId, companyId), gte(breakLogs.startTime, oneWeekAgo), ...(branchId ? [eq(shiftSessions.branchId, branchId)] : []))),
         db.select({ count: count() }).from(holidays).where(and(eq(holidays.companyId, companyId), gte(holidays.date, startOfYear.toISOString().split('T')[0]))),
         db.select({ count: count() }).from(shiftTemplates).where(and(eq(shiftTemplates.companyId, companyId), eq(shiftTemplates.isActive, true))),
         db.select({ count: count() }).from(incidents)
             .innerJoin(branches, eq(incidents.branchId, branches.id))
-            .where(and(eq(branches.companyId, companyId), inArray(incidents.status, ['DETECTED', 'IN_REMEDIATION']))),
+            .where(and(eq(branches.companyId, companyId), inArray(incidents.status, ['DETECTED', 'IN_REMEDIATION']), ...(branchId ? [eq(incidents.branchId, branchId)] : []))),
         // LAB-02: "nuevos" se medía con `users.createdAt`, así que sembrar la
         // demo aparecía como ocho contrataciones. La fecha real de ingreso es
         // `employeeProfiles.hireDate`.
@@ -195,7 +201,7 @@ export default async function LaborManagementPage() {
     ]);
 
     const breakStats = breakStatsRes[0];
-    const breakComplianceRate = breakStats?.total ? Math.round((Number(breakStats.compliant) / Number(breakStats.total)) * 100) : 100;
+    const breakComplianceRate = observedPercent(breakStats?.compliant, breakStats?.total);
     const holidayCount = Number(holidayCountRes[0]?.count || 0);
     const templateCount = Number(templateCountRes[0]?.count || 0);
     const incidentCount = Number(incidentCountRes[0]?.count || 0);
@@ -204,7 +210,7 @@ export default async function LaborManagementPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Gestión de Personal</h1>
                     <p className="text-sm text-muted-foreground">
@@ -254,9 +260,9 @@ export default async function LaborManagementPage() {
                 />
                 <MetricCard
                     label="Cumplimiento General"
-                    value={`${complianceRate}%`}
+                    value={complianceRate === null ? "Sin registros" : `${complianceRate}%`}
                     icon={<Shield className="h-4 w-4" />}
-                    subtitle="Semana actual"
+                    subtitle={`Últimos 7 días · ${sessionCount} jornadas registradas`}
                 />
             </MetricGrid>
 
@@ -327,11 +333,11 @@ export default async function LaborManagementPage() {
                     </div>
 
                     {/* Quick Access Grid: Overtime, Geolocation, Swaps, Approvals */}
-                    <div className="space-y-3">
-                        <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <details className="space-y-3 rounded-lg border p-4">
+                        <summary className="cursor-pointer text-sm font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring">
                             <CheckSquare className="h-4 w-4 text-muted-foreground" />
-                            Control de Horas & Incidencias
-                        </h2>
+                            Revisar horas e incidencias
+                        </summary>
                         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
                             <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
                                 <Link href="/dashboard/labor/overtime" className="block p-3">
@@ -344,8 +350,8 @@ export default async function LaborManagementPage() {
                             <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
                                 <Link href="/dashboard/labor/geolocation" className="block p-3">
                                     <span className="text-xs font-medium text-foreground block mb-1">GPS Verificación</span>
-                                    <div className="text-lg font-bold">Activo</div>
-                                    <p className="text-xs text-muted-foreground">Geocerca branch</p>
+                                    <div className="text-lg font-bold">Ver configuración</div>
+                                    <p className="text-xs text-muted-foreground">Geocercas por sucursal</p>
                                 </Link>
                             </Card>
 
@@ -365,20 +371,22 @@ export default async function LaborManagementPage() {
                                 </Link>
                             </Card>
                         </div>
-                    </div>
+                    </details>
 
                     {/* PRD 8.3 - KPI Tracking Horizontal Bar */}
-                    <Card className="bg-card border-border shadow-none">
+                    <details className="rounded-lg border p-4">
+                      <summary className="cursor-pointer text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring">Analizar asistencia, jornadas y descansos</summary>
+                    <Card className="bg-card border-0 shadow-none">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                                Indicadores Clave de Rendimiento (KPIs)
+                                Indicadores de personal
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
                                 <div className="p-3 border rounded bg-muted/20">
-                                    <span className="text-xs text-muted-foreground block mb-1">Completion</span>
+                                    <span className="text-xs text-muted-foreground block mb-1">Asistencia</span>
                                     <div className="text-lg font-bold">
                                         {hasScheduledToday ? `${attendancePercent}%` : "—"}
                                     </div>
@@ -388,27 +396,28 @@ export default async function LaborManagementPage() {
                                 </div>
                                 <div className="p-3 border rounded bg-muted/20">
                                     <span className="text-xs text-muted-foreground block mb-1">Puntualidad</span>
-                                    <div className="text-lg font-bold">{onTimeRate}%</div>
+                                    <div className="text-lg font-bold">{onTimeRate === null ? "Sin registros" : `${onTimeRate}%`}</div>
                                     <span className="text-xs text-muted-foreground">Llegada a tiempo</span>
                                 </div>
                                 <div className="p-3 border rounded bg-muted/20">
-                                    <span className="text-xs text-muted-foreground block mb-1">Breaks</span>
-                                    <div className="text-lg font-bold">{breakComplianceRate}%</div>
+                                    <span className="text-xs text-muted-foreground block mb-1">Descansos</span>
+                                    <div className="text-lg font-bold">{breakComplianceRate === null ? "Sin registros" : `${breakComplianceRate}%`}</div>
                                     <span className="text-xs text-muted-foreground">NOM-035</span>
                                 </div>
                                 <div className="p-3 border rounded bg-muted/20">
-                                    <span className="text-xs text-muted-foreground block mb-1">Overtime</span>
+                                    <span className="text-xs text-muted-foreground block mb-1">Horas extra</span>
                                     <div className="text-lg font-bold">{weeklyOvertimeHours}h</div>
                                     <span className="text-xs text-muted-foreground">Horas extra</span>
                                 </div>
                                 <div className="p-3 border rounded bg-muted/20">
-                                    <span className="text-xs text-muted-foreground block mb-1">Retraso Avg</span>
+                                    <span className="text-xs text-muted-foreground block mb-1">Retraso promedio</span>
                                     <div className="text-lg font-bold">{avgLateness}m</div>
                                     <span className="text-xs text-muted-foreground">Minutos promedio</span>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
+                    </details>
                 </div>
 
                 {/* Sidebar Column (Col-span 4) */}
@@ -437,7 +446,7 @@ export default async function LaborManagementPage() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <span className="text-xs font-semibold text-foreground block">Expediente Digital</span>
-                                            <span className="text-xs text-muted-foreground">{dossierPercent}% cumplimiento core</span>
+                                            <span className="text-xs text-muted-foreground">{dossierPercent === null ? "Sin empleados registrados" : `${dossierPercent}% de documentos requeridos`}</span>
                                         </div>
                                         <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                                     </div>
@@ -492,7 +501,7 @@ export default async function LaborManagementPage() {
                                 <p className="text-xs text-muted-foreground">2x primeras 9h, 3x excedente (Art. 65 LFT)</p>
                             </div>
                             <div className="p-2 border rounded bg-muted/20">
-                                <p className="font-semibold text-foreground">NOM-035 Compliance</p>
+                                <p className="font-semibold text-foreground">Cumplimiento NOM-035</p>
                                 <p className="text-xs text-muted-foreground">Factores de riesgo psicosocial</p>
                             </div>
                         </CardContent>

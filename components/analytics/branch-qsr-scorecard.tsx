@@ -122,13 +122,10 @@ export function BranchPodium({
               key={item.branchId}
               className={`relative overflow-hidden transition-all hover:border-primary/50 ${
                 isFirst
-                  ? "border-primary/40 bg-card shadow-sm order-first md:order-none ring-1 ring-primary/20"
+                  ? "border-primary/40 bg-accent/20 order-first md:order-none"
                   : "bg-card/70"
               }`}
             >
-              {isFirst && (
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-primary to-amber-500" />
-              )}
               <CardContent className="p-5 flex flex-col justify-between h-full space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -136,7 +133,7 @@ export function BranchPodium({
                       {medal}
                     </span>
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Rank #{rank}
+                      Posición {rank}
                     </span>
                   </div>
 
@@ -150,34 +147,34 @@ export function BranchPodium({
 
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60 text-xs">
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Score Integral</span>
+                    <span className="text-muted-foreground block text-xs">Índice integral</span>
                     <span className="text-lg font-extrabold tabular-nums text-foreground">
                       {item.compositeScore === null ? "—" : item.compositeScore.toFixed(1)}
-                      <span className="text-[10px] font-normal text-muted-foreground">/100</span>
+                      <span className="text-xs font-normal text-muted-foreground">/100</span>
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Prime Cost</span>
+                    <span className="text-muted-foreground block text-xs" title="Costo conjunto de alimentos y personal">Prime Cost</span>
                     <PrimeCostBadge status={item.primeCostStatus} percent={item.primeCostPercent} />
                   </div>
 
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Food / Labor</span>
+                    <span className="text-muted-foreground block text-xs">Alimentos / Personal</span>
                     <span className="font-medium tabular-nums">
                       {formatoPct(item.foodCostPercent)} / {formatoPct(item.laborCostPercent)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">NOM-251 Frío</span>
-                    <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                    <span className="text-muted-foreground block text-xs">NOM-251 Frío</span>
+                    <span className="font-medium tabular-nums text-success-text">
                       {formatoPct(item.nom251ComplianceRate)}
                     </span>
                   </div>
                 </div>
 
                 <div className="pt-2">
-                  <p className="text-[11px] text-muted-foreground leading-relaxed" title={item.costNote}>
-                    Porcentajes sobre venta neta; el food cost incluye la merma y la nómina va con carga patronal.
+                  <p className="text-xs text-muted-foreground leading-relaxed" title={item.costNote}>
+                    Porcentajes sobre venta neta; el costo de alimentos incluye la merma y la nómina va con carga patronal.
                     Un renglón sin datos se muestra como «Sin dato», nunca como cero.
                   </p>
                   <Button variant="ghost" size="sm" asChild className="w-full justify-between h-8 text-xs">
@@ -373,7 +370,7 @@ export function NetworkAnomaliesPanel({
                   {a.red && (
                     <Badge
                       variant="outline"
-                      className="shrink-0 text-[10px] font-medium text-muted-foreground"
+                      className="shrink-0 text-xs font-medium text-muted-foreground"
                     >
                       {ETIQUETA_RED[a.red]}
                     </Badge>

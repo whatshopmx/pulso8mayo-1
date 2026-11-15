@@ -195,7 +195,7 @@ export default function AIVerificationsPage() {
     return (
         <PageContainer>
             <PageHeader
-                title="Verificaciones AI"
+                title="Verificaciones IA"
                 description={`Auditoría automatizada de evidencias fotográficas con visión artificial · ${sucursalActiva}.`}
                 icon={BrainCog}
                 actions={

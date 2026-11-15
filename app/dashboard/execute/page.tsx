@@ -31,6 +31,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SmartLinkGenerator } from "@/components/workflow/smart-link-generator";
+import Link from "next/link";
+import { useBranch } from "@/lib/branch-context";
 
 interface WorkflowTemplate {
     id: string;
@@ -70,25 +72,13 @@ export default function ExecutePage() {
     });
     const [creating, setCreating] = useState<string | null>(null); // Track which template is being created
     const [smartLinkDetails, setSmartLinkDetails] = useState<{ instanceId: string; templateId: string } | null>(null);
-    const [userBranchId, setUserBranchId] = useState<string>("");
+    const { selectedBranchId } = useBranch();
+    const userBranchId = selectedBranchId ?? "";
 
     useEffect(() => {
-        fetchSession();
         fetchTemplates();
         fetchAssignees();
     }, []);
-
-    const fetchSession = async () => {
-        try {
-            const response = await fetch("/api/auth/get-session");
-            if (response.ok) {
-                const data = await response.json();
-                setUserBranchId(data.branchId || "");
-            }
-        } catch (error) {
-            console.error("Failed to fetch session:", error);
-        }
-    };
 
     const fetchTemplates = async () => {
         setLoading(true);
@@ -236,7 +226,7 @@ export default function ExecutePage() {
     return (
         <div className="container mx-auto py-8 space-y-8">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Ejecución Rápida</h1>
                     <p className="text-muted-foreground mt-1">
@@ -251,7 +241,7 @@ export default function ExecutePage() {
 
             {/* Quick Actions */}
             <div className="grid gap-4 md:grid-cols-3">
-                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push("/dashboard/my-tasks")}>
+                <Link href="/dashboard/my-tasks" className="rounded-lg focus-visible:outline-2 focus-visible:outline-ring"><Card className="h-full transition-colors hover:bg-accent/30">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Mis Tareas</CardTitle>
                         <Users className="h-4 w-4 text-muted-foreground" />
@@ -262,8 +252,8 @@ export default function ExecutePage() {
                             Gestiona tus workflows asignados
                         </p>
                     </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push("/dashboard/workflows/history")}>
+                </Card></Link>
+                <Link href="/dashboard/workflows/history" className="rounded-lg focus-visible:outline-2 focus-visible:outline-ring"><Card className="h-full transition-colors hover:bg-accent/30">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Historial</CardTitle>
                         <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -274,8 +264,8 @@ export default function ExecutePage() {
                             Consulta workflows ejecutados
                         </p>
                     </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push("/dashboard/evidence")}>
+                </Card></Link>
+                <Link href="/dashboard/evidence" className="rounded-lg focus-visible:outline-2 focus-visible:outline-ring"><Card className="h-full transition-colors hover:bg-accent/30">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Evidencias</CardTitle>
                         <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
@@ -286,7 +276,7 @@ export default function ExecutePage() {
                             Galería de evidencias subidas
                         </p>
                     </CardContent>
-                </Card>
+                </Card></Link>
             </div>
 
             {/* Favorites */}

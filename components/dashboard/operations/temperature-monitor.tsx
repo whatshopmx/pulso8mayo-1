@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ErrorState } from "@/components/shared/error-state";
+import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Thermometer, AlertTriangle, CheckCircle } from "lucide-react";
@@ -42,20 +44,22 @@ interface TemperatureData {
 }
 
 export function TemperatureMonitor({ period = "30d", branchId }: TemperatureMonitorProps) {
-  const [data, setData] = useState<TemperatureData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const params = new URLSearchParams({ period });
-    if (branchId && branchId !== "all") params.set("branchId", branchId);
-    fetch(`/api/analytics/temperature-monitoring?${params}`)
-      .then((res) => res.json())
-      .then((result) => {
-        setData(result);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [period, branchId]);
+  const { data: session } = authClient.useSession();
+  const query = useQuery({
+    queryKey: ["operations", "temperature", session?.user.id, branchId ?? "all", period],
+    enabled: Boolean(session?.user.id),
+    queryFn: async ({ signal }): Promise<TemperatureData> => {
+      const params = new URLSearchParams({ period });
+      if (branchId && branchId !== "all") params.set("branchId", branchId);
+      const response = await fetch(`/api/analytics/temperature-monitoring?${params}`, { signal });
+      if (!response.ok) throw new Error("No se pudieron cargar las temperaturas.");
+      const result = await response.json();
+      if (!result.summary || !Array.isArray(result.trend) || !Array.isArray(result.recentViolations)) throw new Error("La información de temperatura no es válida.");
+      return result;
+    },
+  });
+  const data = query.data;
+  const loading = query.isPending;
 
   if (loading) {
     return (
@@ -78,10 +82,12 @@ export function TemperatureMonitor({ period = "30d", branchId }: TemperatureMoni
     );
   }
 
-  if (!data || !data.summary) {
+  if (query.isError) return <ErrorState message="No se pudieron cargar las temperaturas. Vuelve a intentarlo." onRetry={() => void query.refetch()} />;
+
+  if (!data || !data.summary || data.summary.totalReadings === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-        Sin datos de temperatura
+        Sin lecturas de temperatura en este período y alcance de sucursales.
       </div>
     );
   }

@@ -121,9 +121,9 @@ export default function InventoryPage() {
 
         {/* 3. Dónde empiezo — strip delgado */}
         <section aria-label="Acciones del día">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
             <h2 className="text-sm font-semibold">Empezar el día</h2>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Link
                 href="/dashboard/inventory/sales-entry"
                 className="text-xs text-primary hover:underline inline-flex items-center gap-1"
@@ -148,7 +148,7 @@ export default function InventoryPage() {
                 <action.icon className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
                   <span className="font-semibold text-sm block leading-tight">{action.label}</span>
-                  <span className="text-xs text-muted-foreground truncate block">{action.description}</span>
+                  <span className="text-xs text-muted-foreground block">{action.description}</span>
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />
               </Link>

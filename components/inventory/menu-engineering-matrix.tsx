@@ -29,10 +29,10 @@ interface MatrixData {
 }
 
 const QUAD_META: Record<string, { label: string; desc: string; color: string; bg: string }> = {
-    STAR: { label: "Estrella", desc: "Alta rentabilidad · Alta popularidad", color: "var(--emerald-500, #10b981)", bg: "var(--emerald-500-10, rgba(16, 185, 129, 0.1))" },
-    CASH_COW: { label: "Vaca", desc: "Alta rentabilidad · Baja popularidad", color: "var(--blue-500, #3b82f6)", bg: "var(--blue-500-10, rgba(59, 130, 246, 0.1))" },
-    QUESTION_MARK: { label: "Incógnita", desc: "Baja rentabilidad · Alta popularidad", color: "var(--amber-500, #f59e0b)", bg: "var(--amber-500-10, rgba(245, 158, 11, 0.1))" },
-    DOG: { label: "Peso", desc: "Baja rentabilidad · Baja popularidad", color: "var(--rose-500, #f43f5e)", bg: "var(--rose-500-10, rgba(244, 63, 94, 0.1))" },
+    STAR: { label: "Estrella", desc: "Alta rentabilidad · Alta popularidad", color: "var(--success-text)", bg: "color-mix(in oklch, var(--success) 10%, transparent)" },
+    CASH_COW: { label: "Vaca", desc: "Alta rentabilidad · Baja popularidad", color: "var(--info)", bg: "color-mix(in oklch, var(--info) 10%, transparent)" },
+    QUESTION_MARK: { label: "Incógnita", desc: "Baja rentabilidad · Alta popularidad", color: "var(--warning-text)", bg: "color-mix(in oklch, var(--warning) 10%, transparent)" },
+    DOG: { label: "Peso", desc: "Baja rentabilidad · Baja popularidad", color: "var(--destructive)", bg: "color-mix(in oklch, var(--destructive) 10%, transparent)" },
 };
 
 function formatCents(cents: number): string {

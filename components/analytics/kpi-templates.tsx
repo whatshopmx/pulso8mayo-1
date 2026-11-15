@@ -100,7 +100,7 @@ export function KpiTemplates({ onSelectTemplate, userRole = "GERENTE" }: KpiTemp
     const Icon = categoryIcons[kpi.category];
     
     return (
-      <Card className="group hover:shadow-md transition-all duration-200 border-l-4 border-l-transparent hover:border-l-primary">
+      <Card className="group transition-colors duration-200 hover:border-primary/30 hover:bg-accent/30">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -131,12 +131,12 @@ export function KpiTemplates({ onSelectTemplate, userRole = "GERENTE" }: KpiTemp
             {kpi.description}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+            <Badge variant="outline" className="text-xs px-1.5 py-0">
               {metricTypeLabels[kpi.metricType]}
             </Badge>
             <Badge 
               variant="outline" 
-              className={`text-[10px] px-1.5 py-0 ${
+              className={`text-xs px-1.5 py-0 ${
                 kpi.thresholdType === "MIN" ? "border-green-500/30 text-green-600" :
                 kpi.thresholdType === "MAX" ? "border-red-500/30 text-red-600" :
                 "border-blue-500/30 text-blue-600"
@@ -145,13 +145,13 @@ export function KpiTemplates({ onSelectTemplate, userRole = "GERENTE" }: KpiTemp
               {kpi.thresholdType === "MIN" ? "≥" : kpi.thresholdType === "MAX" ? "≤" : "="} {kpi.target}
             </Badge>
             {kpi.warningThreshold && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-yellow-500/30 text-yellow-600">
+              <Badge variant="outline" className="text-xs px-1.5 py-0 border-yellow-500/30 text-yellow-600">
                 <AlertTriangle className="h-3 w-3 mr-0.5" />
                 {kpi.warningThreshold}
               </Badge>
             )}
           </div>
-          <div className="mt-3 flex items-center gap-2 text-[10px] text-muted-foreground">
+          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
             <Target className="h-3 w-3" />
             <span>Industria: {kpi.benchmark.industry}% | Excelente: {kpi.benchmark.excellent}%</span>
           </div>

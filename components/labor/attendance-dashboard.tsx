@@ -677,7 +677,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                     <div className="h-[280px] w-full flex flex-col items-center justify-center text-muted-foreground gap-2 p-6 border border-dashed border-border rounded-lg bg-muted/10 text-center">
                                         <Clock className="h-8 w-8 text-muted-foreground/40" />
                                         <p className="text-xs font-semibold text-foreground">Sin registros de horas en el período</p>
-                                        <p className="text-[11px] text-muted-foreground max-w-sm">
+                                        <p className="text-xs text-muted-foreground max-w-sm">
                                             No se registraron turnos entre el {activeRange.startDate} y {activeRange.endDate}. Selecciona otra quincena o amplía el rango en la barra superior.
                                         </p>
                                     </div>
@@ -781,7 +781,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                     <div className="h-[250px] w-full flex flex-col items-center justify-center text-muted-foreground gap-2 p-6 border border-dashed border-border rounded-lg bg-muted/10 text-center">
                                         <Building2 className="h-8 w-8 text-muted-foreground/40" />
                                         <p className="text-xs font-semibold text-foreground">Sin datos por sucursal</p>
-                                        <p className="text-[11px] text-muted-foreground max-w-sm">
+                                        <p className="text-xs text-muted-foreground max-w-sm">
                                             No se encontró actividad en las sucursales para el rango seleccionado.
                                         </p>
                                     </div>
@@ -857,7 +857,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                     <div className="h-[250px] w-full flex flex-col items-center justify-center text-muted-foreground gap-2 p-6 border border-dashed border-border rounded-lg bg-muted/10 text-center">
                                         <Users className="h-8 w-8 text-muted-foreground/40" />
                                         <p className="text-xs font-semibold text-foreground">Sin colaboradores con turnos</p>
-                                        <p className="text-[11px] text-muted-foreground max-w-sm">
+                                        <p className="text-xs text-muted-foreground max-w-sm">
                                             No hay registros de colaboradores en este período.
                                         </p>
                                     </div>
@@ -865,7 +865,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                     <div className="h-[250px] w-full flex flex-col items-center justify-center text-muted-foreground gap-2 p-6 border border-dashed border-emerald-500/20 rounded-lg bg-emerald-500/5 text-center">
                                         <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                                         <p className="text-xs font-semibold text-foreground">100% Cumplimiento LFT - Sin Tiempo Extra</p>
-                                        <p className="text-[11px] text-muted-foreground max-w-sm">
+                                        <p className="text-xs text-muted-foreground max-w-sm">
                                             Los {employeeSummary.length} colaboradores activos operaron dentro de sus jornadas ordinarias sin acumular horas extras en este período.
                                         </p>
                                     </div>
@@ -939,7 +939,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                     <div className="h-[240px] w-full flex flex-col items-center justify-center text-muted-foreground gap-2 p-6 border border-dashed border-border rounded-lg bg-muted/10 text-center">
                                         <CheckCircle2 className="h-8 w-8 text-muted-foreground/40" />
                                         <p className="text-xs font-semibold text-foreground">Sin turnos para clasificar</p>
-                                        <p className="text-[11px] text-muted-foreground max-w-sm">
+                                        <p className="text-xs text-muted-foreground max-w-sm">
                                             No se registran estados de turnos en el período seleccionado.
                                         </p>
                                     </div>

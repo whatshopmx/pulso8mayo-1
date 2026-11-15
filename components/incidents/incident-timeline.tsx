@@ -91,7 +91,7 @@ export function IncidentTimeline({
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-sm text-foreground">{step.title}</span>
                   {isCurrent && (
-                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-300 text-[10px]">
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-300 text-xs">
                       Paso Actual
                     </Badge>
                   )}

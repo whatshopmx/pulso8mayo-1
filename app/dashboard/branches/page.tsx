@@ -258,7 +258,7 @@ function RedesDelGrupo({
                     ] as Array<[string, number | null]>
                   ).map(([etiqueta, valor]) => (
                     <div key={etiqueta} className="rounded-lg bg-muted/40 px-2 py-2">
-                      <dt className="text-[11px] text-muted-foreground">{etiqueta}</dt>
+                      <dt className="text-xs text-muted-foreground">{etiqueta}</dt>
                       <dd className="text-sm font-semibold tabular-nums">
                         {valor === null ? "Sin dato" : `${valor.toFixed(1)}%`}
                       </dd>

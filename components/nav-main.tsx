@@ -21,6 +21,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
+import { groupNavigation, type NavigationLink } from "@/lib/ui/navigation-groups"
 
 export type NavSubItem =
   | { title: string; url: string; groupLabel?: never }
@@ -31,6 +32,7 @@ export type NavSection = {
   url: string
   icon?: LucideIcon
   items?: NavSubItem[]
+  collapseGroups?: boolean
 }
 
 /**
@@ -62,7 +64,7 @@ export function NavMain({ items }: { items: NavSection[] }) {
         if (len > best) {
           best = len
           activeUrl = subItem.url
-          activeSection = section.title
+          activeSection = section.url
         }
       }
       // Fall back to the section root when no leaf matches (e.g. a detail
@@ -71,7 +73,7 @@ export function NavMain({ items }: { items: NavSection[] }) {
       if (sectionLen > best) {
         best = sectionLen
         activeUrl = undefined
-        activeSection = section.title
+        activeSection = section.url
       }
     }
 
@@ -80,26 +82,33 @@ export function NavMain({ items }: { items: NavSection[] }) {
 
   // Manual expand/collapse wins until the next navigation, at which point the
   // section you landed in opens itself again.
-  const [overrides, setOverrides] = React.useState<Record<string, boolean>>({})
-  React.useEffect(() => {
-    setOverrides({})
-  }, [pathname])
+  const [expansion, setExpansion] = React.useState<{ path: string; values: Record<string, boolean> }>({ path: pathname, values: {} })
+  const overrides = expansion.path === pathname ? expansion.values : {}
+  const renderLink = (subItem: NavigationLink) => (
+    <SidebarMenuSubItem key={subItem.url}>
+      <SidebarMenuSubButton asChild isActive={subItem.url === activeUrl}>
+        <Link href={subItem.url} aria-current={subItem.url === activeUrl ? "page" : undefined}>
+          <span>{subItem.title}</span>
+        </Link>
+      </SidebarMenuSubButton>
+    </SidebarMenuSubItem>
+  )
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{t("platform")}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
-          const isSectionActive = activeSection === item.title
-          const isOpen = overrides[item.title] ?? isSectionActive
+          const isSectionActive = activeSection === item.url
+          const isOpen = overrides[item.url] ?? isSectionActive
 
           return (
             <Collapsible
-              key={item.title}
+              key={item.url}
               asChild
               open={isOpen}
               onOpenChange={(open) =>
-                setOverrides((prev) => ({ ...prev, [item.title]: open }))
+                setExpansion((prev) => ({ path: pathname, values: { ...(prev.path === pathname ? prev.values : {}), [item.url]: open } }))
               }
               className="group/collapsible"
             >
@@ -117,31 +126,20 @@ export function NavMain({ items }: { items: NavSection[] }) {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <SidebarMenuSub>
-                    {item.items?.map((subItem, idx) =>
-                      subItem.groupLabel ? (
-                        <li
-                          key={`group-${idx}`}
-                          className="px-2 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground first:pt-1"
-                        >
-                          {subItem.groupLabel}
-                        </li>
-                      ) : (
-                        <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={subItem.url === activeUrl}
-                          >
-                            <Link
-                              href={subItem.url}
-                              aria-current={
-                                subItem.url === activeUrl ? "page" : undefined
-                              }
-                            >
-                              <span>{subItem.title}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
+                    {groupNavigation(item.items ?? []).map(group =>
+                      item.collapseGroups && group.label ? (
+                        <SidebarMenuSubItem key={group.label}>
+                          <details key={`${group.label}:${pathname}`} open={group.items.some(link => link.url === activeUrl)}>
+                            <summary className="cursor-pointer rounded-md px-2 py-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-ring">
+                              {group.label}
+                            </summary>
+                            <SidebarMenuSub className="mx-1 mr-0">{group.items.map(renderLink)}</SidebarMenuSub>
+                          </details>
                         </SidebarMenuSubItem>
-                      )
+                      ) : <React.Fragment key={group.label ?? "root"}>
+                        {group.label && <li className="px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground">{group.label}</li>}
+                        {group.items.map(renderLink)}
+                      </React.Fragment>
                     )}
                   </SidebarMenuSub>
                 </CollapsibleContent>

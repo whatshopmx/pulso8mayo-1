@@ -102,7 +102,7 @@ export function SalesChannelsSection() {
                   <li key={c.key} className="flex items-center justify-between gap-3 py-2.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-medium truncate">{c.label}</span>
-                      <Badge variant="outline" className="text-[10px] uppercase">
+                      <Badge variant="outline" className="text-xs uppercase">
                         {c.kind === "SYSTEM" ? "Sistema" : "Agregador"}
                       </Badge>
                     </div>

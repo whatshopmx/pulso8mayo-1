@@ -35,7 +35,7 @@ export function PageHeader({
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground break-words text-balance">
                 {title}
               </h1>
               {badge && (
@@ -54,7 +54,7 @@ export function PageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex items-center gap-2 shrink-0">{actions}</div>
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>
         )}
       </div>
       {children}

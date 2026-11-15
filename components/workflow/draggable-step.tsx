@@ -38,7 +38,7 @@ export function DraggableStep({ step, index, onUpdate, onRemove }: DraggableStep
 
     return (
         <div ref={setNodeRef} style={style} className="relative group">
-            <Card className="border-l-4 border-l-primary">
+            <Card>
                 <div className="absolute top-1/2 -left-3 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-move z-10" {...attributes} {...listeners}>
                     <div className="bg-background border rounded p-1 shadow-sm">
                         <GripVertical className="h-4 w-4 text-muted-foreground" />

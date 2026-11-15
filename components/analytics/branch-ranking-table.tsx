@@ -127,7 +127,7 @@ export function BranchRankingTable({
                         >
                           {item.branchName}
                           {item.rank === 1 && (
-                            <Badge variant="outline" className="text-[10px] py-0 px-1 border-primary/40 text-primary">
+                            <Badge variant="outline" className="text-xs py-0 px-1 border-primary/40 text-primary">
                               Líder
                             </Badge>
                           )}
@@ -140,7 +140,7 @@ export function BranchRankingTable({
                           {item.compositeScore === null ? "—" : item.compositeScore.toFixed(1)}
                         </span>
                         {item.compositeScore !== null && (
-                          <span className="text-[11px] text-muted-foreground">/100</span>
+                          <span className="text-xs text-muted-foreground">/100</span>
                         )}
                       </TableCell>
 
@@ -255,7 +255,7 @@ export function BranchRankingTable({
                       <TableCell className="text-center">
                         <Badge
                           variant={item.dataQuality === "MEASURED" ? "secondary" : "outline"}
-                          className="text-[10px] px-1.5 py-0"
+                          className="text-xs px-1.5 py-0"
                         >
                           {item.dataQuality === "MEASURED"
                             ? "Real"

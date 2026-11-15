@@ -160,17 +160,17 @@ export function MaintenanceCalendar({ branchId: propBranchId }: { branchId?: str
                   overdue: events.filter(e => e.isOverdue).map(e => e.date),
                 }}
                 modifiersStyles={{
-                  hasEvents: { fontWeight: "bold", backgroundColor: "#dbeafe" },
-                  overdue: { fontWeight: "bold", backgroundColor: "#fee2e2", color: "#dc2626" },
+                  hasEvents: { fontWeight: "bold", backgroundColor: "color-mix(in oklch, var(--info) 15%, var(--background))" },
+                  overdue: { fontWeight: "bold", backgroundColor: "color-mix(in oklch, var(--destructive) 10%, var(--background))", color: "var(--destructive)" },
                 }}
               />
               <div className="mt-4 flex flex-wrap gap-2 text-sm">
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded-full bg-blue-100"></div>
+                  <div className="w-3 h-3 rounded-full bg-info/15"></div>
                   <span>Programado</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded-full bg-red-100"></div>
+                  <div className="w-3 h-3 rounded-full bg-destructive/10"></div>
                   <span>Vencido</span>
                 </div>
                 <div className="flex items-center gap-1">

@@ -72,10 +72,10 @@ export default async function PublicAnnouncementPage({ params }: PageProps) {
       {/* Header */}
       <header className="max-w-2xl mx-auto w-full py-4 flex justify-between items-center border-b border-slate-800/60 mb-8">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-lg tracking-wider">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center font-bold text-primary-foreground text-lg">
             P
           </div>
-          <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+          <span className="font-semibold text-xl tracking-tight text-slate-100">
             Pulso
           </span>
         </div>

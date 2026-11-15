@@ -430,7 +430,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                 <TableRow key={item.id}>
                                                     <TableCell className="font-medium">
                                                         <div>{item.name}</div>
-                                                        <div className="text-[10px] text-muted-foreground capitalize">{item.category || "Insumo"} • {item.unit}</div>
+                                                        <div className="text-xs text-muted-foreground capitalize">{item.category || "Insumo"} • {item.unit}</div>
                                                     </TableCell>
                                                     <TableCell className="font-mono text-xs">{item.supplierSku || "—"}</TableCell>
                                                     <TableCell>{item.presentation || "—"}</TableCell>
@@ -549,7 +549,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                     <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                                                         <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${scorecard.punctualityScore}%` }} />
                                                     </div>
-                                                    <span className="text-[10px] text-muted-foreground block">
+                                                    <span className="text-xs text-muted-foreground block">
                                                         {scorecard.stats.onTimeDeliveries} a tiempo de {scorecard.stats.onTimeDeliveries + scorecard.stats.lateDeliveries}
                                                     </span>
                                                 </div>
@@ -564,7 +564,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                     <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                                                         <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${scorecard.qualityScore}%` }} />
                                                     </div>
-                                                    <span className="text-[10px] text-muted-foreground block">
+                                                    <span className="text-xs text-muted-foreground block">
                                                         {scorecard.stats.flawlessReceivings} recepciones conformes
                                                     </span>
                                                 </div>
@@ -579,7 +579,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                     <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                                                         <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${scorecard.nom251ComplianceScore}%` }} />
                                                     </div>
-                                                    <span className="text-[10px] text-muted-foreground block">
+                                                    <span className="text-xs text-muted-foreground block">
                                                         {scorecard.stats.compliantTempCount} de {scorecard.stats.temperatureLogsCount} lecturas dentro de rango
                                                     </span>
                                                 </div>
@@ -597,7 +597,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="font-mono text-base font-bold text-foreground">{metrics.accuracyRate}%</span>
-                                                    <span className="text-[10px] text-muted-foreground block">Órdenes sin incidencias</span>
+                                                    <span className="text-xs text-muted-foreground block">Órdenes sin incidencias</span>
                                                 </div>
                                             </div>
 
@@ -610,7 +610,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                     <span className="font-mono text-base font-bold text-foreground">
                                                         ${metrics.totalSpend.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
-                                                    <span className="text-[10px] text-muted-foreground block">Excluye canceladas</span>
+                                                    <span className="text-xs text-muted-foreground block">Excluye canceladas</span>
                                                 </div>
                                             </div>
 
@@ -621,7 +621,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="font-mono text-base font-bold text-foreground">{metrics.totalClaims}</span>
-                                                    <span className="text-[10px] text-muted-foreground block">{metrics.resolvedClaims} resueltos</span>
+                                                    <span className="text-xs text-muted-foreground block">{metrics.resolvedClaims} resueltos</span>
                                                 </div>
                                             </div>
 
@@ -634,7 +634,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                     <span className="font-mono text-base font-bold text-destructive">
                                                         ${metrics.totalClaimImpact.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
-                                                    <span className="text-[10px] text-muted-foreground block">Pérdidas acumuladas</span>
+                                                    <span className="text-xs text-muted-foreground block">Pérdidas acumuladas</span>
                                                 </div>
                                             </div>
                                         </div>

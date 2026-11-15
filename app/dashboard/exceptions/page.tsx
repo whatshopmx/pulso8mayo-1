@@ -150,7 +150,7 @@ export default function ExceptionsPage() {
     <PageContainer>
       <PageHeader
         title="Centro de Excepciones & Riesgos"
-        description="Triage operativo de la red de sucursales: resuelve desviaciones de caja, cadena de frío, desabastos y personal en tiempo real."
+        description="Prioriza y resuelve desviaciones de caja, cadena de frío, desabastos y personal en tus sucursales."
         actions={
           <Button variant="outline" size="sm" onClick={fetchExceptions} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />

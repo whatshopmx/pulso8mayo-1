@@ -338,7 +338,7 @@ export function AnnouncementForm({ companyId, userId, onSuccess, onCancel, initi
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Si no seleccionas ningún rol, se enviará a todos los empleados dentro del grupo seleccionado.
             </p>
           </div>

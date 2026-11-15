@@ -10,17 +10,17 @@ export function OverviewTab({ branchId, period }: { branchId?: string; period?: 
     return (
         <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4">
+                <Card className="md:col-span-1 lg:col-span-4">
                     <CardHeader>
-                        <CardTitle>Workflow Completion Rate</CardTitle>
+                        <CardTitle>Cumplimiento de tareas</CardTitle>
                     </CardHeader>
                     <CardContent className="pl-2">
                         <CompletionRateChart branchId={branchId} period={period} />
                     </CardContent>
                 </Card>
-                <Card className="col-span-3">
+                <Card className="md:col-span-1 lg:col-span-3">
                     <CardHeader>
-                        <CardTitle>Active Workflows</CardTitle>
+                        <CardTitle>Tareas en curso</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ActiveWorkflowsList branchId={branchId} />
@@ -28,17 +28,17 @@ export function OverviewTab({ branchId, period }: { branchId?: string; period?: 
                 </Card>
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4">
+                <Card className="md:col-span-1 lg:col-span-4">
                     <CardHeader>
-                        <CardTitle>Employee Leaderboard</CardTitle>
+                        <CardTitle>Actividad del equipo</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <EmployeeLeaderboard branchId={branchId} period={period} />
                     </CardContent>
                 </Card>
-                <Card className="col-span-3">
+                <Card className="md:col-span-1 lg:col-span-3">
                     <CardHeader>
-                        <CardTitle>Inventory Activity</CardTitle>
+                        <CardTitle>Actividad de inventario</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <InventoryActivityFeed branchId={branchId} />

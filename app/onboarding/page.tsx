@@ -8,22 +8,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CompanyService } from "@/lib/services/company-service";
-import { authClient } from "@/lib/auth-client";
 import { Loader2 } from "lucide-react";
 
 const onboardingSchema = z.object({
-    companyName: z.string().min(2, "El nombre de la empresa debe tener al menos 2 caracteres"),
-    branchName: z.string().min(2, "El nombre de la sucursal debe tener al menos 2 caracteres"),
+    companyName: z.string().trim().min(2, "El nombre de la empresa debe tener al menos 2 caracteres"),
+    branchName: z.string().trim().min(2, "El nombre de la sucursal debe tener al menos 2 caracteres"),
     address: z.string().optional(),
 });
 
 type OnboardingValues = z.infer<typeof onboardingSchema>;
 
 export default function OnboardingPage() {
-    const router = useRouter();
     const [loading, setLoading] = useState(false);
 
     const form = useForm<OnboardingValues>({
@@ -36,22 +32,21 @@ export default function OnboardingPage() {
     });
 
     async function onSubmit(data: OnboardingValues) {
+        if (loading) return;
+        form.clearErrors("root");
         setLoading(true);
         try {
             // 1. Create Company and Branch via composite endpoint
             const onboardingRes = await fetch("/api/onboarding", {
                 method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data)
             });
 
             if (!onboardingRes.ok) {
-                const error = await onboardingRes.json();
-                throw new Error(error.error?.message || error.message || "Onboarding failed");
+                throw new Error("No se pudo completar la configuración. Conservamos tus datos; vuelve a intentarlo.");
             }
 
-            const result = await onboardingRes.json();
-
-            console.log("Onboarding success:", result);
             toast.success("Configuración completada!");
 
             // CRITICAL: Force a full page reload to refresh the session cookie
@@ -59,26 +54,28 @@ export default function OnboardingPage() {
             // and picks up the updated companyId from the database
             window.location.href = "/dashboard";
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast.error(error.message || "Error al completar la configuración. Inténtalo de nuevo.");
+            const message = error instanceof Error ? error.message : "No se pudo completar la configuración. Vuelve a intentarlo.";
+            form.setError("root", { message });
+            toast.error(message);
         } finally {
             setLoading(false);
         }
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50/50 p-4">
-            <Card className="w-full max-w-lg shadow-lg">
+        <main className="flex min-h-svh items-center justify-center bg-muted/30 px-4 py-8">
+            <Card className="w-full max-w-lg shadow-none">
                 <CardHeader className="space-y-1">
-                    <CardTitle className="text-2xl font-bold">Bienvenido a Pulso</CardTitle>
+                    <CardTitle className="text-2xl font-bold"><h1>Bienvenido a Pulso</h1></CardTitle>
                     <CardDescription>
                         Configuremos tu espacio de trabajo. Cuéntanos sobre tu empresa y tu primera sucursal.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" aria-busy={loading}>
                             <FormField
                                 control={form.control}
                                 name="companyName"
@@ -86,7 +83,7 @@ export default function OnboardingPage() {
                                     <FormItem>
                                         <FormLabel>Nombre de la Empresa</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Ej. Restaurantes SA de CV" {...field} />
+                                            <Input placeholder="Ej. Restaurantes SA de CV" autoComplete="organization" disabled={loading} {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -100,7 +97,7 @@ export default function OnboardingPage() {
                                         <FormItem>
                                             <FormLabel>Nombre de Sucursal</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Matriz" {...field} />
+                                                <Input placeholder="Matriz" disabled={loading} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -113,7 +110,7 @@ export default function OnboardingPage() {
                                         <FormItem>
                                             <FormLabel>Dirección (Opcional)</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Av. Reforma 123" {...field} />
+                                                <Input placeholder="Av. Reforma 123" autoComplete="street-address" disabled={loading} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -121,6 +118,7 @@ export default function OnboardingPage() {
                                 />
                             </div>
 
+                            {form.formState.errors.root && <p role="alert" className="text-sm text-destructive">{form.formState.errors.root.message}</p>}
                             <Button type="submit" className="w-full" disabled={loading}>
                                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 {loading ? "Configurando..." : "Completar Configuración"}
@@ -129,6 +127,6 @@ export default function OnboardingPage() {
                     </Form>
                 </CardContent>
             </Card>
-        </div>
+        </main>
     );
 }

@@ -534,19 +534,19 @@ export function AguinaldoCard({ branchId = null, branchName = null }: AguinaldoC
                         {row.propuestaDias?.requiereRevision && (
                           <Badge
                             variant="outline"
-                            className="text-[10px] font-medium border-amber-500/50 text-amber-700 dark:text-amber-300"
+                            className="text-xs font-medium border-amber-500/50 text-amber-700 dark:text-amber-300"
                             title={`${row.propuestaDias.pendientes} permiso(s) sin clasificar · ${row.propuestaDias.conflictos} conflicto(s)`}
                           >
                             {Object.hasOwn(diasEditados, row.userId) ? "Revisión confirmada manualmente" : "Revisar días"}
                           </Badge>
                         )}
                         {row.propuestaDias?.contieneProyeccion && (
-                          <Badge variant="outline" className="text-[10px] font-medium" title="El corte es anterior al cierre del año: los días posteriores no son faltas.">
+                          <Badge variant="outline" className="text-xs font-medium" title="El corte es anterior al cierre del año: los días posteriores no son faltas.">
                             Proyección
                           </Badge>
                         )}
                         {row.propuestaDias?.diasConTurno === 0 && row.propuestaDias.diasNoComputables === 0 && (
-                          <Badge variant="outline" className="text-[10px] font-medium" title="Sin turnos capturados: la propuesta usa el calendario, no una lista de faltas.">
+                          <Badge variant="outline" className="text-xs font-medium" title="Sin turnos capturados: la propuesta usa el calendario, no una lista de faltas.">
                             Sin checadas
                           </Badge>
                         )}

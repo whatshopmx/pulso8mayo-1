@@ -4,26 +4,31 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OverviewTab } from "./overview-tab";
 import { ScheduledTab } from "./scheduled-tab";
-import { TemplatesTab } from "./templates-tab";
-import { RecentWorkflowsTable } from "../recent-workflows-table";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { RecentWorkflowsTable, type WorkflowInstance } from "../recent-workflows-table";
 import { TemperatureMonitor } from "./temperature-monitor";
+import { ErrorState } from "@/components/shared/error-state";
 
 interface OperationsTabsProps {
-  recentWorkflows: any[];
+  recentWorkflows: WorkflowInstance[];
   period?: string;
   branchId?: string;
   /** /dashboard/operations ya está limitado a roles operativos por el proxy. */
   canExecute?: boolean;
+  activityLoading?: boolean;
+  activityError?: string | null;
+  onActivityRetry?: () => void;
 }
 
-export function OperationsTabs({ recentWorkflows, period = "30d", branchId, canExecute = true }: OperationsTabsProps) {
+export function OperationsTabs({ recentWorkflows, period = "30d", branchId, canExecute = true, activityLoading, activityError, onActivityRetry }: OperationsTabsProps) {
     return (
         <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="activity">Live & Recent</TabsTrigger>
-                <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-                <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsList className="flex h-auto w-full flex-wrap justify-start sm:w-auto" aria-label="Vistas de operaciones">
+                <TabsTrigger value="overview">Resumen</TabsTrigger>
+                <TabsTrigger value="activity">Actividad</TabsTrigger>
+                <TabsTrigger value="scheduled">Programación</TabsTrigger>
+                <TabsTrigger value="templates">Plantillas</TabsTrigger>
             </TabsList>
     <TabsContent value="overview" className="space-y-4">
       <OverviewTab branchId={branchId} period={period} />
@@ -32,29 +37,31 @@ export function OperationsTabs({ recentWorkflows, period = "30d", branchId, canE
             <TabsContent value="activity" className="space-y-4">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Recent Activity</CardTitle>
+                        <CardTitle>Actividad reciente</CardTitle>
                         <CardDescription>
-                            Real-time log of all workflow executions.
+                            Últimas ejecuciones en el alcance de sucursales seleccionado.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <RecentWorkflowsTable workflows={recentWorkflows} canExecute={canExecute} />
+                        {activityLoading ? <p role="status" className="py-6 text-sm text-muted-foreground">Cargando actividad…</p>
+                          : activityError ? <ErrorState message={activityError} onRetry={onActivityRetry} />
+                          : <RecentWorkflowsTable workflows={recentWorkflows} canExecute={canExecute} />}
                     </CardContent>
                 </Card>
             </TabsContent>
             <TabsContent value="scheduled" className="space-y-4">
-                <ScheduledTab />
+                <ScheduledTab branchId={branchId} />
             </TabsContent>
             <TabsContent value="templates" className="space-y-4">
                 <Card>
                     <CardHeader>
-                        <CardTitle>My Templates</CardTitle>
+                        <CardTitle>Plantillas de trabajo</CardTitle>
                         <CardDescription>
-                            Manage and launch your workflow templates.
+                            Elige una plantilla y una sucursal para iniciar una tarea o asignarla a tu equipo.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-muted-foreground">Templates grid integration pending...</p>
+                        {canExecute && <Button asChild><Link href="/dashboard/execute">Elegir plantilla</Link></Button>}
                     </CardContent>
                 </Card>
             </TabsContent>

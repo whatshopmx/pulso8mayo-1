@@ -458,7 +458,7 @@ export function TpvBatchEntryModal({
                           <Label className="text-xs flex items-center justify-between">
                             <span>Foto del Voucher de Lote</span>
                             {state.voucherPhotoUrl && (
-                              <span className="text-[11px] text-success font-medium flex items-center gap-1">
+                              <span className="text-xs text-success font-medium flex items-center gap-1">
                                 <CheckCircle2 className="h-3 w-3" /> Adjunto
                               </span>
                             )}

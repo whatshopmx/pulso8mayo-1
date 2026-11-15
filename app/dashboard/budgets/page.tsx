@@ -292,7 +292,7 @@ function BudgetsTable({
     });
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-md focus-visible:outline-2 focus-visible:outline-ring" tabIndex={0} role="region" aria-label="Presupuestos por sucursal y centro de costo; desplaza para ver todas las columnas">
       <table className="w-full min-w-max text-sm">
         <thead>
           <tr className="border-b">

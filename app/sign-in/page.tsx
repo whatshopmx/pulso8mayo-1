@@ -4,7 +4,8 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { authErrorMessage, postLoginPath } from "@/lib/ui/auth-feedback";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -15,38 +16,35 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const signIn = async () => {
+  const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (loading) return;
     setLoading(true);
-    await authClient.signIn.email({
-      email,
-      password,
-      fetchOptions: {
-        onSuccess: () => {
-          router.push("/dashboard");
-        },
-        onError: (ctx) => {
-          alert(ctx.error.message);
-        }
-      }
-    });
-    setLoading(false);
+    setError(null);
+    try {
+      const result = await authClient.signIn.email({
+        email: email.trim(),
+        password,
+      });
+      if (result.error) setError(authErrorMessage(result.error.code));
+      else router.push(postLoginPath(new URLSearchParams(window.location.search).get("callbackUrl")));
+    } catch {
+      setError("No pudimos conectar. Comprueba tu conexión y vuelve a intentarlo.");
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>{t("title")}</CardTitle>
-          <CardDescription>{t("subtitle")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <AuthShell title={t("title")} description={t("subtitle")}>
+      <form onSubmit={signIn} className="space-y-4" aria-busy={loading} aria-describedby={error ? "auth-error" : undefined}>
           <div className="space-y-2">
             <Label htmlFor="email">{t("email")}</Label>
             <Input
               id="email"
               type="email"
+              name="email" autoComplete="username" required disabled={loading} className="text-base md:text-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t("emailPlaceholder")}
@@ -57,24 +55,24 @@ export default function SignIn() {
             <Input
               id="password"
               type="password"
+              name="password" autoComplete="current-password" required disabled={loading} className="text-base md:text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t("passwordPlaceholder")}
             />
           </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-4">
-          <Button className="w-full" onClick={signIn} disabled={loading}>
+          <Link href="/forgot-password" className="block text-sm text-primary underline underline-offset-4">¿Olvidaste tu contraseña?</Link>
+          {error && <p id="auth-error" role="alert" className="text-sm text-destructive">{error}</p>}
+          <Button className="w-full" type="submit" disabled={loading}>
             {loading ? t("signingIn") : t("signInButton")}
           </Button>
           <p className="text-sm text-center">
             {t("noAccount")}{" "}
-            <Link href="/sign-up" className="text-blue-600 hover:underline">
+            <Link href="/sign-up" className="text-primary underline underline-offset-4">
               {t("signUp")}
             </Link>
           </p>
-        </CardFooter>
-      </Card>
-    </div>
+      </form>
+    </AuthShell>
   );
 }

@@ -52,10 +52,10 @@ const statusColors = {
 };
 
 const priorityColors = {
-    LOW: 'border-l-gray-400',
-    MEDIUM: 'border-l-blue-500',
-    HIGH: 'border-l-orange-500',
-    URGENT: 'border-l-red-500',
+    LOW: 'border-border',
+    MEDIUM: 'border-info/30',
+    HIGH: 'border-warning/40',
+    URGENT: 'border-destructive/40 bg-destructive/5',
 };
 
 const priorityLabels = {
@@ -151,7 +151,7 @@ export function AssignmentCard({
     };
 
     return (
-        <Card className={cn('border-l-4', priorityColors[assignment.priority])}>
+        <Card className={cn(priorityColors[assignment.priority])}>
             <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1 flex-1">

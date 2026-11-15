@@ -73,7 +73,7 @@ function SeverityChart({ data, loading }: { data: SeverityItem[]; loading?: bool
   const chartData = data.map((d) => ({
     name: SEVERITY_LABELS[d.severity] || d.severity,
     total: d.count,
-    fill: SEVERITY_COLORS[d.severity] || "#6b7280",
+    fill: SEVERITY_COLORS[d.severity] || "var(--muted-foreground)",
   }));
 
   return (
@@ -182,8 +182,8 @@ function StatusPieChart({ data, loading }: { data: { active: number; resolved: n
   }
 
   const pieData = [
-    { name: "Activos", value: data.active, color: "#f97316" },
-    { name: "Resueltos", value: data.resolved, color: "#22c55e" },
+    { name: "Activos", value: data.active, color: "var(--warning)" },
+    { name: "Resueltos", value: data.resolved, color: "var(--success)" },
   ].filter((d) => d.value > 0);
 
   return (

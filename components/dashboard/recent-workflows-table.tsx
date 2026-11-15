@@ -17,7 +17,7 @@ import { CheckCircle2, Clock, XCircle, Search, Eye, Play, AlertCircle } from "lu
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-interface WorkflowInstance {
+export interface WorkflowInstance {
     id: string;
     templateName: string;
     status: string | null;

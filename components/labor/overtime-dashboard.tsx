@@ -421,7 +421,7 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                     <Layers className="h-4 w-4" />
                                     <span>Simulador Presupuestal Reforma Laboral LFT (Jornada {simulationHours}h Semanales)</span>
                                 </div>
-                                <Badge variant="outline" className="border-indigo-500/30 text-indigo-500 font-mono text-[11px] self-start sm:self-auto">
+                                <Badge variant="outline" className="border-indigo-500/30 text-indigo-500 font-mono text-xs self-start sm:self-auto">
                                     Proyección Ley 40h Art. 123
                                 </Badge>
                             </div>
@@ -430,25 +430,25 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                             </p>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-indigo-500/15">
                                 <div>
-                                    <span className="text-[11px] text-muted-foreground block">Sobrecosto Estimado</span>
+                                    <span className="text-xs text-muted-foreground block">Sobrecosto Estimado</span>
                                     <span className="font-mono font-bold text-sm text-indigo-500">
                                         +{formatCurrency(summary.simulation.deltaCostMXN)}
                                     </span>
                                 </div>
                                 <div>
-                                    <span className="text-[11px] text-muted-foreground block">Incremento en Nómina Extra</span>
+                                    <span className="text-xs text-muted-foreground block">Incremento en Nómina Extra</span>
                                     <span className="font-mono font-bold text-sm text-indigo-500">
                                         +{summary.simulation.percentIncrease}%
                                     </span>
                                 </div>
                                 <div>
-                                    <span className="text-[11px] text-muted-foreground block">Horas Extras Nuevas</span>
+                                    <span className="text-xs text-muted-foreground block">Horas Extras Nuevas</span>
                                     <span className="font-mono font-bold text-sm">
                                         +{summary.simulation.additionalOvertimeHours}h
                                     </span>
                                 </div>
                                 <div>
-                                    <span className="text-[11px] text-muted-foreground block">Costo Total Proyectado</span>
+                                    <span className="text-xs text-muted-foreground block">Costo Total Proyectado</span>
                                     <span className="font-mono font-bold text-sm">
                                         {formatCurrency(summary.simulation.simulatedCostMXN)}
                                     </span>
@@ -484,7 +484,7 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                             {formatCurrency(summary?.totalEstimatedCostMXN || 0)}
                                         </span>
                                         {summary?.simulation?.isSimulated && summary.simulation.deltaCostMXN > 0 && (
-                                            <Badge variant="outline" className="text-[11px] font-mono border-indigo-500/30 text-indigo-500">
+                                            <Badge variant="outline" className="text-xs font-mono border-indigo-500/30 text-indigo-500">
                                                 +{formatCurrency(summary.simulation.deltaCostMXN)} vs 48h
                                             </Badge>
                                         )}
@@ -509,7 +509,7 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                             {formatMinutes(summary?.totalOvertimeMinutes || 0)}
                                         </span>
                                         {summary?.simulation?.isSimulated && summary.simulation.additionalOvertimeHours > 0 && (
-                                            <Badge variant="outline" className="text-[11px] font-mono border-indigo-500/30 text-indigo-500">
+                                            <Badge variant="outline" className="text-xs font-mono border-indigo-500/30 text-indigo-500">
                                                 +{summary.simulation.additionalOvertimeHours}h por reforma
                                             </Badge>
                                         )}
@@ -625,10 +625,10 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                             <Tooltip
                                                 formatter={(value: any) => [`${formatMinutes(Number(value))}`, "Horas"]}
                                                 contentStyle={{
-                                                    backgroundColor: "hsl(var(--card))",
-                                                    borderColor: "hsl(var(--border))",
-                                                    color: "hsl(var(--card-foreground))",
-                                                    borderRadius: "8px",
+                                                    backgroundColor: "var(--card)",
+                                                    borderColor: "var(--border)",
+                                                    color: "var(--card-foreground)",
+                                                    borderRadius: "var(--radius)",
                                                     fontSize: "12px",
                                                 }}
                                             />
@@ -664,24 +664,24 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                 ) : (
                                     <ResponsiveContainer width="100%" height={250}>
                                         <BarChart data={topOvertimeEmployees}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                                             <XAxis
                                                 dataKey="name"
-                                                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                                                tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
                                                 tickLine={false}
                                             />
                                             <YAxis
-                                                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                                                tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
                                                 tickLine={false}
                                                 unit="h"
                                             />
                                             <Tooltip
                                                 formatter={(value: any, name: any) => [`${value} hrs`, name]}
                                                 contentStyle={{
-                                                    backgroundColor: "hsl(var(--card))",
-                                                    borderColor: "hsl(var(--border))",
-                                                    color: "hsl(var(--card-foreground))",
-                                                    borderRadius: "8px",
+                                                    backgroundColor: "var(--card)",
+                                                    borderColor: "var(--border)",
+                                                    color: "var(--card-foreground)",
+                                                    borderRadius: "var(--radius)",
                                                     fontSize: "12px",
                                                 }}
                                             />
@@ -784,12 +784,12 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                                     </TableCell>
                                                     <TableCell className="text-center">
                                                         {report.lftStatus === "CRITICAL" ? (
-                                                            <Badge variant="destructive" className="text-[11px] font-medium gap-1 py-0.5">
+                                                            <Badge variant="destructive" className="text-xs font-medium gap-1 py-0.5">
                                                                 <AlertTriangle className="h-3 w-3" />
                                                                 Excede 9h (+3x)
                                                             </Badge>
                                                         ) : report.lftStatus === "WARNING" ? (
-                                                            <Badge className="text-[11px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 py-0.5">
+                                                            <Badge className="text-xs font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 py-0.5">
                                                                 Próximo al límite
                                                             </Badge>
                                                         ) : report.totalOvertimeMinutes > 0 ? (

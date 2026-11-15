@@ -133,7 +133,7 @@ export default function TeamPage() {
     const getBranchName = (id: string | null) => {
         if (!id) return "Global / Matriz";
         const b = branches.find(br => br.id === id);
-        return b ? b.name : "Unknown Branch";
+        return b ? b.name : "Sucursal no disponible";
     };
 
     const getSmartLink = () => {

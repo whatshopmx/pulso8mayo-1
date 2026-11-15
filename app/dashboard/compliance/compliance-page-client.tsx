@@ -258,7 +258,7 @@ export function CompliancePageClient({ branches, companyId = "" }: CompliancePag
   if (branches.length === 0) {
     return (
       <PageHeader
-        title="Compliance & Normatividad"
+        title="Cumplimiento y normatividad"
         description="Centro de control normativo sanitario (NOM-251), laboral (NOM-035, IMSS) y fiscal"
         icon={Shield}
         badge="NOM-251 · NOM-035 · IMSS"
@@ -275,7 +275,7 @@ export function CompliancePageClient({ branches, companyId = "" }: CompliancePag
   return (
     <>
       <PageHeader
-        title="Compliance & Normatividad"
+        title="Cumplimiento y normatividad"
         description="Centro de control normativo sanitario (NOM-251), laboral (NOM-035, IMSS) y fiscal"
         icon={Shield}
         badge="NOM-251 · NOM-035 · IMSS"

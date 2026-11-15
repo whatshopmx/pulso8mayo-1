@@ -93,7 +93,7 @@ export function AnnouncementCard({ announcement, onPin, onDelete, onEdit, highli
               {announcement.targetRoles && announcement.targetRoles.length > 0 && (
                 <div className="flex gap-1 flex-wrap justify-end">
                   {announcement.targetRoles.map(role => (
-                    <span key={role} className="text-[10px] bg-muted px-1.5 py-0.5 rounded border">
+                    <span key={role} className="text-xs bg-muted px-1.5 py-0.5 rounded border">
                       {roleLabels[role] || role}
                     </span>
                   ))}
@@ -117,7 +117,7 @@ export function AnnouncementCard({ announcement, onPin, onDelete, onEdit, highli
           <div className="flex items-center gap-3">
             {announcement.totalRecipients > 0 && (
               <div className="flex flex-col items-end gap-1 min-w-[120px]">
-                <div className="flex justify-between w-full text-[10px] font-medium">
+                <div className="flex justify-between w-full text-xs font-medium">
                   <span>Alcance</span>
                   <span>{Math.round((announcement.readCount / announcement.totalRecipients) * 100)}%</span>
                 </div>
@@ -127,7 +127,7 @@ export function AnnouncementCard({ announcement, onPin, onDelete, onEdit, highli
                     style={{ width: `${(announcement.readCount / announcement.totalRecipients) * 100}%` }}
                   />
                 </div>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {announcement.readCount} de {announcement.totalRecipients} leídos
                 </span>
               </div>

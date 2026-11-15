@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { authClient } from "@/lib/auth-client";
+import { ErrorState } from "@/components/shared/error-state";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -121,40 +124,32 @@ export default function EquipmentPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { selectedBranchId } = useBranch();
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  useEffect(() => {
-    fetchEquipment();
-  }, [statusFilter, typeFilter, selectedBranchId]);
-
-  const fetchEquipment = async () => {
-    try {
-      setIsLoading(true);
+  const { data: session } = authClient.useSession();
+  const query = useQuery({
+    queryKey: ["equipment", session?.user.id, selectedBranchId, statusFilter, typeFilter],
+    enabled: Boolean(session?.user.id),
+    queryFn: async ({ signal }): Promise<Equipment[]> => {
       const params = new URLSearchParams();
       if (statusFilter && statusFilter !== "ALL") params.append("status", statusFilter);
       if (typeFilter && typeFilter !== "ALL") params.append("type", typeFilter);
       if (selectedBranchId && selectedBranchId !== "ALL") params.append("branchId", selectedBranchId);
       
-      const response = await fetch(`/api/equipment?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch equipment");
+      const response = await fetch(`/api/equipment?${params}`, { signal });
+      if (!response.ok) throw new Error("No se pudo cargar el inventario de equipos.");
       
       const data = await response.json();
-      setEquipment(data.data || []);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo cargar el inventario de equipos",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      if (!Array.isArray(data.data)) throw new Error("El inventario de equipos recibido no es válido.");
+      return data.data;
+    },
+  });
+  const equipment = query.data ?? [];
+  const isLoading = query.isPending;
+  const fetchEquipment = () => void query.refetch();
 
   const filteredEquipment = equipment.filter((item) => {
     const matchesSearch = 
@@ -203,7 +198,7 @@ export default function EquipmentPage() {
       />
 
       <Tabs defaultValue="equipment" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4 lg:w-auto">
           <TabsTrigger value="equipment" className="gap-2">
             <Wrench className="w-4 h-4" />
             Equipos
@@ -232,14 +227,15 @@ export default function EquipmentPage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder="Buscar equipos..."
+                    aria-label="Buscar equipos"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-full sm:w-40" aria-label="Estado del equipo">
                       <Filter className="w-4 h-4 mr-2" />
                       <SelectValue placeholder="Estado" />
                     </SelectTrigger>
@@ -252,7 +248,7 @@ export default function EquipmentPage() {
               </SelectContent>
                   </Select>
                   <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-45">
+                    <SelectTrigger className="w-full sm:w-45" aria-label="Tipo de equipo">
                       <SelectValue placeholder="Tipo" />
                     </SelectTrigger>
             <SelectContent>
@@ -270,12 +266,12 @@ export default function EquipmentPage() {
                 <div className="flex items-center justify-center h-64">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : filteredEquipment.length === 0 ? (
+              ) : query.isError ? <ErrorState message="No se pudo cargar el inventario de equipos. Vuelve a intentarlo." onRetry={fetchEquipment} /> : filteredEquipment.length === 0 ? (
                 <div className="text-center py-12">
                   <Wrench className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium">No hay equipos registrados</h3>
+                  <h3 className="text-lg font-medium">{searchQuery || statusFilter !== "ALL" || typeFilter !== "ALL" ? "Sin coincidencias" : "No hay equipos registrados"}</h3>
                   <p className="text-muted-foreground mb-4">
-                    Comienza agregando tu primer equipo
+                    {searchQuery || statusFilter !== "ALL" || typeFilter !== "ALL" ? "Cambia los filtros o la búsqueda para encontrar el equipo." : "Comienza agregando tu primer equipo"}
                   </p>
                   <Button onClick={() => setIsAddDialogOpen(true)}>
                     <Plus className="w-4 h-4 mr-2" />

@@ -84,7 +84,7 @@ export function KpiBuilderClient({ userRole = "GERENTE" }: KpiBuilderClientProps
             {/* Sidebar */}
             <div className="space-y-4">
               {selectedTemplate && (
-                <Card className="border-l-4 border-l-primary">
+                <Card className="border-primary/30 bg-primary/5">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <FileText className="h-4 w-4" />

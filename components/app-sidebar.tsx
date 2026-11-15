@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
+import { isSidebarSectionVisible } from "@/lib/ui/sidebar-visibility"
 
 import { NavUser } from "@/components/nav-user"
 import { NavCompany } from "@/components/nav-company"
@@ -109,6 +110,7 @@ const navMain = [
   {
     title: "Inventario",
     url: "/dashboard/inventory",
+    collapseGroups: true,
     icon: Package,
     items: [
       {
@@ -281,7 +283,7 @@ const navMain = [
         icon: FileText,
       },
       {
-        title: "Verificaciones AI",
+        title: "Verificaciones IA",
         url: "/dashboard/ai-verifications",
       },
       { groupLabel: "Registros" },
@@ -501,21 +503,7 @@ export function AppSidebar({ user, company, branches, currentBranchId, ...props 
   // Filter navigation items based on user role
   const userRole = user.role || 'EMPLEADO';
 
-  const filteredNavMain = navMain.filter(section => {
-    if (userRole === 'EMPLEADO') {
-      return section.title === 'Flujos de Trabajo';
-    }
-    if (userRole === 'READONLY') {
-      return section.title === 'Mi Grupo' || section.title === 'Cumplimiento' || section.title === 'Desempeño';
-    }
-    if (userRole === 'SUPERVISOR') {
-      return section.title !== 'Organización';
-    }
-    if (userRole === 'GERENTE') {
-      return section.title !== 'Organización';
-    }
-    return true;
-  }).map(section => {
+  const filteredNavMain = navMain.filter(section => isSidebarSectionVisible(userRole, section.url)).map(section => {
     const filteredItems = section.items?.filter(item => {
       const anyItem = item as any;
       if (anyItem.groupLabel || !anyItem.url) return true;

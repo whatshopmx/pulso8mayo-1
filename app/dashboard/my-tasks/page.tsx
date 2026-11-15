@@ -62,7 +62,7 @@ export default function MyTasksPage() {
                         setFilters({ ...filters, status: value === 'all' ? undefined : value })
                     }
                 >
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px]" aria-label="Estado de las tareas">
                         <SelectValue placeholder="Estado" />
                     </SelectTrigger>
                     <SelectContent>
@@ -80,7 +80,7 @@ export default function MyTasksPage() {
                         setFilters({ ...filters, priority: value === 'all' ? undefined : value })
                     }
                 >
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px]" aria-label="Prioridad de las tareas">
                         <SelectValue placeholder="Prioridad" />
                     </SelectTrigger>
                     <SelectContent>
@@ -101,7 +101,7 @@ export default function MyTasksPage() {
                         })
                     }
                 >
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px]" aria-label="Vencimiento de las tareas">
                         <SelectValue placeholder="Vencimiento" />
                     </SelectTrigger>
                     <SelectContent>

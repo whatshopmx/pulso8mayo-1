@@ -151,7 +151,7 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
               <span className="text-xs text-muted-foreground">/ {summary.totalBranches} tiendas</span>
             </div>
             {summary.openBranchesCount !== summary.onTimeBranchesCount && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {summary.openBranchesCount} abrieron; {summary.openBranchesCount - summary.onTimeBranchesCount} con retraso
               </p>
             )}

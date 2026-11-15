@@ -27,6 +27,7 @@ export function useNotifications({ limit = 20 }: UseNotificationsOptions = {}) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isMutating, setIsMutating] = useState(false);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -43,12 +44,14 @@ export function useNotifications({ limit = 20 }: UseNotificationsOptions = {}) {
       const json = await res.json();
       setNotifications(json.data || []);
       setUnreadCount(json.unreadCount ?? 0);
+      setError(null);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") {
         return;
       }
       // Error silencioso en polling, pero logueado para depuración
       console.warn("[useNotifications] Error al obtener notificaciones:", err);
+      setError("No se pudieron actualizar las notificaciones. Vuelve a intentarlo.");
     } finally {
       setIsLoading(false);
     }
@@ -205,6 +208,7 @@ export function useNotifications({ limit = 20 }: UseNotificationsOptions = {}) {
     notifications,
     unreadCount,
     isLoading,
+    error,
     isMutating,
     mutatingId,
     markAsRead,

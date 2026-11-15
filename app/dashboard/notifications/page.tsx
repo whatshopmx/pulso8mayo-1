@@ -18,7 +18,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { PageHeader, PageContainer } from "@/components/shared";
+import { PageHeader, PageContainer, ErrorState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -137,10 +137,12 @@ export default function NotificationsPage() {
     notifications,
     unreadCount,
     isLoading,
+    error,
     isMutating,
     mutatingId,
     markAsRead,
     markAllAsRead,
+    refresh,
   } = useNotifications({ limit: 100 });
 
   const [categoria, setCategoria] = React.useState<CategoriaFiltro>("todas");
@@ -312,13 +314,14 @@ export default function NotificationsPage() {
       </div>
 
       {/* Contenido de Notificaciones */}
+      {error && notifications.length > 0 && <ErrorState message={`${error} Se conserva la última consulta disponible.`} onRetry={() => void refresh()} />}
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-20 w-full rounded-lg" />
           ))}
         </div>
-      ) : visibles.length === 0 ? (
+      ) : error && notifications.length === 0 ? <ErrorState message={error} onRetry={() => void refresh()} /> : visibles.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title={

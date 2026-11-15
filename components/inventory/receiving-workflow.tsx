@@ -746,7 +746,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                                                         )}
                                                     />
                                                     {!tempRange && (
-                                                        <p className="text-[11px] text-muted-foreground">
+                                                        <p className="text-xs text-muted-foreground">
                                                             {item.storageType === 'DRY'
                                                                 ? "Seco: sin requisito de temperatura"
                                                                 : "Sin clasificar: se rechaza > 4°C"}
