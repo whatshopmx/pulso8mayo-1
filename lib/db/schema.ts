@@ -2985,6 +2985,74 @@ export const salesConsumptionRevisions = pgTable("sales_consumption_revisions", 
     ];
 }).enableRLS();
 
+// Immutable recovery records required by the published decision service.
+export const saleRecoveryProposals = pgTable("sale_recovery_proposals", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    legacySaleId: uuid("legacy_sale_id").notNull().references(() => salesEntries.id),
+    idempotencyKey: uuid("idempotency_key").notNull(),
+    proposalHash: text("proposal_hash").notNull(),
+    stateHash: text("state_hash").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    reason: text("reason").notNull(),
+    proposal: jsonb("proposal").$type<import("../services/sale-recovery-review").PreparedSaleRecoveryReview["proposal"]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    const scope = sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+            OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`;
+    return [
+        unique("sale_recovery_idempotency_unique").on(table.companyId, table.idempotencyKey),
+        unique("sale_recovery_review_target_unique").on(table.id, table.companyId, table.branchId, table.proposalHash, table.stateHash, table.requestedBy),
+        index("sale_recovery_legacy_idx").on(table.companyId, table.branchId, table.legacySaleId),
+        check("sale_recovery_hashes_check", sql`${table.proposalHash} ~ '^[a-f0-9]{64}$' AND ${table.stateHash} ~ '^[a-f0-9]{64}$'`),
+        check("sale_recovery_request_check", sql`${table.requestedBy} = btrim(${table.requestedBy}) AND length(${table.requestedBy}) BETWEEN 1 AND 256
+            AND ${table.reason} = btrim(${table.reason}) AND length(${table.reason}) BETWEEN 1 AND 2000`),
+        check("sale_recovery_envelope_check", sql`(jsonb_typeof(${table.proposal}) = 'object'
+            AND ${table.proposal}->'identity'->>'companyId' = ${table.companyId}::text
+            AND ${table.proposal}->'identity'->>'branchId' = ${table.branchId}::text
+            AND ${table.proposal}->'legacy'->>'id' = ${table.legacySaleId}::text
+            AND ${table.proposal}->>'requestedBy' = ${table.requestedBy}
+            AND ${table.proposal}->>'idempotencyKey' = ${table.idempotencyKey}::text
+            AND ${table.proposal}->>'reason' = ${table.reason}
+            AND jsonb_typeof(${table.proposal}->'evidence') = 'array'
+            AND jsonb_array_length(${table.proposal}->'evidence') BETWEEN 3 AND 100) IS TRUE`),
+        pgPolicy("sale_recovery_proposal_tenant", { for: "all", to: "public", using: scope,
+            withCheck: sql`${scope} AND EXISTS (SELECT 1 FROM public.sales_entries s WHERE s.id=${table.legacySaleId}
+                AND s.company_id=${table.companyId} AND s.branch_id=${table.branchId})
+                AND EXISTS (SELECT 1 FROM public.branches b WHERE b.id=${table.branchId} AND b.company_id=${table.companyId})` }),
+    ];
+}).enableRLS();
+
+/** Decisión única ligada al expediente exacto. El servicio debe resolver el rol real del servidor. */
+export const saleRecoveryDecisions = pgTable("sale_recovery_decisions", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    proposalId: uuid("proposal_id").notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    proposalHash: text("proposal_hash").notNull(),
+    stateHash: text("state_hash").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    decision: text("decision", { enum: ["APPROVED", "REJECTED"] }).notNull(),
+    decidedBy: text("decided_by").notNull(),
+    approverRole: text("approver_role", { enum: ["ADMIN", "OWNER", "SUPER_ADMIN"] }).notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    const scope = sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+            OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`;
+    return [
+        unique("sale_recovery_decision_unique").on(table.proposalId),
+        foreignKey({ name: "sale_recovery_decision_target_fk", columns: [table.proposalId, table.companyId, table.branchId, table.proposalHash, table.stateHash, table.requestedBy],
+            foreignColumns: [saleRecoveryProposals.id, saleRecoveryProposals.companyId, saleRecoveryProposals.branchId, saleRecoveryProposals.proposalHash, saleRecoveryProposals.stateHash, saleRecoveryProposals.requestedBy] }),
+        check("sale_recovery_decision_check", sql`${table.decision} IN ('APPROVED','REJECTED') AND ${table.approverRole} IN ('ADMIN','OWNER','SUPER_ADMIN')`),
+        check("sale_recovery_reviewer_check", sql`${table.decidedBy} <> ${table.requestedBy} AND ${table.decidedBy} = btrim(${table.decidedBy}) AND length(${table.decidedBy}) BETWEEN 1 AND 256`),
+        pgPolicy("sale_recovery_decision_tenant", { for: "all", to: "public", using: scope, withCheck: scope }),
+    ];
+}).enableRLS();
+
+
 // M13: Daily sales cuts (corte de ventas diario por sucursal/turno/canal)
 // Ingested from POS files (upload/WhatsApp) or a manual fallback form.
 // All money amounts in cents (integer), consistent with invoices/sales_entries.
