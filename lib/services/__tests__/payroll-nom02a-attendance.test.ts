@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveAttendanceForPeriod,
+  type ResolveAttendanceInput,
 } from "../payroll-service";
 import { buildPayrollSnapshot, parsePayrollSnapshot } from "@/lib/treasury/payroll-snapshot";
 
@@ -193,6 +194,28 @@ describe("NOM-02.a: Cálculo de base salarial desde asistencia aprobada, faltas 
   });
 
   describe("4. Rechazo estricto de asistencia pendiente (PENDING / ACTIVE / sin aprobación)", () => {
+
+    it.each([
+      { label: "omitido", value: undefined },
+      { label: "null", value: null },
+    ])("status $label conserva la sesión pendiente sin contar asistencia aprobada", async ({ value }) => {
+      const sessions: NonNullable<ResolveAttendanceInput["sessions"]> = [{
+        id: "sess-without-status", startedAt: "2026-05-04T15:00:00Z",
+      }];
+      if (value !== undefined) sessions[0].status = value;
+      const result = await resolveAttendanceForPeriod({
+        userId: baseUserId, companyId: baseCompanyId,
+        startDate: periodStart, endDate: periodEnd, sessions,
+      });
+      expect(result.hasPendingAttendance).toBe(true);
+      expect(result.approvedAttendanceDays).toBe(0);
+      expect(result.pendingAttendanceDetails).toHaveLength(1);
+      expect(result.pendingAttendanceDetails[0]).toMatchObject({
+        sessionId: "sess-without-status", date: "2026-05-04",
+        reason: "Sesión de turno en estado PENDING",
+      });
+    });
+
     it("sesión con status = PENDING bloquea inmediatamente con hasPendingAttendance = true", async () => {
       const sessions = [
         {

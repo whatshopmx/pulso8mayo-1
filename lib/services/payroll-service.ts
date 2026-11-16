@@ -436,17 +436,7 @@ export async function resolveAttendanceForPeriod(
   };
 
   // 3. Obtener y clasificar sesiones de turno y solicitudes de horas extra
-  let rawSessions: Array<{
-    id?: string;
-    startedAt: Date | string;
-    status: string | null;
-    overtimeMinutes?: number | null;
-    requiresApproval?: boolean | null;
-    approvedAt?: Date | string | null;
-    approvedBy?: string | null;
-    rejectionReason?: string | null;
-    branchId?: string | null;
-  }> = [];
+  let rawSessions: NonNullable<ResolveAttendanceInput["sessions"]> = [];
 
   if (preloadedSessions) {
     rawSessions = preloadedSessions;
