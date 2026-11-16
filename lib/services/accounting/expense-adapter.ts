@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { resolveBranchScope, type BranchScope } from "@/lib/branch-scope";
 import {
   accountingJournals,
+  accountingPurchaseFacts,
   accountingAccounts,
   accountingOpenings,
   accountingJournalLines,
@@ -13,6 +14,7 @@ import {
   costCenters,
   expensePayments,
   financialPeriods,
+  invoices,
   operatingExpenses,
   paymentRunItems,
   paymentRuns,
@@ -258,14 +260,51 @@ async function recognizeIn(tx: Tx, companyId: string, actorId: string, expense: 
   return { journal, reason: null as string | null };
 }
 
+/** El XML respalda el gasto: no puede reconocer otra obligación de compra. */
+async function expenseInvoiceAccountingBlocker(tx: Tx, companyId: string, expense: ExpenseRow) {
+  if (!expense.invoiceId) return null;
+  await tx.select({ id: invoices.id }).from(invoices).where(and(
+    eq(invoices.companyId, companyId), eq(invoices.id, expense.invoiceId),
+  )).for("update");
+  const blocker = await serviceInvoiceBlocker(tx, companyId, expense);
+  if (blocker) return blocker;
+  const [invoice] = await tx.select({ destination: invoices.destination, subtotal: invoices.subtotal,
+    taxAmount: invoices.taxAmount, total: invoices.total }).from(invoices).where(and(
+    eq(invoices.companyId, companyId), eq(invoices.id, expense.invoiceId),
+  )).limit(1);
+  if (invoice.destination === "OPERATING_EXPENSE" && (
+    !Number.isSafeInteger(invoice.subtotal) || invoice.subtotal <= 0
+    || !Number.isSafeInteger(invoice.taxAmount) || invoice.taxAmount < 0
+    || invoice.subtotal + invoice.taxAmount !== invoice.total || expense.taxAmount !== invoice.taxAmount
+  )) return "Los importes e impuesto del CFDI operativo no coinciden con el gasto o no tienen un tratamiento contable soportado. Revisa el comprobante.";
+
+  const [purchase] = await tx.select({ eventId: accountingPurchaseFacts.eventId }).from(accountingPurchaseFacts).where(and(
+    eq(accountingPurchaseFacts.companyId, companyId), eq(accountingPurchaseFacts.invoiceId, expense.invoiceId),
+  )).limit(1);
+  const [journal] = await tx.select({ sourceType: accountingJournals.sourceType }).from(accountingJournals).where(and(
+    eq(accountingJournals.companyId, companyId),
+    sql`((${accountingJournals.sourceType} = 'PURCHASE_INVOICE' and ${accountingJournals.sourceId} = ${expense.invoiceId})
+      or (${accountingJournals.sourceType} = 'OPERATING_EXPENSE' and ${accountingJournals.sourceId} in (
+        select e.id::text from ${operatingExpenses} e where e.company_id = ${companyId}
+          and e.invoice_id = ${expense.invoiceId} and e.id <> ${expense.id})))`,
+  )).limit(1);
+  if (purchase || journal?.sourceType === "PURCHASE_INVOICE") {
+    return "La factura ya tiene actividad contable de compra. Requiere revisión antes de reconocer o contabilizar pagos del gasto.";
+  }
+  if (journal) return "La factura ya respalda una póliza de otro gasto; requiere revisión para evitar un reconocimiento duplicado.";
+  return null;
+}
+
 /** Shared by read-only preparation and posting, under the configuration lock. */
 async function expenseRecognitionPlanIn(tx: Tx, companyId: string, expense: ExpenseRow) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId}, 505))`);
   const date = expenseAccountingDate(expense);
+  // Documento antes de configuración, igual que compras y pagos: invertir
+  // esos cerrojos permitiría un interbloqueo entre los dos adaptadores.
+  const blocked = expenseBlocker(expense, date) ?? await expenseInvoiceAccountingBlocker(tx, companyId, expense);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${companyId}, 505))`);
   const preview = await resolveRuleIn(tx, companyId, EXPENSE_RECOGNIZED, date ?? "0001-01-01");
   let debit = entryOf(preview.entries, EXPENSE_ROLES.debit);
   const credit = entryOf(preview.entries, EXPENSE_ROLES.credit);
-  const blocked = expenseBlocker(expense, date) ?? await serviceInvoiceBlocker(tx, companyId, expense);
   if (blocked || !date) return { date, preview, debit, credit, reason: blocked ?? "Falta la fecha de negocio del gasto." };
   if (expense.voucherReference) {
     await pettyCashLock(tx, companyId);
@@ -382,6 +421,8 @@ async function postConfirmedPaymentIn(tx: Tx, companyId: string, actorId: string
     eq(operatingExpenses.companyId, companyId), eq(operatingExpenses.id, payment.expenseId),
   )).limit(1);
   if (!expense) return { journal: null, reason: "El gasto del pago ya no existe en esta empresa." };
+  const blocker = await expenseInvoiceAccountingBlocker(tx, companyId, expense);
+  if (blocker) return { journal: null, reason: blocker };
   const recognized = await ensureRecognitionIn(tx, companyId, actorId, expense);
   if (!recognized.journal) {
     return { journal: null, reason: `Falta la obligación del gasto: ${recognized.reason}` };
@@ -548,6 +589,8 @@ export async function insertPaymentIn(tx: Tx, companyId: string, actorId: string
   if (!["APPROVED", "PAID"].includes(expense.status)) {
     throw ApiError.conflict("Solo un gasto aprobado puede recibir pagos.");
   }
+  const blocker = await expenseInvoiceAccountingBlocker(tx, companyId, expense);
+  if (blocker) throw ApiError.conflict(blocker);
   const paid = await confirmedPaidCents(tx, companyId, expense.id);
   assertNotLegacyPaid(expense, paid);
   const remaining = expense.amount - paid;
@@ -593,6 +636,8 @@ export async function confirmPaymentIn(tx: Tx, companyId: string, actorId: strin
   // scheduled in different runs before either one was settled.
   const expense = await lockExpense(tx, companyId, payment.expenseId);
   if (!expense) throw ApiError.notFound("El gasto no existe en esta empresa.");
+  const blocker = await expenseInvoiceAccountingBlocker(tx, companyId, expense);
+  if (blocker) throw ApiError.conflict(blocker);
   const paid = await confirmedPaidCents(tx, companyId, expense.id);
   assertNotLegacyPaid(expense, paid);
   if (payment.amountCents > expense.amount - paid) {

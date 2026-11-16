@@ -35,6 +35,7 @@ const declaration = z.object({ sourceType: z.enum(["RECEIVING_REPORT", "PURCHASE
     }
   });
 const invoiceColumns = { id: invoices.id, companyId: invoices.companyId, branchId: invoices.branchId,
+  destination: invoices.destination,
   supplierId: invoices.supplierId, receivingReportId: invoices.receivingReportId, subtotal: invoices.subtotal,
   taxAmount: invoices.taxAmount, total: invoices.total, currency: invoices.currency, matchStatus: invoices.matchStatus,
   paymentStatus: invoices.paymentStatus, satStatus: invoices.satStatus, exceptionApprovedBy: invoices.exceptionApprovedBy,
@@ -46,6 +47,10 @@ export async function purchaseLock(tx: Tx, companyId: string) {
 }
 
 async function invoiceOf(tx: Tx, companyId: string, id: string) {
+  // Leer relaciones después de adquirir el cerrojo permite observar una
+  // asociación que haya terminado mientras esperábamos (READ COMMITTED).
+  await tx.select({ id: invoices.id }).from(invoices)
+    .where(and(eq(invoices.companyId, companyId), eq(invoices.id, id))).for("update");
   const [invoice] = await tx.select(invoiceColumns).from(invoices)
     .where(and(eq(invoices.companyId, companyId), eq(invoices.id, id))).limit(1);
   if (!invoice) throw ApiError.notFound("La factura no existe en esta empresa.");
@@ -178,15 +183,15 @@ export async function declarePurchase(ctx: AccountingContext, input: z.input<typ
       credit = row; invoiceId = row.invoiceId;
     }
     const invoice = await invoiceOf(tx, ctx.companyId, invoiceId);
+    const blocker = invoiceBlocker(invoice);
+    if (blocker) throw ApiError.conflict(blocker);
     if (!invoice.receivingReportId) throw ApiError.conflict("La factura debe vincularse con su recepción; no crea otra adquisición.");
     const report = await receiptOf(tx, ctx.companyId, invoice.receivingReportId);
     await actorIn(tx, ctx.companyId, ctx.actorId, report.branchId, ctx.role);
     if (invoice.branchId !== report.branchId || invoice.supplierId !== report.supplierId || !invoice.supplierId) {
       throw ApiError.conflict("La factura y la recepción deben compartir empresa, sucursal y proveedor.");
     }
-    if (invoice.currency !== "MXN" || (credit && credit.currency !== "MXN") || invoice.paymentStatus === "CANCELLED"
-      || invoice.satStatus === "CANCELADO") throw ApiError.conflict("El documento debe ser una compra vigente en MXN.");
-    if (!["MATCHED", "EXCEPTION_APPROVED"].includes(invoice.matchStatus)) throw ApiError.conflict("Resuelve la conciliación de la factura antes de contabilizar.");
+    if (credit && credit.currency !== "MXN") throw ApiError.conflict("El documento debe ser una compra vigente en MXN.");
     const received = await original(tx, ctx.companyId, "RECEIVING_REPORT", report.id);
     if (!received || received.snapshot.kind !== "RECEIPT") throw ApiError.conflict("Falta la recepción original contabilizada.");
     let snapshot: Snapshot;
@@ -329,7 +334,7 @@ async function postedApplications(tx: Tx, companyId: string, invoiceId: string) 
 }
 
 function invoiceBlocker(invoice: Awaited<ReturnType<typeof invoiceOf>>) {
-  if (invoice.serviceExpenseBacked) return "Esta factura respalda un gasto operativo; se contabiliza y paga mediante ese gasto para evitar duplicados.";
+  if (invoice.destination === "OPERATING_EXPENSE" || invoice.serviceExpenseBacked) return "Esta factura tiene destino de gasto operativo o respalda uno; se contabiliza y paga mediante ese gasto para evitar duplicados.";
   if (invoice.currency !== "MXN" || invoice.paymentStatus === "CANCELLED" || invoice.satStatus === "CANCELADO") {
     return "La factura está cancelada o no es una compra vigente en MXN.";
   }
@@ -374,6 +379,8 @@ export async function captureInvoicePaymentIn(tx: Tx, companyId: string, actorId
     .where(and(eq(paymentRunItems.id, itemId), eq(paymentRunItems.itemType, "INVOICE"))).limit(1);
   if (!item || item.status !== "CONFIRMED" || !item.settledAt) throw ApiError.conflict("El pago de factura no está confirmado con fecha.");
   const invoice = await invoiceOf(tx, companyId, item.invoiceId);
+  const blocker = invoiceBlocker(invoice);
+  if (blocker) throw ApiError.conflict(blocker);
   if (!invoice.receivingReportId || !invoice.branchId) throw ApiError.conflict("El pago requiere factura vinculada con recepción y sucursal.");
   await actorIn(tx, companyId, actorId, invoice.branchId);
   const remaining = await remainingInvoiceCentsIn(tx, companyId, invoice.id);

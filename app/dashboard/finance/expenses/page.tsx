@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExpenseForm } from "@/components/finance/expense-form";
+import { PayeeInvoiceAssociation } from "@/components/finance/payee-invoice-association";
 import { BudgetConsumptionBar } from "@/components/finance/budget-consumption-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useFocusedRow } from "@/hooks/use-focused-row";
@@ -88,6 +89,8 @@ interface ExpenseItem {
   evidenceUrl?: string | null;
   payeeId?: string | null;
   payeeName?: string | null;
+  payeeTaxId?: string | null;
+  invoiceId?: string | null;
   costCenterId?: string | null;
   costCenterCode?: string | null;
   costCenterName?: string | null;
@@ -160,6 +163,7 @@ function ExpensesContent() {
   const [budgetReloadToken, setBudgetReloadToken] = useState(0);
   const [costCenters, setCostCenters] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [invoiceExpense, setInvoiceExpense] = useState<ExpenseItem | null>(null);
   /** Alcance **aplicado** por el servidor, no el pedido. */
   const [scope, setScope] = useState<{
     branchId: string | null;
@@ -483,7 +487,7 @@ function ExpensesContent() {
             </Link>
           </Button>
 
-          <ExpenseForm branches={branches} onSuccess={handleExpenseCreated} defaultPayeeId={payeeId || undefined} />
+          <ExpenseForm branches={branches} onSuccess={handleExpenseCreated} defaultPayeeId={payeeId || undefined} defaultBranchId={selectedBranch !== "ALL" ? selectedBranch : undefined} />
         </div>
       </div>
 
@@ -638,7 +642,7 @@ function ExpensesContent() {
               icon={Receipt}
               title="Sin gastos operativos registrados"
               description="Registra tu primer gasto operativo (renta, luz, gas, mantenimiento) para iniciar la cadena de autorización."
-              action={<ExpenseForm branches={branches} onSuccess={handleExpenseCreated} defaultPayeeId={payeeId || undefined} />}
+              action={<ExpenseForm branches={branches} onSuccess={handleExpenseCreated} defaultPayeeId={payeeId || undefined} defaultBranchId={selectedBranch !== "ALL" ? selectedBranch : undefined} />}
             />
           ) : visibleExpenses.length === 0 ? (
             <EmptyState
@@ -730,6 +734,13 @@ function ExpensesContent() {
                       </TableCell>
                       <TableCell className="font-medium max-w-xs truncate">{item.description}</TableCell>
                       <TableCell>
+                        <div className="space-y-1">
+                        {item.invoiceId ? <><p className="text-xs text-muted-foreground">Factura asociada · pago único</p>
+                          <a className="block text-sm text-primary underline" href={`/api/finance/expense-invoices/${encodeURIComponent(item.invoiceId)}/xml`}>Descargar XML</a></>
+                          : item.payeeId && ["APPROVED", "PENDING_APPROVAL", "PENDING_OVERBUDGET_APPROVAL"].includes(item.status)
+                            ? <Button size="sm" variant="outline" onClick={() => setInvoiceExpense(item)}>Asociar factura</Button>
+                            : !item.payeeId && ["APPROVED", "PENDING_APPROVAL"].includes(item.status)
+                              ? <p className="text-xs text-muted-foreground">Sin contraparte registrada para asociar CFDI</p> : null}
                         {item.evidenceUrl ? (
                           <Button
                             size="sm"
@@ -745,6 +756,7 @@ function ExpensesContent() {
                         ) : (
                           <span className="text-muted-foreground/40 text-xs">—</span>
                         )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-bold">{formatCents(item.amountCents)}</TableCell>
                       {/* Sin nombre real no se inventa uno: esta columna alimenta la
@@ -770,6 +782,10 @@ function ExpensesContent() {
           )}
         </CardContent>
       </Card>
+
+      {invoiceExpense?.payeeId && <PayeeInvoiceAssociation payeeId={invoiceExpense.payeeId}
+        payee={{ name: invoiceExpense.payeeName || "Contraparte del gasto", taxId: invoiceExpense.payeeTaxId || null }}
+        expense={invoiceExpense} onClose={() => setInvoiceExpense(null)} onSuccess={handleExpenseCreated} />}
 
       {/* Resolution confirmation — irreversible authorization, deliberate gate */}
       <AlertDialog

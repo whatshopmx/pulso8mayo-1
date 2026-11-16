@@ -13,7 +13,6 @@ import {
 import { eq, ne, and, desc, lte, gte, or, isNull, inArray, type SQL } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { roleIsAtLeast, type Role } from "@/lib/permissions";
-import { getPayeeForCompany } from "./payee-service";
 import { ApiError } from "@/lib/api/error";
 import { isBranchScopedRole, type BranchScope } from "@/lib/branch-scope";
 import type { expensePaymentMethodEnum } from "@/lib/db/schema";
@@ -109,8 +108,8 @@ export interface CreateExpenseInput {
  * Find the authorization rule that applies to a given amount.
  * Returns the required approver role, or null if no rule matches.
  */
-async function findAuthorizationRule(companyId: string, amountCents: number) {
-  const [rule] = await db
+async function findAuthorizationRule(companyId: string, amountCents: number, q: Pick<typeof db, "select"> = db) {
+  const [rule] = await q
     .select()
     .from(expenseAuthorizationRules)
     .where(
@@ -202,12 +201,13 @@ async function findApprovers(
  */
 export async function resolverRolExigido(
   companyId: string,
-  amountCents: number
+  amountCents: number,
+  q: Pick<typeof db, "select"> = db,
 ): Promise<{ rol: string; regla: Awaited<ReturnType<typeof findAuthorizationRule>> }> {
   // Exportada a propósito: la bandeja unificada de aprobaciones debe aplicar el
   // MISMO criterio de rol exigido que esta pantalla, no una réplica que se
   // puede desviar con el tiempo.
-  const regla = await findAuthorizationRule(companyId, amountCents);
+  const regla = await findAuthorizationRule(companyId, amountCents, q);
   if (regla) return { rol: regla.approverRole, regla };
 
   const config = await getTenantOperatingConfig(companyId);
@@ -225,9 +225,16 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
   if (input.invoiceId) {
     throw ApiError.badRequest("Registra el gasto y asocia su factura desde la ficha de la contraparte para validar que no se duplique la obligación.");
   }
+  const result = await createOperatingExpenseIn(db, input);
+  await notifyOperatingExpenseCreated(input, result);
+  return result.expense;
+}
+
+/** El llamador controla COMMIT/rollback; no envía notificaciones ni contabiliza. */
+export async function createOperatingExpenseIn(q: Pick<typeof db, "select" | "insert">, input: CreateExpenseInput) {
   // Validar si el periodo financiero de la fecha asignada está CERRADO
   const opDate = input.businessDate || new Date().toISOString().slice(0, 10);
-  if (await isPeriodClosed(input.companyId, opDate)) {
+  if (await isPeriodClosed(input.companyId, opDate, q)) {
     throw ApiError.forbidden(
       `El periodo financiero para la fecha ${opDate} está CERRADO. No se pueden registrar gastos en un mes cerrado.`
     );
@@ -237,7 +244,8 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
   // y no confiando en el cliente. Un payee de otra empresa no existe para
   // este tenant — se rechaza sin revelar por qué (sin leak de datos).
   if (input.payeeId) {
-    const payee = await getPayeeForCompany(input.companyId, input.payeeId);
+    const [payee] = await q.select({ id: payees.id }).from(payees)
+      .where(and(eq(payees.companyId, input.companyId), eq(payees.id, input.payeeId))).limit(1);
     if (!payee) {
       throw ApiError.badRequest(
         "La contraparte seleccionada no existe para esta empresa. Recarga el catálogo e inténtalo de nuevo.",
@@ -249,7 +257,7 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
   // existe aquí, y aceptarlo sin comprobar dejaría el gasto consumiendo un
   // presupuesto ajeno. Mismo criterio que la contraparte, arriba.
   if (input.costCenterId) {
-    const [cc] = await db
+    const [cc] = await q
       .select({ id: costCenters.id })
       .from(costCenters)
       .where(
@@ -269,20 +277,21 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
 
   const { rol: requiredApproverRole } = await resolverRolExigido(
     input.companyId,
-    input.amountCents
+    input.amountCents,
+    q,
   );
 
   // Evaluar si el gasto supera el 100% del presupuesto de la partida
   let initialStatus: "PENDING_APPROVAL" | "PENDING_OVERBUDGET_APPROVAL" = "PENDING_APPROVAL";
   if (input.costCenterId) {
     const monthStr = opDate.slice(0, 7);
-    const budgetState = await checkBudgetAvailability(input.branchId, input.costCenterId, monthStr, input.amountCents);
+    const budgetState = await checkBudgetAvailability(input.branchId, input.costCenterId, monthStr, input.amountCents, q);
     if (budgetState.budgeted > 0 && (budgetState.committed + input.amountCents) > budgetState.budgeted) {
       initialStatus = "PENDING_OVERBUDGET_APPROVAL";
     }
   }
 
-  const [expense] = await db
+  const [expense] = await q
     .insert(operatingExpenses)
     .values({
       companyId: input.companyId,
@@ -302,6 +311,13 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       dueDate: input.dueDate || null,
     })
     .returning();
+
+  return { expense, requiredApproverRole };
+}
+
+/** Solo después de que la creación se haya confirmado; conserva el circuito manual. */
+export async function notifyOperatingExpenseCreated(input: CreateExpenseInput,
+  { expense, requiredApproverRole }: Awaited<ReturnType<typeof createOperatingExpenseIn>>) {
 
   // Notificar a quienes pueden resolverlo. Ya no hay rama alterna: desde A16
   // todo gasto entra a la cola, así que este aviso es el único camino por el
@@ -1080,8 +1096,10 @@ async function consultarGastos(
       amountCents: operatingExpenses.amount,
       description: operatingExpenses.description,
       evidenceUrl: operatingExpenses.evidenceUrl,
+      invoiceId: operatingExpenses.invoiceId,
       payeeId: operatingExpenses.payeeId,
       payeeName: payees.name,
+      payeeTaxId: payees.taxId,
       costCenterId: operatingExpenses.costCenterId,
       costCenterCode: costCenters.code,
       costCenterName: costCenters.name,
@@ -1098,7 +1116,7 @@ async function consultarGastos(
     .innerJoin(branches, eq(operatingExpenses.branchId, branches.id))
     .leftJoin(requestedUser, eq(operatingExpenses.requestedBy, requestedUser.id))
     .leftJoin(approvedUser, eq(operatingExpenses.approvedBy, approvedUser.id))
-    .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
+    .leftJoin(payees, and(eq(operatingExpenses.payeeId, payees.id), eq(payees.companyId, operatingExpenses.companyId)))
     .leftJoin(costCenters, eq(operatingExpenses.costCenterId, costCenters.id))
     .where(and(...condiciones))
     .orderBy(desc(operatingExpenses.createdAt));

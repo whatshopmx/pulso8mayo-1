@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "invoices_uuid_casefold_unique" ON "invoices" USING btree (upper("uuid"));

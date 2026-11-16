@@ -3,6 +3,7 @@
 // Igual que `pnl-types.ts` y `financial-kpi-types.ts`, este módulo NO tiene
 // dependencias de runtime: lo comparten el servicio (servidor) y la pantalla
 // (cliente) sin arrastrar Drizzle al bundle del navegador.
+import type { InvoiceDestination } from "@/lib/db/schema";
 
 /** De dónde nace la obligación. */
 export type PayableSource =
@@ -43,6 +44,8 @@ export const AGING_BUCKET_LABELS: Record<AgingBucket, string> = {
 export interface PayableItem {
   id: string;
   source: PayableSource;
+  /** Destino fiscal; UNCLASSIFIED conserva elegibilidad histórica hasta su revisión. */
+  invoiceDestination?: InvoiceDestination;
   /** Folio del CFDI o descripción del gasto. */
   reference: string;
   counterparty: string;

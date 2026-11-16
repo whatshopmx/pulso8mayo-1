@@ -23,7 +23,8 @@ export interface FinancialPeriod {
  */
 export async function isPeriodClosed(
   companyId: string,
-  targetDate: string | Date
+  targetDate: string | Date,
+  q: Pick<typeof db, "select"> = db,
 ): Promise<boolean> {
   const dateObj = typeof targetDate === "string" ? new Date(targetDate) : targetDate;
   if (isNaN(dateObj.getTime())) return false;
@@ -31,7 +32,7 @@ export async function isPeriodClosed(
   const year = dateObj.getUTCFullYear();
   const month = dateObj.getUTCMonth() + 1;
 
-  const [period] = await db
+  const [period] = await q
     .select({ status: financialPeriods.status })
     .from(financialPeriods)
     .where(

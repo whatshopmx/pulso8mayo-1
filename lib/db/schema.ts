@@ -3309,11 +3309,22 @@ export const posMappingTemplates = pgTable("pos_mapping_templates", {
  */
 export const invoicePaymentStatusEnum = pgEnum("invoice_payment_status", ['PENDING', 'PAID', 'CANCELLED']);
 
+export type InvoiceDestination = "UNCLASSIFIED" | "INVENTORY_PURCHASE" | "OPERATING_EXPENSE";
+export type InvoiceClassificationSource = "CAPTURE" | "MANUAL" | "BACKFILL";
+
 export const invoices = pgTable("invoices", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     companyId: uuid("company_id").notNull().references(() => companies.id),
     branchId: uuid("branch_id").references(() => branches.id),
     supplierId: uuid("supplier_id").references(() => suppliers.id),
+    /** Identidad directa para servicios; supplierId conserva compatibilidad con compras. */
+    payeeId: uuid("payee_id"),
+    /** Los históricos conservan su elegibilidad previa hasta la revisión de T12. */
+    destination: text("destination").$type<InvoiceDestination>().default("UNCLASSIFIED").notNull(),
+    classifiedAt: timestamp("classified_at", { withTimezone: true }),
+    classifiedBy: text("classified_by").references(() => users.id),
+    classificationReason: text("classification_reason"),
+    classificationSource: text("classification_source").$type<InvoiceClassificationSource>(),
     purchaseOrderId: uuid("purchase_order_id").references(() => purchaseOrders.id),
     receivingReportId: uuid("receiving_report_id").references(() => receivingReports.id),
 
@@ -3399,6 +3410,20 @@ export const invoices = pgTable("invoices", {
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
     invoicesServiceOrderIdx: index("invoices_service_order_idx").on(table.serviceOrderId),
+    invoicesPayeeDestinationIdx: index("invoices_payee_destination_idx").on(table.companyId, table.payeeId, table.destination),
+    invoicesUuidCasefoldUnique: uniqueIndex("invoices_uuid_casefold_unique").on(sql`upper(${table.uuid})`),
+    invoicesPayeeCompanyFk: foreignKey({ name: "invoices_payee_company_fk", columns: [table.companyId, table.payeeId],
+        foreignColumns: [payees.companyId, payees.id] }),
+    destinationCheck: check("invoices_destination_check", sql`${table.destination} IN ('UNCLASSIFIED','INVENTORY_PURCHASE','OPERATING_EXPENSE')`),
+    classificationCheck: check("invoices_classification_check", sql`
+        (${table.destination} = 'UNCLASSIFIED' AND ${table.classifiedAt} IS NULL AND ${table.classifiedBy} IS NULL
+            AND ${table.classificationReason} IS NULL AND ${table.classificationSource} IS NULL)
+        OR (${table.classifiedAt} IS NOT NULL AND ${table.classifiedBy} IS NOT NULL
+            AND ${table.classificationReason} IS NOT NULL AND length(btrim(${table.classificationReason})) BETWEEN 5 AND 500
+            AND ${table.classificationSource} IS NOT NULL AND ${table.classificationSource} IN ('CAPTURE','MANUAL','BACKFILL'))`),
+    operatingDestinationCheck: check("invoices_operating_destination_check", sql`${table.destination} <> 'OPERATING_EXPENSE'
+        OR (${table.payeeId} IS NOT NULL AND ${table.branchId} IS NOT NULL AND ${table.currency} = 'MXN'
+            AND ${table.purchaseOrderId} IS NULL AND ${table.receivingReportId} IS NULL)`),
 }));
 
 export const invoiceLines = pgTable("invoice_lines", {
@@ -3824,6 +3849,7 @@ export const payees = pgTable("payees", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
+    companyIdUnique: unique("payees_company_id_unique").on(table.companyId, table.id),
     /**
      * Antifragmentación: "CFE" y "Comisión Federal de Electricidad" son la
      * misma contraparte. Sin esto, la CxP que esta fase intenta arreglar
@@ -3971,6 +3997,7 @@ export const operatingExpenses = pgTable("operating_expenses", {
      * explícitamente para habilitar la llave foránea compuesta del abono.
      */
     companyIdUnique: unique("operating_expenses_company_id_unique").on(table.companyId, table.id),
+    invoiceIdx: index("operating_expenses_invoice_idx").on(table.invoiceId),
 }));
 
 /**

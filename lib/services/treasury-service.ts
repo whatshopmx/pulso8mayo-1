@@ -60,7 +60,7 @@ import {
   isAccountingPostingEnabled,
   remainingExpenseCents,
 } from "./accounting/expense-adapter";
-import { captureInvoicePaymentIn, remainingInvoiceCentsIn } from "./accounting/purchase-adapter";
+import { captureInvoicePaymentIn, purchaseLock, remainingInvoiceCentsIn } from "./accounting/purchase-adapter";
 import { capturePayrollPaymentIn } from "./accounting/payroll-adapter";
 import { capturePettyCashReplenishmentByItemIn } from "./accounting/petty-cash-adapter";
 import { payrollNetCents } from "./accounting/payroll-contract";
@@ -68,6 +68,7 @@ import { sumCents } from "./accounting/amounts";
 import { loadPayrollPaymentSnapshot } from "@/lib/treasury/payroll-payment-source";
 import { samePayrollSnapshot, type PayrollPaymentSnapshot } from "@/lib/treasury/payroll-snapshot";
 import { serviceInvoiceBlocker, mirrorExpenseInvoicePaid } from "./expense-invoice-evidence";
+import { isStandalonePurchaseInvoice } from "./invoice-financial-source";
 
 function payrollNetTotal(receipts: Parameters<typeof payrollNetCents>[0][]) {
   try { return sumCents(receipts.map(payrollNetCents)); }
@@ -286,6 +287,54 @@ function asignarReferencias(itemIds: string[]): Map<string, string> {
  */
 type Transaccion = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** Revalida el origen sin cambiar cuentas, clasificación ni aplicaciones previas. */
+async function assertPaymentSources(
+  tx: Transaccion,
+  companyId: string,
+  items: Array<{ itemType: string; referenceId: string }>,
+  allowPaid = false,
+) {
+  if (items.some(i => i.itemType === "INVOICE" || i.itemType === "OPERATING_EXPENSE")) {
+    await setTenantContext(tx, { companyId });
+  }
+  const invoiceIds = [...new Set(items.filter(i => i.itemType === "INVOICE").map(i => i.referenceId))];
+  if (invoiceIds.length) {
+    await purchaseLock(tx, companyId);
+    // El mismo cerrojo que usa la asociación impide cambiar el destino entre
+    // esta lectura y la escritura del pago (READ COMMITTED).
+    const documents = await tx.select().from(invoices).where(and(
+      eq(invoices.companyId, companyId), inArray(invoices.id, invoiceIds),
+    )).orderBy(invoices.id).for("update");
+    if (documents.length !== invoiceIds.length) throw ApiError.notFound("Factura no encontrada");
+    const linked = await tx.select({ invoiceId: operatingExpenses.invoiceId }).from(operatingExpenses).where(and(
+      eq(operatingExpenses.companyId, companyId), inArray(operatingExpenses.invoiceId, invoiceIds),
+    ));
+    if (documents.some(invoice => invoice.destination === "OPERATING_EXPENSE") || linked.length) {
+      throw ApiError.conflict("Esta factura respalda un gasto operativo o tiene ese destino. Revisa la partida y programa el gasto aprobado para evitar un pago duplicado.");
+    }
+    if (documents.some(invoice => (invoice.paymentStatus !== "PENDING" && !(allowPaid && invoice.paymentStatus === "PAID"))
+      || invoice.satStatus === "CANCELADO")) {
+      throw ApiError.conflict("La factura está pagada o cancelada. Revisa la partida antes de continuar.");
+    }
+  }
+  for (const item of items.filter(i => i.itemType === "OPERATING_EXPENSE")) {
+    const [expense] = await tx.select().from(operatingExpenses).where(and(
+      eq(operatingExpenses.companyId, companyId), eq(operatingExpenses.id, item.referenceId),
+    )).for("update").limit(1);
+    if (!expense) throw ApiError.notFound("Gasto operativo no encontrado");
+    if (expense.invoiceId) {
+      await tx.select({ id: invoices.id }).from(invoices).where(and(
+        eq(invoices.companyId, companyId), eq(invoices.id, expense.invoiceId),
+      )).for("update");
+    }
+    const blocker = await serviceInvoiceBlocker(tx, companyId, expense);
+    if (blocker) throw ApiError.conflict(blocker);
+    if (expense.status !== "APPROVED" && !(allowPaid && expense.status === "PAID")) {
+      throw ApiError.conflict("El gasto ya no está aprobado para pago. Revisa la partida antes de continuar.");
+    }
+  }
+}
+
 /**
  * Marca como pagados los documentos de origen de las partidas indicadas.
  *
@@ -304,6 +353,9 @@ async function saldarDocumentosDePartidas(
   userId: string,
   companyId: string
 ): Promise<void> {
+  // También cubre confirmaciones antiguas al cerrar una corrida. Los espejos
+  // ya pagados son válidos aquí; nunca habilitan un segundo pago.
+  await assertPaymentSources(tx, companyId, partidas, true);
   const facturaIds = partidas
     .filter((p) => p.itemType === "INVOICE")
     .map((p) => p.referenceId);
@@ -349,7 +401,7 @@ async function saldarDocumentosDePartidas(
     await tx
       .update(operatingExpenses)
       .set({ status: "PAID", paidAt: new Date(), paidBy: userId })
-      .where(inArray(operatingExpenses.id, gastos.map((p) => p.referenceId)));
+      .where(and(eq(operatingExpenses.companyId, companyId), inArray(operatingExpenses.id, gastos.map((p) => p.referenceId))));
     await mirrorExpenseInvoicePaid(tx, companyId, userId, gastos.map(p => p.referenceId));
     return;
   }
@@ -393,6 +445,8 @@ async function estadoDeObligacion(
   referenceId: string,
 ): Promise<string | null> {
   if (itemType === "INVOICE") {
+    // Mismo orden que el adaptador contable: empresa de compras → factura.
+    await purchaseLock(tx, companyId);
     const [documento] = await tx.select({ status: invoices.paymentStatus }).from(invoices)
       .where(and(eq(invoices.id, referenceId), eq(invoices.companyId, companyId))).for("update");
     if (!documento) throw ApiError.notFound("Factura no encontrada");
@@ -533,7 +587,7 @@ export class TreasuryService {
     const conditions = [
       eq(invoices.companyId, companyId),
       inArray(invoices.matchStatus, ["MATCHED", "EXCEPTION_APPROVED"]),
-      eq(invoices.paymentStatus, "PENDING")
+      isStandalonePurchaseInvoice()!
     ];
 
     if (branchId && branchId !== "ALL") {
@@ -545,10 +599,7 @@ export class TreasuryService {
       orderBy: (inv, { asc }) => [asc(inv.fecha)],
     });
     const programadas = await referenciasProgramadas(companyId, "INVOICE");
-    const linked = await db.select({ invoiceId: operatingExpenses.invoiceId }).from(operatingExpenses)
-      .where(eq(operatingExpenses.companyId, companyId));
-    const linkedIds = new Set(linked.map(e => e.invoiceId));
-    return candidatas.filter((factura) => !programadas.has(factura.id) && !linkedIds.has(factura.id));
+    return candidatas.filter((factura) => !programadas.has(factura.id));
   }
 
   /**
@@ -677,6 +728,11 @@ export class TreasuryService {
     }
     const executor = q ?? db;
 
+    if (itemType === "INVOICE" || itemType === "OPERATING_EXPENSE") {
+      if (!q) return db.transaction(tx => TreasuryService.assertCounterpartyPayable(input, tx));
+      await assertPaymentSources(q, companyId, [input]);
+    }
+
     switch (itemType) {
       // Mercancía: contraparte = proveedor de la factura, con CLABE verificada.
       case "INVOICE": {
@@ -687,10 +743,6 @@ export class TreasuryService {
         // Mismo 404 para "no existe" y "es de otra empresa": distinguirlos
         // filtra la existencia de documentos ajenos.
         if (!invoice) throw ApiError.notFound("Factura no encontrada");
-
-        const [linkedExpense] = await executor.select({ id: operatingExpenses.id }).from(operatingExpenses)
-          .where(and(eq(operatingExpenses.companyId, companyId), eq(operatingExpenses.invoiceId, invoice.id))).limit(1);
-        if (linkedExpense) throw ApiError.badRequest("Esta factura respalda un gasto operativo. Programa el gasto aprobado para evitar un pago duplicado.");
 
         if (invoice.matchStatus === "DISCREPANCY") {
           throw ApiError.badRequest(
@@ -842,9 +894,6 @@ export class TreasuryService {
         });
 
         if (!expense) throw ApiError.notFound("Gasto operativo no encontrado");
-        const invoiceBlocker = await serviceInvoiceBlocker(executor, companyId, expense);
-        if (invoiceBlocker) throw ApiError.badRequest(invoiceBlocker);
-
 
         if (expense.status === "PAID") {
           throw ApiError.badRequest("Este gasto ya está marcado como pagado.");
@@ -1320,19 +1369,25 @@ export class TreasuryService {
         }
 
         if (veredicto.accion === "REGISTRAR_PRIMERA") {
-          // Se persiste fuera de la transacción a propósito: la corrida NO se
-          // aprueba todavía y debe quedar en PENDING_APPROVAL esperando la
-          // segunda firma. Un throw dentro de la transacción la revertiría.
-          await db.insert(paymentApprovals).values({
-            companyId,
-            branchId: currentRun.branchId,
-            amountCents: currentRun.totalAmountCents,
-            currency: currentRun.currency,
-            paymentRef: paymentRunId,
-            paymentRefType: "PAYMENT_RUN",
-            status: "PENDING",
-            requestedBy: currentRun.preparedBy ?? userId,
-            approvedBy: userId,
+          // La primera firma no aprueba la corrida; valida sus fuentes en la
+          // misma transacción y notifica la firma faltante después del COMMIT.
+          await db.transaction(async tx => {
+            const [run] = await tx.select({ status: paymentRuns.status }).from(paymentRuns)
+              .where(and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId))).for("update");
+            if (run?.status !== "PENDING_APPROVAL") throw ApiError.conflict("La corrida cambió de estado. Recárgala antes de firmar.");
+            const items = await tx.select().from(paymentRunItems).where(eq(paymentRunItems.paymentRunId, paymentRunId));
+            await assertPaymentSources(tx, companyId, items.filter(i => i.settlementStatus !== "CONFIRMED" && i.settlementStatus !== "FAILED"));
+            await tx.insert(paymentApprovals).values({
+              companyId,
+              branchId: currentRun.branchId,
+              amountCents: currentRun.totalAmountCents,
+              currency: currentRun.currency,
+              paymentRef: paymentRunId,
+              paymentRefType: "PAYMENT_RUN",
+              status: "PENDING",
+              requestedBy: currentRun.preparedBy ?? userId,
+              approvedBy: userId,
+            });
           });
           throw ApiError.conflict(
             "Primera firma registrada. Esta corrida supera el umbral de doble firma: falta la aprobación de un segundo usuario autorizado."
@@ -1353,6 +1408,12 @@ export class TreasuryService {
     return db.transaction(async (tx) => {
       // La segunda firma y la aprobación de la corrida son atómicas: si una
       // falla, ninguna queda. La primera firma se persistió fuera (ver arriba).
+      if (["PENDING_APPROVAL", "APPROVED", "PROCESSING"].includes(newStatus)) {
+        await tx.select({ id: paymentRuns.id }).from(paymentRuns)
+          .where(and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId))).for("update");
+        const items = await tx.select().from(paymentRunItems).where(eq(paymentRunItems.paymentRunId, paymentRunId));
+        await assertPaymentSources(tx, companyId, items.filter(i => i.settlementStatus !== "CONFIRMED" && i.settlementStatus !== "FAILED"));
+      }
       if (firmaParaCompletar) {
         await tx
           .update(paymentApprovals)
@@ -1482,6 +1543,8 @@ export class TreasuryService {
       if (!decision.ok) throw ApiError.badRequest(decision.motivo);
       if (decision.accion === "SIN_CAMBIO") return { item, accion: "SIN_CAMBIO" as const };
 
+      if (settlementStatus === "CONFIRMED") await assertPaymentSources(tx, companyId, [item]);
+
       const updateData: Partial<typeof paymentRunItems.$inferInsert> = {
         settlementStatus,
         settledAt: new Date(),
@@ -1557,10 +1620,8 @@ export class TreasuryService {
    * e impuestos se descartaban en silencio y el `recordCount` no cuadraba con el
    * total de la corrida.
    *
-   * El número de consultas es **constante**, no proporcional a las partidas:
-   * la corrida, las partidas, las facturas con su proveedor y las cuentas
-   * bancarias del lote. Antes eran tres por partida —600 viajes a Neon para una
-   * corrida de 200 facturas.
+   * Facturas y cuentas bancarias se resuelven por lote. La validación del
+   * comprobante de cada gasto operativo conserva sus controles individuales.
    */
   static async generateBankDisbursementLayout(
     paymentRunId: string,
@@ -1602,6 +1663,8 @@ export class TreasuryService {
     const partidasVigentes = items.filter(
       (i) => motivoExclusionPorLiquidacion(i) === null
     );
+
+    await db.transaction(tx => assertPaymentSources(tx, companyId, partidasVigentes));
 
     if (run.sourceBankAccountId) {
       const currentNumber = await treasurySourceNumber(companyId, run.sourceBankAccountId);

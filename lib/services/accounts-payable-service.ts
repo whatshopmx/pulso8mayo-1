@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { invoices, operatingExpenses, suppliers, branches, payees, supplierBankAccounts, payeeBankAccounts, recurringPayables } from "@/lib/db/schema";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { expenseOutstandingCents, invoiceOutstandingCents } from "./payable-balances";
+import { invoiceCounterpartyId, isStandalonePurchaseInvoice, recurringEstimateNotReplacedByExpense } from "./invoice-financial-source";
 import {
   AGING_BUCKET_ORDER,
   PAYABLES_ITEMS_LIMIT,
@@ -36,8 +37,8 @@ export interface AccountsPayableFilter {
   branchId?: string;
   supplierId?: string;
   /**
-   * Filtra por la contraparte (payee) que agrupa la deuda: facturas cuyo
-   * proveedor está enlazado a este payee (`suppliers.payeeId`), y gastos
+   * Filtra por la contraparte (payee) que agrupa la deuda: facturas con
+   * identidad directa o proveedor enlazado a este payee, y gastos
    * operativos capturados directamente contra él. A diferencia de
    * `supplierId`, sí incluye gastos operativos — es justo el cruce que unifica
    * las dos identidades bajo "a quién le debo".
@@ -65,15 +66,11 @@ export async function getAccountsPayable(
 
   const invoiceConditions = [
     eq(invoices.companyId, filter.companyId),
-    // CANCELLED no se debe; PAID ya salió.
-    eq(invoices.paymentStatus, "PENDING"),
-    // Las facturas de servicios asociadas respaldan el gasto autorizado.
-    // El gasto es su única fuente de pago y de contabilización.
-    sql`not exists (select 1 from ${operatingExpenses} e where e.company_id = ${invoices.companyId} and e.invoice_id = ${invoices.id})`,
+    isStandalonePurchaseInvoice(),
   ];
   if (filter.branchId) invoiceConditions.push(eq(invoices.branchId, filter.branchId));
   if (filter.supplierId) invoiceConditions.push(eq(invoices.supplierId, filter.supplierId));
-  if (filter.payeeId) invoiceConditions.push(eq(suppliers.payeeId, filter.payeeId));
+  if (filter.payeeId) invoiceConditions.push(eq(invoiceCounterpartyId(), filter.payeeId));
 
   const expenseConditions = [
     eq(operatingExpenses.companyId, filter.companyId),
@@ -91,6 +88,7 @@ export async function getAccountsPayable(
   const recurringConditions = [
     eq(recurringPayables.companyId, filter.companyId),
     eq(recurringPayables.status, "OPEN"),
+    recurringEstimateNotReplacedByExpense(),
   ];
   if (filter.branchId) {
     recurringConditions.push(
@@ -110,13 +108,14 @@ export async function getAccountsPayable(
     db
       .select({
         id: invoices.id,
+        destination: invoices.destination,
         folio: invoices.folio,
         serie: invoices.serie,
         total: invoiceOutstandingCents(),
         dueDate: invoices.dueDate,
         supplierId: invoices.supplierId,
         supplierName: suppliers.name,
-        payeeId: suppliers.payeeId,
+        payeeId: invoiceCounterpartyId(),
         payeeName: payees.name,
         nombreEmisor: invoices.nombreEmisor,
         rfcEmisor: invoices.rfcEmisor,
@@ -127,8 +126,8 @@ export async function getAccountsPayable(
         hasQtyDiscrepancy: invoices.hasQtyDiscrepancy,
       })
       .from(invoices)
-      .leftJoin(suppliers, eq(invoices.supplierId, suppliers.id))
-      .leftJoin(payees, eq(suppliers.payeeId, payees.id))
+      .leftJoin(suppliers, and(eq(invoices.supplierId, suppliers.id), eq(suppliers.companyId, filter.companyId)))
+      .leftJoin(payees, and(eq(invoiceCounterpartyId(), payees.id), eq(payees.companyId, filter.companyId)))
       .leftJoin(branches, eq(invoices.branchId, branches.id))
       .where(and(...invoiceConditions)),
 
@@ -276,6 +275,7 @@ export async function getAccountsPayable(
     items.push({
       id: row.id,
       source: "INVOICE",
+      invoiceDestination: row.destination ?? "UNCLASSIFIED",
       reference,
       counterparty: row.payeeName ?? row.supplierName ?? row.nombreEmisor ?? row.rfcEmisor,
       supplierId: row.supplierId,

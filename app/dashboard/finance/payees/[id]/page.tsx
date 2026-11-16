@@ -108,7 +108,7 @@ function PayeeFinanceContent({ id, selectedBranchId }: { id: string; selectedBra
             <Button variant="outline" asChild><Link href="/dashboard/finance/supplier-bank-accounts">Administrar cuentas de proveedores</Link></Button></section>
         </TabsContent>
       </Tabs>
-      <PayeeInvoiceAssociation payeeId={id} expense={association} onClose={() => setAssociation(null)} onSuccess={refresh} />
+      <PayeeInvoiceAssociation payeeId={id} payee={data.payee} expense={association} onClose={() => setAssociation(null)} onSuccess={refresh} />
     </>}
   </div>;
 }

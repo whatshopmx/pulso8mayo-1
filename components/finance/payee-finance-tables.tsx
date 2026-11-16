@@ -37,7 +37,8 @@ export function PayeeFinanceTables({ data, view, onAssociate }: {
         <TableCell className="min-w-48 max-w-80 whitespace-normal font-medium">{expense.description}</TableCell><TableCell>{expense.branchName}</TableCell>
         <TableCell className="whitespace-nowrap">{expense.businessDate || String(expense.createdAt).slice(0, 10)}</TableCell>
         <TableCell className="min-w-40 space-y-1"><Badge variant="outline">{status[expense.status] || expense.status}</Badge>
-          {expense.invoiceId && <p className="text-xs text-muted-foreground">Factura asociada · pago único</p>}
+          {expense.invoiceId && <><p className="text-xs text-muted-foreground">Factura asociada · pago único</p>
+            <a className="block text-sm text-primary underline" href={`/api/finance/expense-invoices/${encodeURIComponent(expense.invoiceId)}/xml`}>Descargar XML</a></>}
           {expense.evidenceUrl && <a href={expense.evidenceUrl} target="_blank" rel="noopener noreferrer" className="block text-sm text-primary underline">Ver comprobante</a>}</TableCell>
         <TableCell className="text-right tabular-nums whitespace-nowrap">{money(expense.amountCents)}</TableCell>
         <TableCell>{!expense.invoiceId && ["APPROVED", "PENDING_APPROVAL", "PENDING_OVERBUDGET_APPROVAL"].includes(expense.status)

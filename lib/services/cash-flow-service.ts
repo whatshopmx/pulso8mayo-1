@@ -15,6 +15,8 @@ import { eq, and, gte, lte, sql, inArray, asc, isNull } from "drizzle-orm";
 import { addCalendarDays, localDateString } from "@/lib/workflows/today";
 import { projectRecurringContracts } from "@/lib/services/recurring-contract-projection";
 import { expenseOutstandingCents, invoiceOutstandingCents } from "./payable-balances";
+import { isStandalonePurchaseInvoice } from "./invoice-financial-source";
+import type { InvoiceDestination } from "@/lib/db/schema";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -93,6 +95,8 @@ export interface InflowEstimate {
 }
 
 export interface OutflowItem {
+  /** Solo en CFDI independientes; permite distinguir compra de histórico pendiente. */
+  invoiceDestination?: InvoiceDestination;
   id: string;
   date: string;
   description: string;
@@ -738,6 +742,7 @@ export async function getCashFlowProjection(
   const invRowsRaw = await db
     .select({
       id: invoices.id,
+      destination: invoices.destination,
       folio: invoices.folio,
       total: invoiceOutstandingCents(),
       fecha: invoices.fecha,
@@ -747,12 +752,11 @@ export async function getCashFlowProjection(
       supplierName: suppliers.name,
     })
     .from(invoices)
-    .leftJoin(suppliers, eq(invoices.supplierId, suppliers.id))
+    .leftJoin(suppliers, and(eq(invoices.supplierId, suppliers.id), eq(suppliers.companyId, companyId)))
     .where(
       and(
         eq(invoices.companyId, companyId),
-        eq(invoices.paymentStatus, "PENDING"),
-        sql`not exists (select 1 from ${operatingExpenses} e where e.company_id = ${invoices.companyId} and e.invoice_id = ${invoices.id})`,
+        isStandalonePurchaseInvoice(),
         ...(branchId
           ? [
               sql`(${invoices.branchId} = ${branchId} OR ${invoices.branchId} IS NULL)`,
@@ -921,6 +925,7 @@ export async function getCashFlowProjection(
         status: "POR PAGAR",
         isPayroll: false,
         source: "PROCUREMENT_INVOICE",
+        invoiceDestination: inv.destination,
         supplierName: inv.nombreEmisor || inv.supplierName || undefined,
         branchId: inv.branchId,
         branchName: nombreSucursal(inv.branchId),

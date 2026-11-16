@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Receipt, Loader2, ImagePlus, X, Check, UserPlus, Building2 } from "lucide-react";
+import { ExpenseCfdiForm } from "@/components/finance/expense-cfdi-form";
 
 interface ExpenseFormProps {
   branches: Array<{ id: string; name: string }>;
@@ -41,6 +42,9 @@ interface CostCenter {
 export function ExpenseForm({ branches, onSuccess, defaultPayeeId, defaultBranchId }: ExpenseFormProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [cfdiMode, setCfdiMode] = useState(false);
+  const [cfdiBusy, setCfdiBusy] = useState(false);
+  const [cfdiCommitted, setCfdiCommitted] = useState(false);
   const [branchId, setBranchId] = useState<string>(defaultBranchId || branches[0]?.id || "");
   const [category, setCategory] = useState<string>("RENTA");
   const [amount, setAmount] = useState<string>("");
@@ -230,18 +234,18 @@ export function ExpenseForm({ branches, onSuccess, defaultPayeeId, defaultBranch
     setNewPayeeTaxId("");
   };
 
+  const changeOpen = (next: boolean) => {
+    if (cfdiBusy) return;
+    setOpen(next);
+    if (!next) {
+      setAmount(""); setDescription(""); setDueDate(""); setBusinessDate(""); setEvidenceUrl("");
+      resetPayeeState(); setCfdiMode(false); setCfdiCommitted(false);
+      if (cfdiCommitted) onSuccess?.();
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(next) => {
-      setOpen(next);
-      if (!next) {
-        // Reabrir limpio: no arrastrar foto/montos/contraparte de un intento cancelado.
-        setAmount("");
-        setDescription("");
-        setDueDate("");
-        setEvidenceUrl("");
-        resetPayeeState();
-      }
-    }}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         {/* Ancho completo en móvil: al envolverse a su propia línea, un botón
             que ocupa media pantalla se lee como un control a medio maquetar. */}
@@ -249,7 +253,7 @@ export function ExpenseForm({ branches, onSuccess, defaultPayeeId, defaultBranch
           <Plus className="w-4 h-4 mr-2" /> Nuevo Gasto Operativo
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[calc(100vw_-_2rem)] sm:max-w-md shadow-none" showCloseButton={!cfdiBusy}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">
             <Receipt className="w-5 h-5 text-primary" /> Registrar Gasto Operativo
@@ -259,6 +263,13 @@ export function ExpenseForm({ branches, onSuccess, defaultPayeeId, defaultBranch
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Forma de registrar el gasto">
+          <Button type="button" variant={!cfdiMode ? "secondary" : "outline"} aria-pressed={!cfdiMode} disabled={loading || uploading || cfdiBusy || cfdiCommitted} onClick={() => setCfdiMode(false)}>Captura manual</Button>
+          <Button type="button" variant={cfdiMode ? "secondary" : "outline"} aria-pressed={cfdiMode} disabled={loading || uploading || cfdiBusy || cfdiCommitted} onClick={() => setCfdiMode(true)}>Cargar CFDI</Button>
+        </div>
+        {cfdiMode ? <ExpenseCfdiForm branches={branches} payees={payees} costCenters={costCenters}
+          defaultBranchId={defaultBranchId} defaultPayeeId={defaultPayeeId} onBusyChange={setCfdiBusy}
+          onCommitted={() => setCfdiCommitted(true)} onClose={() => changeOpen(false)} /> :
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
             <Label htmlFor="expense-branch">Sucursal</Label>
@@ -509,14 +520,14 @@ export function ExpenseForm({ branches, onSuccess, defaultPayeeId, defaultBranch
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
+            <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={loading}>
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Guardar Gasto
             </Button>
           </div>
-        </form>
+        </form>}
       </DialogContent>
     </Dialog>
   );

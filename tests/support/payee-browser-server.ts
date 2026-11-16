@@ -11,23 +11,27 @@ export async function startPayeeBrowserServer() {
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
   const fromTailwind = createRequire(require.resolve("@tailwindcss/postcss"));
   const css = readFileSync(path.join(root, "app/globals.css"), "utf8").replace('@import "tailwindcss";',
-    '@import "tailwindcss" source(none);\n@source "../components/finance";\n@source "../components/ui";\n@source "./dashboard/finance/payees";');
+    '@import "tailwindcss" source(none);\n@source "../components/finance";\n@source "../components/ui";\n@source "./dashboard/finance/payees";\n@source "./dashboard/finance/expenses";');
   const styles = (await fromTailwind("postcss")([fromTailwind("@tailwindcss/postcss")()])
     .process(css, { from: path.join(root, "app/globals.css") })).css;
   const virtual: Record<string, string> = {
     "\0payee-style.css": styles,
-    "\0payee-navigation": `export const useParams=()=>({id:'${payeeId}'});`,
+    "\0payee-navigation": `const params=new URLSearchParams(location.search); export const useParams=()=>({id:'${payeeId}'});export const useSearchParams=()=>params;export const usePathname=()=>location.pathname;`,
+    "\0payee-session": `export const useSession=()=>({session:{user:{id:'actor-test',role:'ADMIN'}}});`,
     "\0payee-link": `import React from 'react';export default function Link({children,...props}){return React.createElement('a',props,children)}`,
     "\0payee-branch": `export const useBranch=()=>({selectedBranchId:'${branchId}'});`,
     "\0payee-entry.tsx": `import '/payee-style.css'; import React from 'react';import {createRoot} from 'react-dom/client';
       import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
-      import Page from '@/app/dashboard/finance/payees/[id]/page'; import {BranchProvider} from '@/lib/branch-context';
-      createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider,{client:new QueryClient()},React.createElement('main',{className:'mx-auto max-w-6xl px-4'},React.createElement(BranchProvider,{initialBranchId:'${branchId}',initialBranches:[{id:'${branchId}',name:'Centro'}],userRole:'ADMIN'},React.createElement(Page)))));`,
+      import Page from '@/app/dashboard/finance/payees/[id]/page'; import ExpensesPage from '@/app/dashboard/finance/expenses/page'; import {BranchProvider} from '@/lib/branch-context';
+      createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider,{client:new QueryClient()},React.createElement('main',{className:'mx-auto max-w-6xl px-4'},React.createElement(BranchProvider,{initialBranchId:'${branchId}',initialBranches:[{id:'${branchId}',name:'Centro'}],userRole:'ADMIN'},React.createElement(location.pathname==='/expenses'?ExpensesPage:Page)))));`,
   };
   let associated = false;
   const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", "payee-vite"),
     esbuild: { jsx: "automatic" }, css: { postcss: { plugins: [] } },
-    resolve: { dedupe: ["react", "react-dom"], alias: [{ find: "@", replacement: root }] },
+    resolve: { dedupe: ["react", "react-dom"], alias: [
+      { find: /^@\/hooks\/use-session$/, replacement: "\0payee-session" },
+      { find: "@", replacement: root },
+    ] },
     optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "@tanstack/react-query", "lucide-react", "radix-ui", "react/jsx-dev-runtime", "sonner",
       "@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"] },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },
@@ -36,6 +40,7 @@ export async function startPayeeBrowserServer() {
       if (id === "next/navigation") return "\0payee-navigation";
       if (id === "next/link") return "\0payee-link";
       if (id === "@/lib/branch-context") return "\0payee-branch";
+      if (id === "@/hooks/use-session") return "\0payee-session";
       if (id === "/payee-entry.tsx") return "\0payee-entry.tsx";
       if (id === "/payee-style.css") return "\0payee-style.css";
     }, load: (id: string) => virtual[id], configureServer(dev: { middlewares: { use: (handler: unknown) => void } }) {
@@ -50,7 +55,7 @@ export async function startPayeeBrowserServer() {
             : url.pathname === "/api/finance/payees" ? [payeeFixture().payee] : [];
           return res.end(JSON.stringify({ success: true, data }));
         }
-        if (url.pathname !== "/") return next();
+        if (url.pathname !== "/" && url.pathname !== "/expenses") return next();
         res.setHeader("Content-Type", "text/html");
         res.end('<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Contraparte · escenario sintético</title></head><body><div id="root"></div><script type="module" src="/payee-entry.tsx"></script></body></html>');
       });

@@ -115,8 +115,9 @@ export async function getBudget(
     branchId: string,
     costCenterId: string,
     month: string,
+    q: Pick<typeof db, "select"> = db,
 ): Promise<number | null> {
-    const [row] = await db
+    const [row] = await q
         .select({ amount: branchBudgets.amount })
         .from(branchBudgets)
         .where(
@@ -139,8 +140,9 @@ export async function getCommitted(
     branchId: string,
     costCenterId: string,
     month: string,
+    q: Pick<typeof db, "select"> = db,
 ): Promise<number> {
-    const osRows = await db
+    const osRows = await q
         .select({ total: serviceOrders.amount })
         .from(serviceOrders)
         .where(
@@ -152,7 +154,7 @@ export async function getCommitted(
             ),
         );
 
-    const ocRows = await db
+    const ocRows = await q
         .select({ total: purchaseOrders.totalAmount })
         .from(purchaseOrders)
         .where(
@@ -164,7 +166,7 @@ export async function getCommitted(
             ),
         );
 
-    const gastoRows = await db
+    const gastoRows = await q
         .select({ total: operatingExpenses.amount })
         .from(operatingExpenses)
         .where(
@@ -178,7 +180,7 @@ export async function getCommitted(
 
     // A4.2 — la caja chica consume la partida igual que un gasto: el efectivo
     // ya salió del centro de costo aunque no haya pasado por la autorización.
-    const cajaChicaRows = await cajaChicaPorCentro([branchId], month);
+    const cajaChicaRows = await cajaChicaPorCentro([branchId], month, q);
 
     return (
         osRows.reduce((s, r) => s + (r.total ?? 0), 0) +
@@ -201,10 +203,11 @@ export async function checkBudgetAvailability(
     costCenterId: string,
     month: string,
     amountCents: number,
+    q: Pick<typeof db, "select"> = db,
 ): Promise<AvailabilityCheck> {
     const [budgeted, committed] = await Promise.all([
-        getBudget(branchId, costCenterId, month),
-        getCommitted(branchId, costCenterId, month),
+        getBudget(branchId, costCenterId, month, q),
+        getCommitted(branchId, costCenterId, month, q),
     ]);
     const status = computeBudgetStatus(budgeted, [committed]);
     return { ...status, requested: amountCents, ok: amountCents <= status.available };
@@ -394,9 +397,10 @@ export interface BudgetConsumptionReport {
 async function cajaChicaPorCentro(
     branchIds: string[],
     month: string,
+    q: Pick<typeof db, "select"> = db,
 ): Promise<Array<{ branchId: string; costCenterId: string | null; total: number }>> {
     if (branchIds.length === 0) return [];
-    return db
+    return q
         .select({
             branchId: pettyCashFunds.branchId,
             costCenterId: pettyCashTransactions.costCenterId,
