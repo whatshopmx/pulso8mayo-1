@@ -1,0 +1,44 @@
+{
+  "id": "EXC-01.rls",
+  "baseHead": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
+  "workingTree": "Base más el incremento local de migración/pruebas; sin commit ni despliegue",
+  "environment": "Windows local; Neon aislado ep-cold-morning-bewqoz3o con pulso_app NOBYPASSRLS",
+  "checks": [
+    {
+      "name": "prueba focal de la migración 0152",
+      "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/exc01-exceptions-rls-migration-db.test.ts",
+      "nodeOptions": "--use-system-ca",
+      "exit": 0,
+      "files": 1,
+      "passed": 4,
+      "seconds": 9.42
+    },
+    {
+      "name": "migración 0152 + suite canónica EXC-01",
+      "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/exc01-exceptions-rls-migration-db.test.ts tests/integration/canonical-exception-persistence-db.test.ts",
+      "nodeOptions": "--use-system-ca",
+      "exit": 0,
+      "files": 2,
+      "passed": 12,
+      "seconds": 34.42
+    },
+    {
+      "name": "TypeScript",
+      "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "exit": 0
+    },
+    {
+      "name": "ESLint de las dos pruebas",
+      "command": "pnpm.cmd exec eslint tests/integration/exc01-exceptions-rls-migration-db.test.ts tests/integration/canonical-exception-persistence-db.test.ts",
+      "exit": 0,
+      "errors": 0,
+      "warnings": 1,
+      "warningScope": "any previo en la prueba canónica"
+    }
+  ],
+  "limits": [
+    "No se aplicó 0152 a main ni a entorno operativo; OPS-03 conserva la activación por entorno",
+    "La verificación es V2 en base aislada; no acredita HTTP/sesión/UI ni V3",
+    "Aceptar EXC-01.rls no acepta EXC-01 ni las filas transversales que dependen de VAL-01"
+  ]
+}
