@@ -356,7 +356,9 @@ export class InventoryReportsService {
         const [recipeHeaders, allRecipeItems, invItems] = await Promise.all([
             executor.select({ id: recipes.id, baseYield: recipes.baseYield }).from(recipes)
                 .where(sql`${recipes.companyId} = current_setting('app.current_company_id')::uuid`),
-            executor.select().from(recipeItems).where(inArray(recipeItems.recipeId,
+            executor.select({ recipeId: recipeItems.recipeId, itemId: recipeItems.itemId,
+                quantity: recipeItems.quantity, isSubRecipe: recipeItems.isSubRecipe,
+            }).from(recipeItems).where(inArray(recipeItems.recipeId,
                 executor.select({ id: recipes.id }).from(recipes).where(sql`${recipes.companyId} = current_setting('app.current_company_id')::uuid`))),
             executor.select({
                 id: inventoryItems.id,
