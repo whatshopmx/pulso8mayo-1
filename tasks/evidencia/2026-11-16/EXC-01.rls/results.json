@@ -34,10 +34,32 @@
       "errors": 0,
       "warnings": 1,
       "warningScope": "any previo en la prueba canónica"
+    },
+    {
+      "name": "journal: todo tag con SQL versionado",
+      "command": "node (journal 151 entradas vs git ls-tree HEAD drizzle)",
+      "exit": 0,
+      "missingSql": []
+    },
+    {
+      "name": "journal: drizzle-kit generate con hueco en idx 151",
+      "command": "pnpm.cmd exec drizzle-kit generate --custom --name=probe_gap --out=./drizzle-probe",
+      "exit": 0,
+      "result": "añade idx 153 sin fallar por el 0151 ausente; sondeo eliminado"
+    },
+    {
+      "name": "journal: drizzle-kit check",
+      "command": "pnpm.cmd exec drizzle-kit check --out=./drizzle-probe --dialect=postgresql",
+      "exit": 0,
+      "result": "Everything's fine"
     }
   ],
+  "locals": {
+    "journal": "0152 registrado en idx 152; hueco deliberado en idx 151 reservado a 0151_invoice_destination (frente de facturas)"
+  },
   "limits": [
     "No se aplicó 0152 a main ni a entorno operativo; OPS-03 conserva la activación por entorno",
+    "No se ejecutó drizzle-kit migrate: la base aislada sólo tiene 4 registros en drizzle.__drizzle_migrations, así que migrarla aplicaría el historial completo",
     "La verificación es V2 en base aislada; no acredita HTTP/sesión/UI ni V3",
     "Aceptar EXC-01.rls no acepta EXC-01 ni las filas transversales que dependen de VAL-01"
   ]

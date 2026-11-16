@@ -1051,6 +1051,13 @@
       "when": 1794680950000,
       "tag": "0150_fc20_company_activation",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1794854966196,
+      "tag": "0152_exc01_exceptions_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -44,9 +44,24 @@ Entorno: Neon aislado `ep-cold-morning-bewqoz3o`, rol `pulso_app` (`rolsuper: fa
 5. La conexión reutilizada (`pool max=1`) no hereda el contexto anterior.
 6. La suite canónica de EXC-01 (persistencia, unicidad, rollback, lifecycle) corre con la migración revisada y sin mocks.
 
+## Registro en el journal
+
+`drizzle/meta/_journal.json` registra `0152_exc01_exceptions_rls` en `idx 152`, después de `0150_fc20_company_activation`. La cadena queda con un hueco deliberado en `idx 151` porque esa posición pertenece a `0151_invoice_destination`, que vive en el frente de facturas y no forma parte de este incremento: el journal versionado no puede referenciar un SQL que no está en el repositorio.
+
+Verificado con el journal candidato:
+
+| Comprobación | Resultado |
+|---|---|
+| `drizzle-kit generate --custom` con hueco en `idx 151` | **ok**; añade `idx 153` sin fallar por el `0151` ausente |
+| `drizzle-kit check` | **`Everything's fine`** |
+| Tags del journal con SQL versionado ausente | **ninguno** (151 entradas) |
+
+El frente de facturas completará el journal con `idx 151` y `idx 153`; al ser adiciones, la unión con este commit no renumera nada.
+
 ## Límites
 
-- No se aplicó la migración a `main` ni a un entorno operativo; el journal quedó en 152 y OPS-03 sigue siendo el punto de aplicación por entorno.
+- No se aplicó la migración a `main` ni a un entorno operativo; OPS-03 sigue siendo el punto de aplicación por entorno.
+- No se ejecutó `drizzle-kit migrate` como verificación: la base aislada sólo tiene 4 registros en `drizzle.__drizzle_migrations`, así que migrarla aplicaría el historial completo. La aplicación del lote se comprobó aplicando el SQL real, no el runner.
 - La prueba canónica usa la base aislada y limpia sus datos; no acredita HTTP/sesión real ni UI.
 - Aceptar EXC-01.rls no acepta por sí solo EXC-01 ni las filas 02.03/02.04/05.*: esas filas dependen además de VAL-01 y del resto del frente.
 
