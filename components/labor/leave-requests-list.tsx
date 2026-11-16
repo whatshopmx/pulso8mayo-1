@@ -17,11 +17,14 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { fetchAllLeaveRequests, overlappingRequests, type LeaveReviewRequest } from '@/lib/labor/leave-review';
 
 export interface LeaveRequestItem {
   id: string;
   userId: string;
   userName: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
   leaveTypeId: string;
   leaveTypeName: string | null;
   startDate: string;
@@ -72,36 +75,47 @@ export function LeaveRequestsList({
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<LeaveRequestItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [contextRequests, setContextRequests] = useState<LeaveReviewRequest[]>([]);
+  const [contextError, setContextError] = useState(false);
 
   const fetchRequests = useCallback(
     async (signal?: AbortSignal) => {
       setLoading(true);
+      setError(false);
+      setContextError(false);
+      setContextRequests([]);
       try {
-        const params = new URLSearchParams();
+        const params: Record<string, string> = {};
         if (mode === 'mine' && userId) {
-          params.set('userId', userId);
+          params.userId = userId;
         } else if (mode === 'approvals') {
-          params.set('status', 'PENDING');
+          params.status = 'PENDING';
         }
-
-        const response = await fetch(`/api/leave/requests?${params.toString()}`, {
-          signal,
-        });
-        if (!response.ok) {
-          throw new Error('Error al cargar solicitudes');
-        }
-        const data = await response.json();
-        const items: LeaveRequestItem[] = data.requests || [];
+        const items = await fetchAllLeaveRequests<LeaveRequestItem>(params, signal);
+        if (signal?.aborted) return;
         setRequests(items);
         if (mode === 'approvals') {
           onPendingCountChange?.(items.length);
+          if (items.length > 0) {
+            try {
+              const starts = items.map(item => item.startDate.slice(0, 10)).sort();
+              const ends = items.map(item => item.endDate.slice(0, 10)).sort();
+              const context = await fetchAllLeaveRequests({ startDate: starts[0], endDate: ends[ends.length - 1] }, signal);
+              if (!signal?.aborted) setContextRequests(context);
+            } catch (error) {
+              if ((error as Error).name === 'AbortError') return;
+              setContextError(true);
+            }
+          }
         }
       } catch (error) {
         if ((error as Error).name === 'AbortError') return;
         console.error('Error fetching leave requests:', error);
-        toast.error('No se pudieron cargar las solicitudes de permiso');
+        setError(true);
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) setLoading(false);
       }
     },
     [mode, userId, onPendingCountChange]
@@ -111,7 +125,7 @@ export function LeaveRequestsList({
     const controller = new AbortController();
     fetchRequests(controller.signal);
     return () => controller.abort();
-  }, [fetchRequests, refreshKey]);
+  }, [fetchRequests, refreshKey, retryKey]);
 
   const handleApprove = async (id: string) => {
     setProcessingId(id);
@@ -207,6 +221,15 @@ export function LeaveRequestsList({
     );
   }
 
+  if (error) {
+    return (
+      <div role="alert" className="space-y-3 py-6">
+        <p className="text-sm">No pudimos cargar las solicitudes. Vuelve a intentarlo para revisar su estado.</p>
+        <Button variant="outline" onClick={() => setRetryKey(key => key + 1)}>Reintentar solicitudes</Button>
+      </div>
+    );
+  }
+
   if (requests.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
@@ -227,6 +250,15 @@ export function LeaveRequestsList({
 
   return (
     <>
+      {mode === 'approvals' && (
+        <p className="text-sm text-muted-foreground mb-4">Revisa las coincidencias de permisos antes de decidir. Confirma también los turnos y la cobertura de la sucursal.</p>
+      )}
+      {mode === 'approvals' && contextError && (
+        <div role="alert" className="space-y-2 mb-4 rounded-lg border p-4">
+          <p className="text-sm">No pudimos consultar las ausencias coincidentes. La lista de solicitudes sí está disponible.</p>
+          <Button variant="outline" size="sm" onClick={() => setRetryKey(key => key + 1)}>Reintentar coincidencias</Button>
+        </div>
+      )}
       <div className="divide-y divide-border">
         {requests.map((req) => {
           const statusInfo = STATUS_CONFIG[req.status] || {
@@ -234,6 +266,7 @@ export function LeaveRequestsList({
             className: 'bg-muted text-muted-foreground',
           };
           const isBusy = processingId === req.id;
+          const overlaps = overlappingRequests(req, contextRequests);
 
           return (
             <div
@@ -243,7 +276,7 @@ export function LeaveRequestsList({
               <div className="space-y-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   {mode === 'approvals' && (
-                    <span className="font-semibold text-sm">
+                    <span className="font-semibold text-sm break-words">
                       {req.userName || 'Colaborador'}
                     </span>
                   )}
@@ -259,11 +292,41 @@ export function LeaveRequestsList({
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(req.startDate), "d 'de' MMM, yyyy", { locale: es })} —{' '}
-                  {format(new Date(req.endDate), "d 'de' MMM, yyyy", { locale: es })}
+                  {format(new Date(`${req.startDate.slice(0, 10)}T12:00:00`), "d 'de' MMM, yyyy", { locale: es })} —{' '}
+                  {format(new Date(`${req.endDate.slice(0, 10)}T12:00:00`), "d 'de' MMM, yyyy", { locale: es })}
                 </p>
 
-                <p className="text-sm text-foreground/90">{req.reason}</p>
+                <p className="text-sm text-foreground/90 break-words">{req.reason}</p>
+
+                {mode === 'approvals' && (
+                  <div className="rounded-md bg-muted/50 p-3 space-y-2 text-sm">
+                    <p className="font-medium break-words">{req.branchName || 'Sucursal sin registrar'}</p>
+                    {!req.branchId ? (
+                      <p className="text-muted-foreground">Confirma la sucursal con el colaborador para revisar las coincidencias.</p>
+                    ) : contextError ? (
+                      <p className="text-muted-foreground">Coincidencias sin consultar.</p>
+                    ) : overlaps.length === 0 ? (
+                      <p className="text-muted-foreground">Sin otros permisos coincidentes registrados en esta sucursal. Confirma la cobertura del turno antes de aprobar.</p>
+                    ) : (
+                      <details>
+                        <summary className="cursor-pointer py-1 font-medium focus-visible:outline-2 focus-visible:outline-ring">
+                          {overlaps.length} {overlaps.length === 1 ? 'permiso coincidente' : 'permisos coincidentes'} en esta sucursal
+                        </summary>
+                        <ul className="mt-2 space-y-2">
+                          {overlaps.map(overlap => (
+                            <li key={overlap.id} className="break-words">
+                              <span className="font-medium">{overlap.userName || 'Colaborador'}</span>
+                              {' · '}{overlap.status === 'APPROVED' ? 'Aprobada' : 'Pendiente'}
+                              <span className="block text-muted-foreground">
+                                {format(new Date(`${overlap.startDate.slice(0, 10)}T12:00:00`), 'd MMM yyyy', { locale: es })} — {format(new Date(`${overlap.endDate.slice(0, 10)}T12:00:00`), 'd MMM yyyy', { locale: es })}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
 
                 {req.status === 'REJECTED' && req.rejectionReason && (
                   <p className="text-xs text-destructive">
@@ -272,13 +335,13 @@ export function LeaveRequestsList({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 {mode === 'approvals' && req.status === 'PENDING' && (
                   <>
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={isBusy}
+                      disabled={processingId !== null}
                       onClick={() => handleApprove(req.id)}
                       className="min-h-11 sm:min-h-8 text-success-text hover:text-success-text hover:bg-success/10 border-success/30"
                     >
@@ -292,7 +355,7 @@ export function LeaveRequestsList({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={isBusy}
+                      disabled={processingId !== null}
                       onClick={() => {
                         setRejectTarget(req);
                         setRejectionReason('');
@@ -309,7 +372,7 @@ export function LeaveRequestsList({
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={isBusy}
+                    disabled={processingId !== null}
                     onClick={() => handleCancel(req.id)}
                     className="min-h-11 sm:min-h-8"
                   >

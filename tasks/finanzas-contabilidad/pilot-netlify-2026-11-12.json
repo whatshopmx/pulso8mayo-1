@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-11-12T15:51:30.840Z",
+  "origin": "https://pulso-horeca.netlify.app",
+  "scope": "Demo login and read-only accounting preparation; does not publish journals or certify the deployed commit.",
+  "loginStatus": 200,
+  "loginSucceeded": true,
+  "preparationStatus": 200,
+  "preparationSucceeded": true,
+  "reviewEnabled": true,
+  "postingEnabled": true,
+  "accounts": 0,
+  "costCenters": 5,
+  "bankLinks": 0,
+  "triggerCommit": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
+  "deployedCommitVerified": false,
+  "gitPushSucceeded": true,
+  "seedDataOnly": true,
+  "journalsPublished": false,
+  "localEnvironmentFlagsChanged": false,
+  "remoteDatabaseIdentityVerified": false
+}

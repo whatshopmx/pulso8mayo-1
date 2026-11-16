@@ -110,19 +110,25 @@ export async function generatePresignedUrl(
 /**
  * Get file from R2
  */
-export async function getFromR2(key: string): Promise<Buffer | null> {
+export async function getFromR2(key: string, limits?: { maxBytes: number; timeoutMs: number }): Promise<Buffer | null> {
+    if (limits && (!Number.isSafeInteger(limits.maxBytes) || limits.maxBytes <= 0
+        || !Number.isSafeInteger(limits.timeoutMs) || limits.timeoutMs <= 0)) {
+        throw new Error('Invalid storage read limits');
+    }
     const client = getR2Client();
     if (!client) {
         throw new Error('R2 storage not configured');
     }
 
+    const controller = limits ? new AbortController() : undefined;
+    const timer = limits ? setTimeout(() => controller!.abort(), limits.timeoutMs) : undefined;
     try {
         const command = new GetObjectCommand({
             Bucket: BUCKET_NAME,
             Key: key,
         });
 
-        const response = await client.send(command);
+        const response = await client.send(command, controller ? { abortSignal: controller.signal } : undefined);
         const body = response.Body;
 
         if (!body) {
@@ -131,7 +137,13 @@ export async function getFromR2(key: string): Promise<Buffer | null> {
 
         // Convert to buffer
         const chunks: Uint8Array[] = [];
+        let bytes = 0;
         for await (const chunk of body as AsyncIterable<Uint8Array>) {
+            bytes += chunk.byteLength;
+            if (limits && (bytes > limits.maxBytes || controller!.signal.aborted)) {
+                controller!.abort();
+                return null;
+            }
             chunks.push(chunk);
         }
 
@@ -139,6 +151,8 @@ export async function getFromR2(key: string): Promise<Buffer | null> {
     } catch (error) {
         console.error('[R2] Get error:', error);
         return null;
+    } finally {
+        if (timer !== undefined) clearTimeout(timer);
     }
 }
 

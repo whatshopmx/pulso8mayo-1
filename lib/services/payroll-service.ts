@@ -8,6 +8,7 @@ import {
   employeeContracts, 
   salaryHistory,
   shiftSessions,
+  shiftApprovals,
   vacationRequests,
   leaveRequests,
   leaveTypes,
@@ -24,7 +25,7 @@ import { calcularAguinaldoAnual, DIAS_PRORRATEO } from "./aguinaldo-service";
 import { capturePayrollRunIn } from "./accounting/payroll-adapter";
 import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
 import { AGUINALDO_DAYS_VIGENTE } from "@/lib/company/labor-reform-status-catalog";
-import { differenceInDays, parseISO, addDays, format } from "date-fns";
+import { differenceInDays, parseISO, addDays, format, startOfWeek } from "date-fns";
 import { diaCivilEnZona } from "./aguinaldo-days-adapter";
 import { resolveSeveranceMinimumWage, type MinimumWageZone } from "./severance-minimum-wage";
 
@@ -51,6 +52,57 @@ export function validatePayrollPeriod(startDate: string, endDate: string): Valid
   }
   const calendarDays = differenceInDays(end, start) + 1;
   return { startDate, endDate, calendarDays };
+}
+
+export interface OvertimeWeeklyBreakdown {
+  calendarWeek: string; // e.g. "2026-W46" or "2026-05-04/2026-05-10"
+  doubleMinutes: number;
+  tripleMinutes: number;
+  doublePayCents: number;
+  triplePayCents: number;
+}
+
+export interface OvertimeBreakdown {
+  totalMinutes: number;
+  doubleMinutes: number;
+  tripleMinutes: number;
+  doublePayCents: number;
+  triplePayCents: number;
+  totalPayCents: number;
+  hasOvertime: boolean;
+  justification: string; // "SIN_HORAS_EXTRA" | "LFT_ARTS_66_67_68"
+  weeklyBreakdown: OvertimeWeeklyBreakdown[];
+  approvedSessionsCount: number;
+  rejectedCount: number;
+}
+
+export interface ResolveOvertimeInput {
+  userId: string;
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  dailySalaryCents: number;
+  timezone?: string;
+  sessions?: Array<{
+    id?: string;
+    startedAt: Date | string;
+    status?: string | null;
+    overtimeMinutes?: number | null;
+    requiresApproval?: boolean | null;
+    approvedAt?: Date | string | null;
+    approvedBy?: string | null;
+    rejectionReason?: string | null;
+    branchId?: string | null;
+  }>;
+  approvals?: Array<{
+    id?: string;
+    shiftSessionId?: string | null;
+    status: string;
+    approvalType?: string;
+    overtimeMinutes?: number | null;
+    rejectionReason?: string | null;
+  }>;
+  dbInstance?: any;
 }
 
 export interface ContractSalaryResolutionInput {
@@ -275,13 +327,23 @@ export interface ResolveAttendanceInput {
   geographicZone?: MinimumWageZone;
   timezone?: string;
   sessions?: Array<{
-    id: string;
+    id?: string;
     startedAt: Date | string;
-    status: string | null;
+    status?: string | null;
+    overtimeMinutes?: number | null;
     requiresApproval?: boolean | null;
     approvedAt?: Date | string | null;
     approvedBy?: string | null;
+    rejectionReason?: string | null;
     branchId?: string | null;
+  }>;
+  approvals?: Array<{
+    id?: string;
+    shiftSessionId?: string | null;
+    status: string;
+    approvalType?: string;
+    overtimeMinutes?: number | null;
+    rejectionReason?: string | null;
   }>;
   holidays?: Array<{
     date: Date | string;
@@ -373,14 +435,16 @@ export async function resolveAttendanceForPeriod(
     }
   };
 
-  // 3. Obtener y clasificar sesiones de turno
+  // 3. Obtener y clasificar sesiones de turno y solicitudes de horas extra
   let rawSessions: Array<{
-    id: string;
+    id?: string;
     startedAt: Date | string;
     status: string | null;
+    overtimeMinutes?: number | null;
     requiresApproval?: boolean | null;
     approvedAt?: Date | string | null;
     approvedBy?: string | null;
+    rejectionReason?: string | null;
     branchId?: string | null;
   }> = [];
 
@@ -398,9 +462,11 @@ export async function resolveAttendanceForPeriod(
           id: shiftSessions.id,
           startedAt: shiftSessions.startedAt,
           status: shiftSessions.status,
+          overtimeMinutes: shiftSessions.overtimeMinutes,
           requiresApproval: shiftSessions.requiresApproval,
           approvedAt: shiftSessions.approvedAt,
           approvedBy: shiftSessions.approvedBy,
+          rejectionReason: shiftSessions.rejectionReason,
           branchId: shiftSessions.branchId,
         })
         .from(shiftSessions)
@@ -416,6 +482,52 @@ export async function resolveAttendanceForPeriod(
     }
   }
 
+  // Cargar aprobaciones vinculadas si existen
+  let rawApprovals: Array<{
+    id?: string;
+    shiftSessionId: string | null;
+    status: string;
+    approvalType?: string;
+    overtimeMinutes?: number | null;
+    rejectionReason?: string | null;
+  }> = [];
+
+  if (input.approvals) {
+    rawApprovals = input.approvals.map((a) => ({
+      ...a,
+      shiftSessionId: a.shiftSessionId ?? null,
+    }));
+  } else if (!isPreloaded) {
+    try {
+      rawApprovals = await dbInstance
+        .select({
+          id: shiftApprovals.id,
+          shiftSessionId: shiftApprovals.shiftSessionId,
+          status: shiftApprovals.status,
+          approvalType: shiftApprovals.approvalType,
+          overtimeMinutes: shiftApprovals.overtimeMinutes,
+          rejectionReason: shiftApprovals.rejectionReason,
+        })
+        .from(shiftApprovals)
+        .where(
+          and(
+            eq(shiftApprovals.companyId, companyId),
+            eq(shiftApprovals.requestedFor, userId),
+            eq(shiftApprovals.approvalType, "OVERTIME")
+          )
+        );
+    } catch {
+      rawApprovals = [];
+    }
+  }
+
+  const approvalStatusBySession = new Map<string, string>();
+  for (const a of rawApprovals) {
+    if (a.shiftSessionId) {
+      approvalStatusBySession.set(a.shiftSessionId, a.status.toUpperCase());
+    }
+  }
+
   const pendingAttendanceDetails: AttendancePeriodResolution["pendingAttendanceDetails"] = [];
   const approvedDates = new Set<string>();
   const noShowDates = new Set<string>();
@@ -426,25 +538,33 @@ export async function resolveAttendanceForPeriod(
     if (sessionDate < startDate || sessionDate > endDate) continue;
 
     const status = (s.status || "PENDING").toUpperCase();
+    const linkedStatus = s.id ? approvalStatusBySession.get(s.id) : undefined;
+    const isExplicitlyRejected =
+      status === "REJECTED" ||
+      status === "CANCELLED" ||
+      linkedStatus === "REJECTED" ||
+      linkedStatus === "CANCELLED";
+    const isExplicitlyApproved =
+      s.approvedAt != null || linkedStatus === "APPROVED";
 
     // Detección estricta de asistencia pendiente o en curso
     if (status === "PENDING") {
       pendingAttendanceDetails.push({
-        sessionId: s.id,
+        sessionId: s.id || "unspecified",
         date: sessionDate,
         reason: "Sesión de turno en estado PENDING",
         status: s.status,
       });
     } else if (status === "ACTIVE") {
       pendingAttendanceDetails.push({
-        sessionId: s.id,
+        sessionId: s.id || "unspecified",
         date: sessionDate,
         reason: "Sesión activa en curso (sin check-out registrado)",
         status: s.status,
       });
-    } else if (s.requiresApproval && !s.approvedAt && status !== "REJECTED" && status !== "CANCELLED") {
+    } else if (s.requiresApproval && !isExplicitlyApproved && !isExplicitlyRejected) {
       pendingAttendanceDetails.push({
-        sessionId: s.id,
+        sessionId: s.id || "unspecified",
         date: sessionDate,
         reason: "Sesión de turno requiere aprobación de manager y aún no ha sido aprobada",
         status: s.status,
@@ -452,7 +572,7 @@ export async function resolveAttendanceForPeriod(
     }
 
     // Clasificación de asistencia aprobada y faltas
-    if (status === "COMPLETED" && (!s.requiresApproval || s.approvedAt != null)) {
+    if (status === "COMPLETED" && (!s.requiresApproval || isExplicitlyApproved)) {
       approvedDates.add(sessionDate);
     } else if (status === "NO_SHOW") {
       noShowDates.add(sessionDate);
@@ -948,6 +1068,293 @@ export async function validatePayrollPreStamping(
   };
 }
 
+export function calculateOvertimeBreakdown(options: {
+  dailySalaryCents: number;
+  startDate: string;
+  endDate: string;
+  sessions?: Array<{
+    id?: string;
+    startedAt: Date | string;
+    status?: string | null;
+    overtimeMinutes?: number | null;
+    requiresApproval?: boolean | null;
+    approvedAt?: Date | string | null;
+    approvedBy?: string | null;
+    rejectionReason?: string | null;
+    branchId?: string | null;
+  }>;
+  approvals?: Array<{
+    id?: string;
+    shiftSessionId?: string | null;
+    status: string;
+    approvalType?: string;
+    overtimeMinutes?: number | null;
+    rejectionReason?: string | null;
+  }>;
+  timezone?: string;
+}): OvertimeBreakdown {
+  const {
+    dailySalaryCents,
+    startDate,
+    endDate,
+    sessions = [],
+    approvals = [],
+    timezone = "America/Mexico_City",
+  } = options;
+
+  // 1. Mapear aprobaciones por shiftSessionId
+  const approvalsBySession = new Map<
+    string,
+    Array<{
+      id?: string;
+      shiftSessionId?: string | null;
+      status: string;
+      approvalType?: string;
+      overtimeMinutes?: number | null;
+      rejectionReason?: string | null;
+    }>
+  >();
+
+  if (approvals) {
+    for (const app of approvals) {
+      if (!app.shiftSessionId) continue;
+      const list = approvalsBySession.get(app.shiftSessionId) ?? [];
+      list.push(app);
+      approvalsBySession.set(app.shiftSessionId, list);
+    }
+  }
+
+  // 2. Deduplicar sesiones por id
+  const uniqueSessions = new Map<string, NonNullable<typeof sessions>[0]>();
+  sessions.forEach((s, idx) => {
+    const key = s.id || `session-synthetic-${idx}`;
+    if (!uniqueSessions.has(key)) {
+      uniqueSessions.set(key, s);
+    }
+  });
+
+  let approvedSessionsCount = 0;
+  let rejectedCount = 0;
+  const weeklyMinutesMap = new Map<string, number>();
+
+  // 3. Procesar cada sesión única
+  for (const s of uniqueSessions.values()) {
+    if (!s.startedAt) continue;
+
+    const dateStr = (() => {
+      try {
+        return diaCivilEnZona(
+          typeof s.startedAt === "string" ? new Date(s.startedAt) : s.startedAt,
+          timezone
+        );
+      } catch {
+        return typeof s.startedAt === "string"
+          ? s.startedAt.slice(0, 10)
+          : new Date(s.startedAt).toISOString().slice(0, 10);
+      }
+    })();
+
+    if (dateStr < startDate || dateStr > endDate) continue;
+
+    const sessionApprovals = s.id ? approvalsBySession.get(s.id) : undefined;
+    let isApproved = false;
+    let isRejected = false;
+    let effectiveOvertimeMinutes = 0;
+
+    if (sessionApprovals && sessionApprovals.length > 0) {
+      const rejectedApp = sessionApprovals.find(
+        (a) => a.status.toUpperCase() === "REJECTED" || a.status.toUpperCase() === "CANCELLED"
+      );
+      const approvedApp = sessionApprovals.find(
+        (a) => a.status.toUpperCase() === "APPROVED" && (a.approvalType === "OVERTIME" || !a.approvalType)
+      );
+
+      if (rejectedApp) {
+        isRejected = true;
+      } else if (approvedApp) {
+        isApproved = true;
+        effectiveOvertimeMinutes = approvedApp.overtimeMinutes ?? s.overtimeMinutes ?? 0;
+      }
+    } else {
+      const sessionStatus = (s.status || "COMPLETED").toUpperCase();
+      if (
+        sessionStatus === "REJECTED" ||
+        sessionStatus === "CANCELLED" ||
+        (s.rejectionReason && !s.approvedAt)
+      ) {
+        isRejected = true;
+      } else if (sessionStatus === "COMPLETED") {
+        if (!s.requiresApproval || s.approvedAt != null) {
+          isApproved = true;
+          effectiveOvertimeMinutes = s.overtimeMinutes ?? 0;
+        }
+      }
+    }
+
+    if (isRejected) {
+      if ((s.overtimeMinutes ?? 0) > 0 || sessionApprovals?.some((a) => (a.overtimeMinutes ?? 0) > 0)) {
+        rejectedCount++;
+      }
+      continue;
+    }
+
+    if (isApproved) {
+      approvedSessionsCount++;
+      if (effectiveOvertimeMinutes > 0) {
+        const d = parseISO(dateStr);
+        const weekStart = startOfWeek(d, { weekStartsOn: 1 });
+        const weekEnd = addDays(weekStart, 6);
+        const weekKey = `${format(weekStart, "yyyy-MM-dd")}/${format(weekEnd, "yyyy-MM-dd")}`;
+
+        weeklyMinutesMap.set(
+          weekKey,
+          (weeklyMinutesMap.get(weekKey) ?? 0) + effectiveOvertimeMinutes
+        );
+      }
+    }
+  }
+
+  // 4. Calcular desglose semanal según LFT Arts. 66, 67 y 68
+  const sortedWeekKeys = Array.from(weeklyMinutesMap.keys()).sort();
+  const weeklyBreakdown: OvertimeWeeklyBreakdown[] = [];
+
+  for (const weekKey of sortedWeekKeys) {
+    const totalWeeklyMinutes = weeklyMinutesMap.get(weekKey) ?? 0;
+    if (totalWeeklyMinutes <= 0) continue;
+
+    const doubleMinutes = Math.min(totalWeeklyMinutes, 540); // Primeras 9h (540 min)
+    const tripleMinutes = Math.max(0, totalWeeklyMinutes - 540); // Excedente al triple
+
+    const doublePayCents =
+      dailySalaryCents > 0
+        ? Math.round((doubleMinutes * dailySalaryCents * 2) / 480)
+        : 0;
+    const triplePayCents =
+      dailySalaryCents > 0
+        ? Math.round((tripleMinutes * dailySalaryCents * 3) / 480)
+        : 0;
+
+    weeklyBreakdown.push({
+      calendarWeek: weekKey,
+      doubleMinutes,
+      tripleMinutes,
+      doublePayCents,
+      triplePayCents,
+    });
+  }
+
+  const totalDoubleMinutes = weeklyBreakdown.reduce((sum, w) => sum + w.doubleMinutes, 0);
+  const totalTripleMinutes = weeklyBreakdown.reduce((sum, w) => sum + w.tripleMinutes, 0);
+  const totalDoublePayCents = weeklyBreakdown.reduce((sum, w) => sum + w.doublePayCents, 0);
+  const totalTriplePayCents = weeklyBreakdown.reduce((sum, w) => sum + w.triplePayCents, 0);
+  const totalMinutes = totalDoubleMinutes + totalTripleMinutes;
+  const totalPayCents = totalDoublePayCents + totalTriplePayCents;
+  const hasOvertime = totalMinutes > 0;
+
+  return {
+    totalMinutes,
+    doubleMinutes: totalDoubleMinutes,
+    tripleMinutes: totalTripleMinutes,
+    doublePayCents: totalDoublePayCents,
+    triplePayCents: totalTriplePayCents,
+    totalPayCents,
+    hasOvertime,
+    justification: hasOvertime ? "LFT_ARTS_66_67_68" : "SIN_HORAS_EXTRA",
+    weeklyBreakdown,
+    approvedSessionsCount,
+    rejectedCount,
+  };
+}
+
+export function resolveOvertimeForPeriod(
+  input: ResolveOvertimeInput & { sessions: any[] }
+): OvertimeBreakdown;
+export function resolveOvertimeForPeriod(
+  input: ResolveOvertimeInput
+): Promise<OvertimeBreakdown> | OvertimeBreakdown;
+export function resolveOvertimeForPeriod(
+  input: ResolveOvertimeInput
+): Promise<OvertimeBreakdown> | OvertimeBreakdown {
+  validatePayrollPeriod(input.startDate, input.endDate);
+
+  if (input.sessions !== undefined) {
+    return calculateOvertimeBreakdown({
+      dailySalaryCents: input.dailySalaryCents,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      sessions: input.sessions,
+      approvals: input.approvals,
+      timezone: input.timezone,
+    });
+  }
+
+  return (async () => {
+    const dbInstance = input.dbInstance ?? db;
+    const bufferStart = new Date(`${input.startDate}T00:00:00Z`);
+    bufferStart.setUTCDate(bufferStart.getUTCDate() - 2);
+    const bufferEnd = new Date(`${input.endDate}T23:59:59Z`);
+    bufferEnd.setUTCDate(bufferEnd.getUTCDate() + 2);
+
+    let rawSessions: any[] = [];
+    try {
+      rawSessions = await dbInstance
+        .select({
+          id: shiftSessions.id,
+          startedAt: shiftSessions.startedAt,
+          status: shiftSessions.status,
+          overtimeMinutes: shiftSessions.overtimeMinutes,
+          requiresApproval: shiftSessions.requiresApproval,
+          approvedAt: shiftSessions.approvedAt,
+          approvedBy: shiftSessions.approvedBy,
+          rejectionReason: shiftSessions.rejectionReason,
+          branchId: shiftSessions.branchId,
+        })
+        .from(shiftSessions)
+        .where(
+          and(
+            eq(shiftSessions.userId, input.userId),
+            gte(shiftSessions.startedAt, bufferStart),
+            lte(shiftSessions.startedAt, bufferEnd)
+          )
+        );
+    } catch {
+      rawSessions = [];
+    }
+
+    let rawApprovals: any[] = [];
+    try {
+      rawApprovals = await dbInstance
+        .select({
+          id: shiftApprovals.id,
+          shiftSessionId: shiftApprovals.shiftSessionId,
+          status: shiftApprovals.status,
+          approvalType: shiftApprovals.approvalType,
+          overtimeMinutes: shiftApprovals.overtimeMinutes,
+          rejectionReason: shiftApprovals.rejectionReason,
+        })
+        .from(shiftApprovals)
+        .where(
+          and(
+            eq(shiftApprovals.companyId, input.companyId),
+            eq(shiftApprovals.requestedFor, input.userId),
+            eq(shiftApprovals.approvalType, "OVERTIME")
+          )
+        );
+    } catch {
+      rawApprovals = [];
+    }
+
+    return calculateOvertimeBreakdown({
+      dailySalaryCents: input.dailySalaryCents,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      sessions: rawSessions,
+      approvals: rawApprovals,
+      timezone: input.timezone,
+    });
+  })();
+}
+
 export async function calculateEmployeePayroll(
   userId: string,
   startDate: string,
@@ -1072,7 +1479,21 @@ export async function calculateEmployeePayroll(
   const holidayPayCents = attendance.holidayDaysWorked * salarioDiarioCents * 2;
   const holidayDaysWorked = attendance.holidayDaysWorked;
 
-  const totalPercepcionesCents = baseSalaryCents + tipsCents + holidayPayCents;
+  // Overtime resolution (LFT Arts. 61, 66, 67, 68)
+  const overtimeBreakdown = await resolveOvertimeForPeriod({
+    userId,
+    companyId: user.companyId,
+    startDate,
+    endDate,
+    dailySalaryCents: salarioDiarioCents,
+    timezone: attendance.operationalZone.timezone,
+    sessions: options?.attendanceInput?.sessions,
+    approvals: options?.attendanceInput?.approvals,
+    dbInstance,
+  });
+  const overtimePayCents = overtimeBreakdown.totalPayCents;
+
+  const totalPercepcionesCents = baseSalaryCents + tipsCents + holidayPayCents + overtimePayCents;
 
   // Carga Patronal Real (35% IMSS/Infonavit/ISN sobre base + festivos) (Módulo 7.3)
   const employerSocialSecurityCents = Math.round((baseSalaryCents + holidayPayCents) * 0.35);
@@ -1082,7 +1503,8 @@ export async function calculateEmployeePayroll(
     baseSalaryCents,
     propinasCents: tipsCents,
     holidayPayCents,
-    overtimePayCents: 0,
+    overtimePayCents,
+    overtimeBreakdown,
     holidayDaysWorked,
     totalPercepcionesCents,
     totalDeduccionesCents: 0,
@@ -1129,6 +1551,8 @@ export function construirDesgloseNomina(payroll: {
   baseSalaryCents: number;
   propinasCents: number;
   holidayPayCents?: number;
+  overtimePayCents?: number;
+  overtimeBreakdown?: OvertimeBreakdown;
 }): {
   desglosePercepciones: NominaPercepcion[];
   desgloseDeducciones: NominaDeduccion[];
@@ -1168,6 +1592,37 @@ export function construirDesgloseNomina(payroll: {
       exemptAmount,
     });
   }
+
+  // SAT Concepto "019" ("Horas extra") bajo LISR Art. 93 Frac. I
+  if (payroll.overtimePayCents && payroll.overtimePayCents > 0) {
+    const UMA_DIARIA_CENTS_2026 = 11314;
+    let exemptAmount = 0;
+
+    if (payroll.overtimeBreakdown?.weeklyBreakdown && payroll.overtimeBreakdown.weeklyBreakdown.length > 0) {
+      for (const week of payroll.overtimeBreakdown.weeklyBreakdown) {
+        if (week.doublePayCents > 0) {
+          const maxExemptWeek = 5 * UMA_DIARIA_CENTS_2026; // 56,570 cents
+          const halfDouble = Math.floor(week.doublePayCents / 2);
+          exemptAmount += Math.min(halfDouble, maxExemptWeek);
+        }
+      }
+    } else {
+      const maxExempt = 5 * UMA_DIARIA_CENTS_2026;
+      const half = Math.floor(payroll.overtimePayCents / 2);
+      exemptAmount = Math.min(half, maxExempt);
+    }
+
+    const taxedAmount = payroll.overtimePayCents - exemptAmount;
+
+    desglosePercepciones.push({
+      earningTypeCode: "019",
+      code: "019",
+      concept: "Horas extra (LFT Arts. 66-68)",
+      taxedAmount,
+      exemptAmount,
+    });
+  }
+
   return { desglosePercepciones, desgloseDeducciones: [] };
 }
 

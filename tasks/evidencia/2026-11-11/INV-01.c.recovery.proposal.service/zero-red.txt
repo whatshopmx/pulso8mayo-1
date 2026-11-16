@@ -1,0 +1,58 @@
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: ⚙️  enable debug logging with { debug: true }
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+stdout | tests/integration/sale-recovery-proposals-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: ⚙️  write to custom object with { processEnv: myObject }
+
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > persiste hash/estado/atestaciones exactos y repite sin duplicar; no cambia venta, movimientos ni revisiones
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > bloquea fuente/producto/día/cobertura divergentes y no persiste propuesta parcial
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > rechaza estado de adjunto obsoleto, objetos alterados y venta modificada sin crear expediente
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > clave repetida no acepta otro motivo, solicitante o versión nativa de venta
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > no transforma movimientos huérfanos, ambiguos o revisiones de proyección en consumo cero
+ × tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > cantidades cero no ocultan movimientos ambiguos de ingredientes históricos 14245ms
+   → promise resolved "{ …(5) }" instead of rejecting
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > fallo después del INSERT revierte el expediente aunque el llamador capture el error
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > otra empresa/sucursal/venta y declaraciones de autoridad ajenas fallan sin acceder a R2
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > cantidades cero no ocultan movimientos ambiguos de ingredientes históricos
+AssertionError: promise resolved "{ …(5) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "created": true,
++   "demand": [],
++   "id": "31ff9ae5-45b1-44a3-a7ab-c8ef94534187",
++   "proposalHash": "7f1819379f54ef3b3b024bfc6b37d52de8b4091dd4624f27354c8bc4fe6899cb",
++   "stateHash": "5b3a1272b0d2faf427fab8308b61f46a68bfc2907423de77ee3b4a997f6627f6",
+  }
+
+ ❯ tests/integration/sale-recovery-proposals-db.test.ts:149:51
+    147|    const b=await bundle(tx,f,{sale:{quantitySold:'0'},absence:{quantit…
+    148|    await tx.execute(sql`INSERT INTO inventory_movements (branch_id,ite…
+    149|    await expect(registerRecoveryProposal(b.input)).rejects.toMatchObje…
+       |                                                   ^
+    150|    expect(await proposalCount(tx)).toBe(0);
+    151|   });
+ ❯ db.transaction.isolationLevel tests/integration/sale-recovery-proposals-db.test.ts:38:9
+ ❯ NeonSession.transaction node_modules/.pnpm/drizzle-orm@0.45.2_@electri_e81e30e41e1b6598d901e3b69fdcf04d/node_modules/src/neon-serverless/session.ts:270:18
+ ❯ probe tests/integration/sale-recovery-proposals-db.test.ts:23:3
+ ❯ tests/integration/sale-recovery-proposals-db.test.ts:145:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 skipped (8)
+   Start at  14:26:06
+   Duration  25.76s (transform 2.13s, setup 159ms, import 6.80s, tests 17.36s, environment 1ms)
+

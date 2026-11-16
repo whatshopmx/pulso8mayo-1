@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { Plus, Calendar, ClipboardList, CheckSquare } from 'lucide-react';
 import {
   Card,
@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LeaveRequestForm } from '@/components/labor/leave-request-form';
 import { LeaveBalanceCard } from '@/components/labor/leave-balance-card';
@@ -21,6 +22,8 @@ interface LeaveDashboardProps {
   userId: string;
   userRole: string;
 }
+
+type LeaveBalance = ComponentProps<typeof LeaveBalanceCard>['balance'] & { leaveTypeId: string };
 
 const APPROVER_ROLES = new Set([
   'SUPER_ADMIN',
@@ -34,27 +37,35 @@ export function LeaveDashboard({
   userId,
   userRole,
 }: LeaveDashboardProps) {
-  const [balances, setBalances] = useState<any[]>([]);
+  const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number | null>(null);
+  const [balanceError, setBalanceError] = useState(false);
+  const [countError, setCountError] = useState(false);
 
   const canApprove = APPROVER_ROLES.has(userRole);
+  const [activeTab, setActiveTab] = useState(canApprove ? 'approvals' : 'request');
 
   const fetchBalances = useCallback(
     async (signal?: AbortSignal) => {
+      setLoading(true);
+      setBalanceError(false);
       try {
         const response = await fetch(
-          `/api/leave/balances?userId=${userId}&companyId=${companyId}`,
+          `/api/leave/balances?userId=${userId}&companyId=${companyId}&year=${new Date().getFullYear()}`,
           { signal }
         );
+        if (!response.ok) throw new Error('No se pudieron consultar los saldos');
         const data = await response.json();
-        setBalances(data.balances || []);
+        if (!Array.isArray(data.balances)) throw new Error('Respuesta de saldos incompleta');
+        setBalances(data.balances);
       } catch (error) {
         if ((error as Error).name === 'AbortError') return;
         console.error('Error fetching leave balances:', error);
+        setBalanceError(true);
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) setLoading(false);
       }
     },
     [companyId, userId]
@@ -70,6 +81,26 @@ export function LeaveDashboard({
     setRefreshKey((prev) => prev + 1);
   }, []);
 
+  useEffect(() => {
+    if (!canApprove) return;
+    const controller = new AbortController();
+    setPendingApprovalsCount(null);
+    setCountError(false);
+    async function fetchPendingCount() {
+      try {
+        const response = await fetch('/api/leave/requests?status=PENDING&limit=1', { signal: controller.signal });
+        if (!response.ok) throw new Error('No se pudieron consultar los pendientes');
+        const data = await response.json();
+        if (!Number.isInteger(data.pagination?.total)) throw new Error('Conteo incompleto');
+        if (!controller.signal.aborted) setPendingApprovalsCount(data.pagination.total);
+      } catch {
+        if (!controller.signal.aborted) setCountError(true);
+      }
+    }
+    fetchPendingCount();
+    return () => controller.abort();
+  }, [canApprove, refreshKey]);
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Encabezado */}
@@ -79,12 +110,46 @@ export function LeaveDashboard({
             Gestión de Permisos
           </h1>
           <p className="text-muted-foreground">
-            Consulta tus días disponibles, envía solicitudes y revisa el calendario del equipo
+            {canApprove
+              ? 'Resuelve las solicitudes pendientes y revisa las ausencias del equipo'
+              : 'Consulta tus días disponibles, envía solicitudes y revisa el calendario del equipo'}
           </p>
         </div>
       </div>
 
-      {/* Tarjetas de saldo */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="max-w-full flex-wrap group-data-[orientation=horizontal]/tabs:h-auto">
+          {canApprove && (
+            <TabsTrigger value="approvals" className="min-h-11 sm:min-h-9 data-[state=active]:shadow-none">
+              <CheckSquare className="h-4 w-4 mr-2" />
+              Por aprobar
+              <Badge variant="secondary" className="ml-2 tabular-nums">
+                {pendingApprovalsCount ?? (countError ? 'Sin consultar' : '…')}
+              </Badge>
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="calendar" className="min-h-11 sm:min-h-9 data-[state=active]:shadow-none">
+            <Calendar className="h-4 w-4 mr-2" />
+            Calendario del equipo
+          </TabsTrigger>
+          <TabsTrigger value="request" className="min-h-11 sm:min-h-9 data-[state=active]:shadow-none">
+            <Plus className="h-4 w-4 mr-2" />
+            Solicitar permiso
+          </TabsTrigger>
+          <TabsTrigger value="mine" className="min-h-11 sm:min-h-9 data-[state=active]:shadow-none">
+            <ClipboardList className="h-4 w-4 mr-2" />
+            Mis solicitudes
+          </TabsTrigger>
+        </TabsList>
+        {countError && (
+          <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">
+            <p>No se pudo consultar el total de pendientes.</p>
+            <Button variant="outline" size="sm" onClick={handleDataChanged}>Reintentar pendientes</Button>
+          </div>
+        )}
+
+        <TabsContent value="request" className="space-y-4">
+      <h2 className="text-lg font-semibold">Tus saldos de {new Date().getFullYear()}</h2>
       <div className="grid gap-4 md:grid-cols-3">
         {loading ? (
           <div
@@ -100,9 +165,21 @@ export function LeaveDashboard({
             ))}
             <span className="sr-only">Cargando saldos de permisos...</span>
           </div>
+        ) : balanceError ? (
+          <div role="alert" className="col-span-full rounded-lg border p-6 space-y-3">
+            <p className="text-sm">No pudimos consultar tus saldos. Vuelve a intentarlo para solicitar un permiso.</p>
+            <Button variant="outline" onClick={handleDataChanged}>Reintentar saldos</Button>
+          </div>
         ) : balances.length === 0 ? (
-          <div className="col-span-full rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
-            No tienes saldos de permisos configurados para este año.
+          <div className="col-span-full rounded-lg bg-muted/50 p-6 space-y-3">
+            <h3 className="font-medium">Necesitas saldos para solicitar un permiso</h3>
+            <p className="text-sm text-muted-foreground max-w-prose">
+              {canApprove
+                ? 'Coordina con la persona responsable de administración o RH la asignación de tus saldos de este año. Revisar solicitudes del equipo no requiere saldos personales.'
+                : 'Pide a tu gerente o al equipo de administración o RH que revise la asignación de tus saldos de este año.'}
+              {' '}Cuando estén asignados, vuelve a consultarlos aquí.
+            </p>
+            <Button variant="outline" onClick={handleDataChanged}>Volver a consultar saldos</Button>
           </div>
         ) : (
           balances.map((balance) => (
@@ -111,35 +188,7 @@ export function LeaveDashboard({
         )}
       </div>
 
-      {/* Pestañas */}
-      <Tabs defaultValue="request" className="space-y-4">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="request" className="min-h-10 sm:min-h-8">
-            <Plus className="h-4 w-4 mr-2" />
-            Solicitar permiso
-          </TabsTrigger>
-          <TabsTrigger value="mine" className="min-h-10 sm:min-h-8">
-            <ClipboardList className="h-4 w-4 mr-2" />
-            Mis solicitudes
-          </TabsTrigger>
-          {canApprove && (
-            <TabsTrigger value="approvals" className="min-h-10 sm:min-h-8">
-              <CheckSquare className="h-4 w-4 mr-2" />
-              Por aprobar
-              {pendingApprovalsCount > 0 && (
-                <Badge variant="secondary" className="ml-2 tabular-nums">
-                  {pendingApprovalsCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="calendar" className="min-h-10 sm:min-h-8">
-            <Calendar className="h-4 w-4 mr-2" />
-            Calendario del equipo
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="request">
+        {!loading && !balanceError && balances.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Solicitar días libres</CardTitle>
@@ -156,6 +205,7 @@ export function LeaveDashboard({
               />
             </CardContent>
           </Card>
+        )}
         </TabsContent>
 
         <TabsContent value="mine">
@@ -191,7 +241,6 @@ export function LeaveDashboard({
                   mode="approvals"
                   refreshKey={refreshKey}
                   onActionComplete={handleDataChanged}
-                  onPendingCountChange={setPendingApprovalsCount}
                 />
               </CardContent>
             </Card>

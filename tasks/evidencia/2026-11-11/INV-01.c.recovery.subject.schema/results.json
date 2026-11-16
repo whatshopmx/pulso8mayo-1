@@ -1,0 +1,83 @@
+{
+  "task": "INV-01.c.recovery.subject.schema",
+  "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "migration": "0144 solo ALTER TYPE confirmado en rama aislada; sin DML durable, grants ni journal Drizzle",
+    "main": "sin cambios; 0144 pendiente",
+    "fixtures": "runtime NOBYPASSRLS; nueve sujetos insertados y consultados dentro de rollback con ausencia posterior de empresa/evidencia"
+  },
+  "verification": {
+    "red": {
+      "exit": 1,
+      "reason": "SALE_RECOVERY ausente en schema; fallo antes de consultas/DDL"
+    },
+    "sql": {
+      "exit": 0,
+      "passed": 2,
+      "files": 1,
+      "log": "integration.txt",
+      "manifest": "isolated-ddl.json"
+    },
+    "lint": {
+      "exit": 0,
+      "log": "lint.txt"
+    },
+    "typecheck": {
+      "exit": 0,
+      "log": "typecheck.txt"
+    },
+    "unit": {
+      "exit": 0,
+      "passed": 20,
+      "files": 2,
+      "log": "unit.txt"
+    },
+    "traceability": {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0,
+      "rows": 239,
+      "children": 83,
+      "acceptedTasks": 15,
+      "errors": 0
+    },
+    "build": {
+      "state": "not credited for this child",
+      "reason": "Build INV-B3 exit 0 prueba writer; este cambio de catálogo se verifica por separado y su hito de integración queda pendiente"
+    }
+  },
+  "commands": [
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-evidence-catalog-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/db/schema/evidence.ts tests/integration/sale-recovery-evidence-catalog-db.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    }
+  ],
+  "files": {
+    "lib/db/schema/evidence.ts": "95f6d011218bab5028ec60b52b8dc1429304200c9161e00460d536c0fec06835",
+    "drizzle/0144_inv01c_recovery_evidence_subject.sql": "ecee3df5c6e94da90a7e422441b5a4153b468d8975181f9306069f651cb0e963",
+    "drizzle/meta/0144_snapshot.json": "96a2f567f876e7432b1857c38af79bac303490e6945d7a06b212cb35b2e0e740",
+    "drizzle/meta/_journal.json": "5fd637a106b57755e0d953d7e0058c12de28d7a48f76498d4cac6919af5c330f",
+    "tests/integration/sale-recovery-evidence-catalog-db.test.ts": "81630da216bbac48d5e22886c19f3d45d7f42d2d5124a92cc733d804bb1130bc"
+  },
+  "pending": [
+    "Fachada y guardia de venta/empresa/sucursal antes de storage",
+    "Carga autenticada, atestación y verificación de objetos reales",
+    "Registro/aprobación del servidor y aplicación auditada de recuperación",
+    "Hito de integración y aplicación de migraciones operativas"
+  ]
+}

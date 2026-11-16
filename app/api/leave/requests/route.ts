@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { leaveRequests, leaveBalances, leaveTypes, users } from '@/lib/db/schema';
+import { leaveRequests, leaveBalances, leaveTypes, users, branches } from '@/lib/db/schema';
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { withTenantAuth } from '@/lib/api/with-auth';
@@ -31,16 +31,30 @@ export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
     const status = searchParams.get('status');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const parsed = z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      startDate: z.iso.date().optional(),
+      endDate: z.iso.date().optional(),
+    }).safeParse({
+      page: searchParams.get('page') ?? undefined,
+      limit: searchParams.get('limit') ?? undefined,
+      startDate: startDate ?? undefined,
+      endDate: endDate ?? undefined,
+    });
+    if (!parsed.success || (startDate && endDate && startDate > endDate)) {
+      return NextResponse.json({ error: 'Revisa las fechas y la página solicitada' }, { status: 400 });
+    }
+    const { page, limit } = parsed.data;
 
     const conditions = [eq(leaveRequests.companyId, auth.tenantId)];
 
     if (userId) conditions.push(eq(leaveRequests.userId, userId));
     if (leaveTypeId) conditions.push(eq(leaveRequests.leaveTypeId, leaveTypeId));
     if (status) conditions.push(eq(leaveRequests.status, status as any));
-    if (startDate) conditions.push(gte(leaveRequests.startDate, new Date(startDate)));
-    if (endDate) conditions.push(lte(leaveRequests.endDate, new Date(endDate)));
+    // Include any request overlapping the visible interval, including cross-month leave.
+    if (startDate) conditions.push(gte(leaveRequests.endDate, new Date(`${startDate}T00:00:00.000Z`)));
+    if (endDate) conditions.push(lte(leaveRequests.startDate, new Date(`${endDate}T23:59:59.999Z`)));
 
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -53,6 +67,7 @@ export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
         userId: leaveRequests.userId,
         companyId: leaveRequests.companyId,
         branchId: leaveRequests.branchId,
+        branchName: branches.name,
         leaveTypeId: leaveRequests.leaveTypeId,
         startDate: leaveRequests.startDate,
         endDate: leaveRequests.endDate,
@@ -73,6 +88,7 @@ export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
       .from(leaveRequests)
       .leftJoin(users, eq(leaveRequests.userId, users.id))
       .leftJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+      .leftJoin(branches, and(eq(leaveRequests.branchId, branches.id), eq(branches.companyId, auth.tenantId)))
       .where(and(...conditions))
       .orderBy(desc(leaveRequests.requestedAt))
       .limit(limit)

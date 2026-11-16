@@ -10,6 +10,7 @@ import {
   employeeContracts,
   salaryHistory,
   shiftSessions,
+  shiftApprovals,
   holidays,
   payrollRuns,
   payrollPayslips,
@@ -32,6 +33,7 @@ describe("NOM-01 V2 + NOM-02.a V2: Base salarial, congelamiento e inmutabilidad 
       "employee_contracts",
       "salary_history",
       "shift_sessions",
+      "shift_approvals",
       "holidays",
       "leave_types",
       "leave_requests",
@@ -395,6 +397,222 @@ describe("NOM-01 V2 + NOM-02.a V2: Base salarial, congelamiento e inmutabilidad 
         .from(payrollRuns)
         .where(eq(payrollRuns.companyId, ctx.companyIdB));
       expect(visibleFromA).toHaveLength(0);
+    });
+  });
+
+  // =========================================================================
+  // NOM-02.b V2: Horas Extra en Base de Datos Real bajo pulso_app (NOBYPASSRLS)
+  // =========================================================================
+
+  it("NOM-02.b V2: Cálculo de horas extra en base de datos real con sesiones aprobadas y bandas dobles/triples", async () => {
+    await runWithIsolation(async (tx, ctx) => {
+      const periodStart = "2026-05-01";
+      const periodEnd = "2026-05-15";
+
+      // Empleado con contrato activo a $500.00 MXN diario (50,000¢)
+      // Cuota horaria base: 6,250¢ | Doble: 12,500¢/h | Triple: 18,750¢/h
+      //
+      // 1. Sesión 1 (Lunes 4 de mayo, W19): 4 horas extra (240 min)
+      await tx.insert(shiftSessions).values({
+        userId: ctx.userIdA,
+        branchId: ctx.branchIdA,
+        status: "COMPLETED",
+        requiresApproval: false,
+        startedAt: new Date("2026-05-04T14:00:00Z"),
+        totalWorkMinutes: 720,
+        overtimeMinutes: 240, // 4h extra
+      });
+
+      // 2. Sesión 2 (Miércoles 6 de mayo, W19): 7 horas extra (420 min)
+      // Total semana W19: 240 + 420 = 660 minutos (11 horas extra)
+      // Segregación semanal: 9h dobles (540 min) + 2h triples (120 min)
+      // Dobles: 9h * 12,500¢ = 112,500¢
+      // Triples: 2h * 18,750¢ = 37,500¢
+      // Total extra esperado: 150,000¢ ($1,500.00 MXN)
+      await tx.insert(shiftSessions).values({
+        userId: ctx.userIdA,
+        branchId: ctx.branchIdA,
+        status: "COMPLETED",
+        requiresApproval: false,
+        startedAt: new Date("2026-05-06T14:00:00Z"),
+        totalWorkMinutes: 900,
+        overtimeMinutes: 420, // 7h extra
+      });
+
+      // Ejecutar cálculo en base de datos
+      const payroll = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+        dbInstance: tx,
+      });
+
+      expect(payroll.overtimePayCents).toBe(150000);
+      expect(payroll.overtimeBreakdown).toBeDefined();
+      expect(payroll.overtimeBreakdown.totalMinutes).toBe(660);
+      expect(payroll.overtimeBreakdown.doubleMinutes).toBe(540);
+      expect(payroll.overtimeBreakdown.tripleMinutes).toBe(120);
+      expect(payroll.overtimeBreakdown.doublePayCents).toBe(112500);
+      expect(payroll.overtimeBreakdown.triplePayCents).toBe(37500);
+      expect(payroll.overtimeBreakdown.hasOvertime).toBe(true);
+      expect(payroll.overtimeBreakdown.justification).toBe("LFT_ARTS_66_67_68");
+
+      // Invariante de percepciones totales: base devengada + horas extra
+      expect(payroll.totalPercepcionesCents).toBe(payroll.baseSalaryCents + 150000);
+    });
+  });
+
+  it("NOM-02.b V2: Persistencia en payroll_payslips.overtime_pay_cents y protección de período congelado", async () => {
+    await runWithIsolation(async (tx, ctx) => {
+      const periodStart = "2026-05-01";
+      const periodEnd = "2026-05-15";
+
+      // Sesión aprobada con 3 horas extra (180 min dobles)
+      // Salario diario 50,000¢ -> 3h dobles = 3 * 12,500 = 37,500¢
+      await tx.insert(shiftSessions).values({
+        userId: ctx.userIdA,
+        branchId: ctx.branchIdA,
+        status: "COMPLETED",
+        requiresApproval: false,
+        startedAt: new Date("2026-05-04T14:00:00Z"),
+        overtimeMinutes: 180,
+      });
+
+      // Calcular nómina del empleado con horas extra
+      const payroll = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+        dbInstance: tx,
+      });
+      expect(payroll.overtimePayCents).toBe(37500);
+
+      // Insertar corrida completada y recibo persistiendo overtimePayCents
+      const [run] = await tx
+        .insert(payrollRuns)
+        .values({
+          companyId: ctx.companyIdA,
+          periodStart,
+          periodEnd,
+          status: "COMPLETED",
+        })
+        .returning();
+
+      const [storedPayslip] = await tx
+        .insert(payrollPayslips)
+        .values({
+          runId: run.id,
+          userId: ctx.userIdA,
+          baseSalaryCents: payroll.baseSalaryCents,
+          propinasCents: payroll.propinasCents,
+          holidayPayCents: payroll.holidayPayCents,
+          overtimePayCents: payroll.overtimePayCents,
+          totalPercepcionesCents: payroll.totalPercepcionesCents,
+          totalDeduccionesCents: payroll.totalDeduccionesCents,
+          cfdiStatus: "TIMBRADO",
+          cfdiUuid: randomUUID(),
+        })
+        .returning();
+
+      expect(storedPayslip).toBeDefined();
+      expect(storedPayslip.overtimePayCents).toBe(37500);
+      expect(storedPayslip.totalPercepcionesCents).toBe(storedPayslip.baseSalaryCents + 37500);
+
+      // Verificar que el período queda congelado
+      const isFrozen = await isPayrollPeriodFrozen(ctx.companyIdA, periodStart, periodEnd, tx);
+      expect(isFrozen).toBe(true);
+
+      // Una segunda corrida sobre el mismo período debe fallar por estar congelado
+      await expect(
+        executePayrollRun(ctx.companyIdA, periodStart, periodEnd, ctx.userIdA, { dbInstance: tx })
+      ).rejects.toThrow(/ya fue completado y se encuentra congelado/i);
+    });
+  });
+
+  it("NOM-02.b V2: Solicitud de horas extra rechazada en shift_approvals produce pago 0", async () => {
+    await runWithIsolation(async (tx, ctx) => {
+      const periodStart = "2026-05-01";
+      const periodEnd = "2026-05-15";
+
+      // 1. Insertar sesión que requería aprobación
+      const [session] = await tx
+        .insert(shiftSessions)
+        .values({
+          userId: ctx.userIdA,
+          branchId: ctx.branchIdA,
+          status: "COMPLETED",
+          requiresApproval: true,
+          startedAt: new Date("2026-05-04T14:00:00Z"),
+          overtimeMinutes: 180,
+        })
+        .returning();
+
+      // 2. Insertar solicitud de aprobación en estado REJECTED
+      await tx.insert(shiftApprovals).values({
+        companyId: ctx.companyIdA,
+        branchId: ctx.branchIdA,
+        approvalType: "OVERTIME",
+        requestedBy: ctx.userIdA,
+        requestedFor: ctx.userIdA,
+        shiftSessionId: session.id,
+        title: "Horas extra del 4 de mayo",
+        overtimeMinutes: 180,
+        status: "REJECTED",
+        approvedBy: ctx.userIdA,
+        approvedAt: new Date("2026-05-05T10:00:00Z"),
+        rejectionReason: "Presupuesto de horas extra excedido para esta semana",
+      });
+
+      // 3. Ejecutar cálculo: las horas rechazadas no deben generar costo laboral
+      const payroll = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+        dbInstance: tx,
+      });
+
+      expect(payroll.overtimePayCents).toBe(0);
+      expect(payroll.overtimeBreakdown.hasOvertime).toBe(false);
+      expect(payroll.overtimeBreakdown.rejectedCount).toBe(1);
+      expect(payroll.totalPercepcionesCents).toBe(payroll.baseSalaryCents);
+    });
+  });
+
+  it("NOM-02.b V2: Aislamiento multi-empresa de horas extra bajo pulso_app (NOBYPASSRLS)", async () => {
+    await runWithIsolation(async (tx, ctx) => {
+      const periodStart = "2026-05-01";
+      const periodEnd = "2026-05-15";
+
+      // 1. Con contexto de Empresa A, intentar insertar corrida para Empresa B se rechaza por RLS
+      await tx.execute(sql.raw("SAVEPOINT forbidden_payroll_run_insert"));
+      let errorCode: string | undefined;
+      try {
+        await tx.insert(payrollRuns).values({
+          companyId: ctx.companyIdB,
+          periodStart: "2026-05-01",
+          periodEnd: "2026-05-15",
+          status: "COMPLETED",
+        });
+      } catch (error: unknown) {
+        const failure = error as { code?: string; cause?: { code?: string } };
+        errorCode = failure.cause?.code || failure.code;
+      }
+      await tx.execute(sql.raw("ROLLBACK TO SAVEPOINT forbidden_payroll_run_insert"));
+      expect(errorCode).toBe("42501");
+
+      // 2. Insertar turno con horas extra en Empresa A (3h extra = 37,500¢)
+      await tx.insert(shiftSessions).values({
+        userId: ctx.userIdA,
+        branchId: ctx.branchIdA,
+        status: "COMPLETED",
+        requiresApproval: false,
+        startedAt: new Date("2026-05-04T14:00:00Z"),
+        overtimeMinutes: 180,
+      });
+
+      // 3. Bajo contexto de Empresa A, intentar calcular nómina de empleado B se bloquea
+      // porque el usuario B no es accesible bajo el contexto de empresa A
+      await expect(
+        calculateEmployeePayroll(ctx.userIdB, periodStart, periodEnd, { dbInstance: tx })
+      ).rejects.toThrow(/no tiene contrato vigente|no encontrado o sin empresa asignada/i);
+
+      // 4. El cálculo para el empleado A solo incluye sus propias 3h extra (37,500¢)
+      const payrollA = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+        dbInstance: tx,
+      });
+      expect(payrollA.overtimePayCents).toBe(37500);
+      expect(payrollA.totalPercepcionesCents).toBe(payrollA.baseSalaryCents + 37500);
     });
   });
 });

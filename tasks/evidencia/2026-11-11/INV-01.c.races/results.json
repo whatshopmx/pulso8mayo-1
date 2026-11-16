@@ -1,0 +1,57 @@
+{
+  "date": "2026-11-13",
+  "initialHead": "fddc05dd92255d3b816b12e83e074eb31d95d57b",
+  "observedHead": "a816208911305b36034388f47aa9db9b979e6979",
+  "state": "V2 comprobada; aceptación dependiente de INV-01.b, reparación histórica pendiente",
+  "checks": {
+    "postgres": {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-concurrency-db.test.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads",
+      "passed": 21,
+      "newCases": 5,
+      "regression": 16,
+      "exit": 0
+    },
+    "typescriptScoped": {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01-c.json",
+      "target": "ES2017 heredado",
+      "exit": 0
+    },
+    "lint": {
+      "command": "pnpm.cmd exec eslint tests/integration/sale-consumption-concurrency-db.test.ts",
+      "exit": 0
+    },
+    "traceability": {
+      "rows": 239,
+      "children": 79,
+      "acceptedTasks": 12,
+      "errors": 0,
+      "exit": 0
+    },
+    "diffCheck": { "exit": 0 },
+    "build": {
+      "applicable": false,
+      "reason": "Solo test y documentación; sin cambios productivos propios; no se atribuye el build anterior al test nuevo"
+    }
+  },
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "host": "ep-cold-morning-bewqoz3o.c-9.us-east-2.aws.neon.tech",
+    "runtime": "pulso_app, NOBYPASSRLS, NOSUPERUSER",
+    "committedSyntheticRunIds": [
+      "84b2f0d2-36eb-44a4-ad5a-21ed91c58a29",
+      "0ae7b614-83b9-4272-a547-1dacac469e52"
+    ],
+    "retainedFixtureGroups": 9
+  },
+  "hashes": {
+    "tests/integration/sale-consumption-concurrency-db.test.ts": "777b95b6fcc0c99c33c2ece5456b88c5b72705218f281d0b55557e01ca82e8c1",
+    "lib/services/sale-consumption-service.ts": "3e8f02aa27d49358c1d2792d5eebaeca518256f93c12829a0d68c2e363577cb9"
+  },
+  "limits": [
+    "Historial sintético confirmado retenido en rama aislada; protecciones append-only activas",
+    "PENDING_RECOVERY probado no equivale a reparación",
+    "Sin aceptación de INV-01.c ni fila 11.11",
+    "Sin migración o escritura en main"
+  ]
+}

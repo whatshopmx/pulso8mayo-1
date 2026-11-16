@@ -1,0 +1,114 @@
+{
+  "task": "INV-01.c.recovery.attestation.service",
+  "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "recordedAt": "2026-11-14T15:24:11.017Z",
+  "continuedOn": "2026-11-14",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "runtime": "pulso_app NOSUPERUSER/NOBYPASSRLS; contexto tenant real",
+    "auth": "simulada",
+    "storage": "R2 simulado; sin objetos reales",
+    "ddl": "0145 solo dentro de rollback; ausencia posterior de tabla/fixtures; ninguna aplicación persistente ni main",
+    "sharedJournal": "Hash observado del archivo compartido; este frente añade únicamente entrada 0145; 0146 concurrente pertenece a Nómina"
+  },
+  "verification": {
+    "unit": {
+      "exit": 0,
+      "passed": 53,
+      "files": 9,
+      "log": "unit.txt",
+      "scope": "Regresión antes del caso adicional OWNER"
+    },
+    "finalRouteUnit": {
+      "exit": 0,
+      "passed": 8,
+      "files": 2,
+      "log": "unit-final-route.txt",
+      "scope": "Servicio 3 + ruta 5; incluye OWNER; repite siete casos de la regresión"
+    },
+    "sql": {
+      "exit": 0,
+      "passed": 23,
+      "files": 4,
+      "ownCases": 5,
+      "log": "integration.txt",
+      "scope": "DDL/RLS/transacciones reales; auth y R2 simulados"
+    },
+    "typecheck": {
+      "exit": 2,
+      "log": "typecheck-final.txt",
+      "scope": "Error TS2345 solo en lib/services/treasury-service.ts:726; cambios concurrentes de Nómina. Error anterior OWNER de esta ruta resuelto"
+    },
+    "lint": {
+      "exit": 0,
+      "log": "lint.txt"
+    },
+    "finalRouteLint": {
+      "exit": 0,
+      "log": "lint-final-route.txt"
+    },
+    "build": {
+      "state": "not run",
+      "scope": "Global TypeScript actual falla en Tesorería; build anterior 0144/adjuntos no acredita 0145/atestaciones"
+    },
+    "traceability": {
+      "exit": 0,
+      "rows": 239,
+      "planTasks": 86,
+      "children": 86,
+      "acceptedTasks": 15,
+      "errors": 0
+    },
+    "diffCheck": {
+      "exit": 0
+    }
+  },
+  "files": {
+    "lib/services/sale-recovery-attestations.ts": "a8bcee49bcd0c379d413ddea53f9e8e42f72c4912c802f8707f87005f2a4782e",
+    "app/api/inventory/sales-entry/recovery-attestations/route.ts": "3bedf26af16722376b491da46ea84659ec6c93819cffdc32ff024f1f02e27de1",
+    "lib/services/__tests__/sale-recovery-attestations.test.ts": "31d49afe733de353529e2e9d9259032d6b660c1e07cb007328a6191a6c5c4075",
+    "tests/integration/sale-recovery-attestations-db.test.ts": "1d2993c8ee42c9e9da9c581da89b42afbcc127681b8403a4183190bd0374a4ae",
+    "tests/unit/inventory/sale-recovery-attestations-route.test.ts": "235da080c491b2581b48544ff80a8124905c278c622fef277ffabeb2be8c56ee"
+  },
+  "pending": [
+    "Gate global TypeScript/build: error concurrente de Tesorería documentado, no corregido en este frente",
+    "Sesión HTTP y objetos privados reales; pruebas actuales simulan auth/R2",
+    "Snapshot histórico demostrado y preparación/registro del expediente desde servidor",
+    "Aprobación independiente, aplicación auditada/idempotente con carreras y revalidación",
+    "AUD-02, UI y aceptación de INV-01.c/11.11 pendientes"
+  ],
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-attestations-db.test.ts tests/integration/sale-recovery-attestations-schema-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts tests/integration/sale-recovery-attachments-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 2,
+      "scope": "Estado global actual: Tesorería TS2345"
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/services/sale-recovery-attestations.ts app/api/inventory/sales-entry/recovery-attestations/route.ts lib/services/__tests__/sale-recovery-attestations.test.ts tests/integration/sale-recovery-attestations-db.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "code": 1,
+  "signal": null,
+  "args": [
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "--configLoader",
+    "bundle",
+    "tests/unit/seed-integration.test.ts",
+    "--maxWorkers=1",
+    "--pool=threads"
+  ]
+}

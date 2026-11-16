@@ -1,0 +1,33 @@
+# Checkpoint INV-01.b3a / INV-01.b3 / INV-01.b4a
+
+Revisión 2026-11-13, HEAD inicial `5a05fb992c813031cacf4209a1bc37e525e56931` más diff compartido. Reabre el gate previamente detenido por FC-13/OOM; builds de objetos y modelo persistido ya terminaron exit 0. Se encontró y corrigió un defecto del writer durante la revisión. El build posterior a esa corrección terminó exit 0 (sesión 40200, `build.txt`). **Se aceptan exclusivamente b3a, b3 y b4a en el alcance aislado definido aquí.** No modifica el frente contable, target TypeScript, privilegios ni migraciones aplicadas.
+
+## Alcance y criterio
+
+Tres hijos: ingreso nullable y mínimo runtime (b3a), writer transaccional (b3), normalización/agrupación exacta (b4a). Sus dependencias se revisan en orden b3a → b3 → b4a. El checkpoint permite aceptar únicamente esos incrementos si cumplen V1/V2 aplicables y build; b4a es puro, por lo que no requiere V2. No acepta el padre INV-01.b, recuperación, carreras, rutas/API/UI ni 11.11.
+
+## Revisión del código y de las pruebas
+
+- Corrección: writer valida identidad/precisión/importe antes de abrir transacción; exige serializable, coordina proyección por día de sucursal y bloquea lotes en orden estable. La proyección contrasta TODOS los heads de la receta/día y bloquea ventas legadas sin revisión demostrable. `checkAllocations` reconstruye el saldo de cada USAGE y devolución, comprueba lote/artículo/unidad y vuelve a contrastar demanda del snapshot histórico. Reintento idéntico no escribe. Corrección monetaria no mueve stock; corrección de cantidad usa diferencial y anulación devuelve al movimiento/lote original. No hay adopción implícita ni consumo parcial autorizado.
+- Atomicidad: savepoint interno del writer también revierte si su caller captura el error. Las pruebas provocan insuficiencia después de devoluciones y un fallo SQL después de proyectar la venta; comparan venta, stock, revisión y movimientos, en vez de comprobar solo el error. El wrapper conserva una conexión serializable y reintentos acotados. Las carreras con commits siguen en c.races y no se acreditan aquí.
+- Seguridad: 0139 permite solo columnas necesarias para runtime y RLS con scope de empresa/sucursal; movimientos laterales validan lote/artículo. No se amplían grants para acomodar DEFAULTs del ORM: el writer usa INSERT parametrizado de columnas explícitas. El servicio recibe contexto previamente autorizado; las rutas deben comprobar sesión/capacidad, y su aceptación no se hereda de este checkpoint. Writers dueños legacy/SEC-05 siguen pendientes.
+- Entrada exacta: parser valida texto antes de Number; grupos usan sumas enteras de centésimas y centavos dentro del rango. NULL conserva cobertura desconocida. Una fila inválida bloquea su producto/día; una fecha indeterminable bloquea ese producto en todo el archivo. La agrupación directa también valida precisión, cantidad agregada, importe y referencia de receta concordante. No acredita por sí sola el cableado a ingesta/HTTP.
+- Arquitectura/claridad: plan puro, lector/snapshot de servidor, cálculo diferencial y efectos transaccionales permanecen separados. El snapshot del cliente no puede sustituir el histórico. No se añade una segunda vía de escritura. La compacidad del writer merece revisión por función en cambios futuros, pero no requiere un refactor para verificar este comportamiento.
+- Rendimiento: consultas acotadas a empresa/sucursal/día e ingredientes involucrados; locks en orden estable y reintentos limitados. No es un benchmark de volumen ni certifica capacidad operativa.
+
+## Entorno y límites
+
+Pruebas SQL en la rama aislada `br-round-voice-belheola`, proyecto `soft-cloud-50478212`, distinta de `.env`; role runtime NOBYPASSRLS. Fixtures sintéticas de dos empresas/tres sucursales se revierten y se comprueba su ausencia. El archivo del writer incluye hoy también regresión de ingesta/manual; sus resultados no aceptan esos otros hijos de forma automática. 0141 se evalúa solo dentro de rollback; 0137–0139 ya estaban en rama aislada. Main y despliegue no cambian. Comandos, salidas, hashes y resultado del gate en `results.json` al terminar.
+
+Hallazgo confirmado y corregido: `checkAllocations` comprobaba saldo vigente y demanda del head, pero sin head admitía movimientos originales/devoluciones huérfanos cuyo neto era cero. El primer intento de la prueba falló antes del dominio por un SELECT de columnas no concedidas; se corrigió la proyección del test, sin ampliar permisos (`orphan-red.txt`). La reproducción real posterior resolvió `applied:true`, revisión 1 y dos movimientos, en lugar de rechazar (`orphan-red-domain.txt`, exit 1). Se añadió una guardia de dos líneas antes de reconstruir asignaciones: sin head, cualquier movimiento de esa identidad exige recuperación. El caso pasó (`orphan-green.txt`, exit 0) y comprueba stock/movimientos/venta/revisiones sin cambios, sin savepoint auxiliar de test.
+
+## Verificaciones posteriores a la corrección
+
+**34/34 SQL en cinco archivos**, exit 0, 238.64 s (`integration-final.txt`): 17 casos del writer/ingesta/manual y 17 de identidad, catálogo, snapshot y schema de aplicación. **83 unitarias en cuatro archivos** (`unit.txt`) más **20 de trazabilidad/manifiesto en otros dos archivos** (`unit-traceability.txt`), exit 0. El comando inicial incluyó un nombre inexistente `sales-ingest-pure.test.ts` que Vitest ignoró: solo se acreditan los cuatro archivos realmente ejecutados; el parser se ejercita en `sales-ingest-revisions.test.ts`. No se declara suite unitaria global.
+
+TypeScript global (`typecheck.txt`) y lint focal final (`lint-final.txt`) exit 0. Diff check exit 0. Validador con Node 22 TypeScript stripping: **239 filas, 82 hijos, 12 aceptaciones y cero errores**. El build posterior al fix terminó exit 0; el build del modelo persistido también terminado exit 0 precede esta guardia y no se usa como prueba de compilación del fix. La consulta de memoria durante el diagnóstico mostró ~300 MiB físicos libres; no se terminaron procesos de otros frentes. Al observar de nuevo la sesión 14485 devolvió su resultado terminal exit 0.
+
+
+## Cierre del checkpoint
+
+Build del writer corregido terminado exit 0, resultado terminal de sesión 40200, log `build.txt`. Antes de aceptar se compararon SHA-256 de todos los archivos del checkpoint con el estado actual: sin cambios posteriores. Se aceptan en orden **INV-01.b3a → INV-01.b3 → INV-01.b4a**, con todas sus dependencias previamente aceptadas. El build no acredita el catálogo SALE_RECOVERY que se inició después; ese hijo conserva verificación propia. Ningún padre ni fila 11.11 pasan a aceptados. La migración 0139 permanece solo en rama aislada; no hay despliegue ni aplicación de DDL a main.

@@ -9,7 +9,12 @@ import {
   branches
 } from '@/lib/db/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
-import { validatePayrollPeriod, resolveContractSalaryForPeriod } from '@/lib/services/payroll-service';
+import { 
+  validatePayrollPeriod, 
+  resolveContractSalaryForPeriod,
+  resolveOvertimeForPeriod,
+  type OvertimeBreakdown 
+} from '@/lib/services/payroll-service';
 import { diaCivilEnZona } from '@/lib/services/aguinaldo-days-adapter';
 
 export interface PayrollEmployeeRecord {
@@ -30,6 +35,9 @@ export interface PayrollEmployeeRecord {
   daysWorked: number;
   regularHours: number;
   overtimeHours: number;
+  overtimePay?: number;
+  overtimePayCents?: number;
+  overtimeBreakdown?: OvertimeBreakdown;
   lateMinutes: number;
   vacationDays: number;
   sickDays: number;
@@ -113,6 +121,7 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
 
     const rawSessions = await db
       .select({
+        id: shiftSessions.id,
         totalWorkMinutes: shiftSessions.totalWorkMinutes,
         overtimeMinutes: shiftSessions.overtimeMinutes,
         lateMinutes: shiftSessions.lateMinutes,
@@ -120,6 +129,7 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
         startedAt: shiftSessions.startedAt,
         requiresApproval: shiftSessions.requiresApproval,
         approvedAt: shiftSessions.approvedAt,
+        rejectionReason: shiftSessions.rejectionReason,
       })
       .from(shiftSessions)
       .where(and(
@@ -201,6 +211,19 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
 
     const netWorkDays = daysWorked - vacationDays - sickDays - otherLeaveDays;
 
+    const dailySalaryCents = Math.round(dailySalary * 100);
+    const overtimeBreakdown = await resolveOvertimeForPeriod({
+      userId: emp.userId,
+      companyId,
+      startDate,
+      endDate,
+      dailySalaryCents,
+      timezone,
+      sessions: rawSessions,
+    });
+    const overtimePayCents = overtimeBreakdown.totalPayCents;
+    const overtimePay = Math.round(overtimePayCents) / 100;
+
     records.push({
       employeeNumber: emp.employeeNumber || '',
       name: emp.name || '',
@@ -219,6 +242,9 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
       daysWorked,
       regularHours: Math.round((totalWorkMinutes - totalOvertimeMinutes) / 60 * 100) / 100,
       overtimeHours: Math.round(totalOvertimeMinutes / 60 * 100) / 100,
+      overtimePay,
+      overtimePayCents,
+      overtimeBreakdown,
       lateMinutes: totalLateMinutes,
       vacationDays,
       sickDays,

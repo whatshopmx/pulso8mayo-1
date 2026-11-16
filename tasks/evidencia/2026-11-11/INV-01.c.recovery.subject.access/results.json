@@ -1,0 +1,107 @@
+{
+  "task": "INV-01.c.recovery.subject.access",
+  "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "recordedAt": "2026-11-14T14:22:19.554Z",
+  "continuedOn": "2026-11-14",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "runtime": "pulso_app NOBYPASSRLS/NOSUPERUSER via SET LOCAL ROLE",
+    "auth": "simulada en pruebas de servicio/SQL; wrapper real con getSession simulado en rutas",
+    "storage": "R2 simulado; sin objetos reales creados",
+    "fixtures": "dos empresas/tres sucursales; rollback y ausencia posterior",
+    "ddl": "sin DDL nuevo ni grants; 0143 solo rollback de regresión; 0144 ya estaba aislada, main sin cambios"
+  },
+  "verification": {
+    "unit": {
+      "exit": 0,
+      "passed": 46,
+      "files": 7,
+      "newCases": 9,
+      "log": "unit.txt"
+    },
+    "sql": {
+      "exit": 0,
+      "passed": 13,
+      "files": 2,
+      "newCases": 6,
+      "log": "integration.txt",
+      "scope": "SQL/RLS real; sesión y R2 simulados, no V2 integrada completa"
+    },
+    "typecheck": {
+      "exit": 0,
+      "log": "typecheck.txt"
+    },
+    "lint": {
+      "exit": 0,
+      "log": "lint.txt"
+    },
+    "traceability": {
+      "exit": 0,
+      "rows": 239,
+      "children": 84,
+      "acceptedTasks": 15,
+      "errors": 0
+    },
+    "diffCheck": {
+      "exit": 0
+    },
+    "build": {
+      "state": "passed",
+      "exit": 0,
+      "log": "build.txt",
+      "scope": "Catálogo 0144 y API/servicio de adjuntos; no se acredita el modelo 0145 añadido después de compilar"
+    }
+  },
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-attachments-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/services/sale-recovery-attachments.ts app/api/inventory/sales-entry/recovery-evidence/route.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts tests/integration/sale-recovery-attachments-db.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+      "exit": 0
+    }
+  ],
+  "files": {
+    "lib/services/sale-recovery-attachments.ts": "ac7716efa55bb8fe06564e4817cf9127ba852e6b9afe1a1826ccb55ef2cbee09",
+    "app/api/inventory/sales-entry/recovery-evidence/route.ts": "6fa675ffa042ac4a64c842f4a187e6aba583627510be0874cd128d4aedf311dd",
+    "lib/services/__tests__/sale-recovery-attachments.test.ts": "369f1244194c052e7421528e2634bc1675fe4e284f65506c95d8381b03b4ebc2",
+    "tests/unit/inventory/sale-recovery-evidence-route.test.ts": "b0224041d6727774418d84a32ce00538a0f099ed62cfbebf68e45f5e4b14170c",
+    "tests/integration/sale-recovery-attachments-db.test.ts": "df5e43faf2d90acc35af7e4a5ff834a4045c578348ccff5885e58e9e17ab8b41"
+  },
+  "pending": [
+    "HTTP con sesión real y objetos privados reales (V2 integrada)",
+    "UI del expediente y aceptación V3",
+    "Atestaciones de finalidad/procedencia y snapshot histórico",
+    "Registro/aprobación del servidor y aplicación auditada idempotente",
+    "Auditoría crítica de cambios de adjuntos y de recuperación (AUD-02)"
+  ],
+  "limits": [
+    "La carga no es verificación de contenido ni autorización de stock",
+    "Una subida remota con fallo o commit incierto de SQL puede dejar un objeto privado huérfano; no se declara atomicidad distribuida",
+    "Baja lógica conserva autor original/objeto; una URL ya emitida conserva TTL de 600 segundos"
+  ]
+}

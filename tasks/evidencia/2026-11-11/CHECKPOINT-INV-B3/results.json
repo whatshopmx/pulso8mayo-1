@@ -1,0 +1,121 @@
+{
+  "checkpoint": "INV-01.b3a / INV-01.b3 / INV-01.b4a",
+  "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "state": "aceptado",
+  "accepted": true,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "runtime": "pulso_app NOBYPASSRLS",
+    "fixtures": "dos empresas/tres sucursales, rollback y ausencia posterior",
+    "migration": "sin aplicación a main; 0141 solo dentro de rollback; 0137–0139 ya estaban en rama aislada"
+  },
+  "review": {
+    "bug": "Sin head, movimientos huérfanos compensados podían producir una revisión nueva; saldo neto cero no prueba el estado histórico",
+    "fix": "Bloquear cualquier movimiento de esta identidad si no tiene revisión aplicada",
+    "scope": "Dos archivos de código/prueba; sin cambio de permisos, schema ni target",
+    "red": {
+      "exit": 1,
+      "log": "orphan-red-domain.txt",
+      "result": "La promesa resolvía applied:true,created:true,revision:1 con dos movimientos"
+    },
+    "green": {
+      "exit": 0,
+      "log": "orphan-green.txt",
+      "passed": 1
+    },
+    "testSetupCorrection": "Primer intento falló antes del dominio por SELECT de columnas no concedidas. La prueba se corrigió para leer solo id/quantity/batch/reference; no se amplió ningún grant. Log orphan-red.txt."
+  },
+  "verification": {
+    "unit": {
+      "passed": 83,
+      "files": 4,
+      "exit": 0,
+      "log": "unit.txt",
+      "note": "El argumento sales-ingest-pure.test.ts no existe y Vitest lo ignoró; no se acredita una suite de ese nombre. El parser real se ejercita desde sales-ingest-revisions.test.ts."
+    },
+    "traceUnit": {
+      "passed": 20,
+      "files": 2,
+      "exit": 0,
+      "log": "unit-traceability.txt"
+    },
+    "sql": {
+      "passed": 34,
+      "files": 5,
+      "exit": 0,
+      "log": "integration-final.txt",
+      "durationSeconds": 238.64,
+      "previousRun": {
+        "passed": 33,
+        "exit": 0,
+        "log": "integration.txt",
+        "scope": "antes de añadir el caso huérfano"
+      }
+    },
+    "typecheck": {
+      "exit": 0,
+      "log": "typecheck.txt"
+    },
+    "lint": {
+      "exit": 0,
+      "log": "lint-final.txt"
+    },
+    "diffCheck": {
+      "exit": 0
+    },
+    "build": {
+      "state": "passed",
+      "exit": 0,
+      "log": "build.txt",
+      "scope": "Writer corregido y sus dependencias; no acredita el nuevo catálogo de evidencia 0144"
+    },
+    "traceability": {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0,
+      "rows": 239,
+      "children": 83,
+      "errors": 0,
+      "acceptedTasks": 15
+    }
+  },
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sales-ingest-pure.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/sale-consumption-snapshot-db.test.ts tests/integration/sale-recipe-catalog-rls-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/services/sale-consumption-service.ts lib/services/sales-ingest-pure.ts lib/services/sales-ingest-plan.ts tests/integration/sale-consumption-application-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts lib/services/__tests__/sales-ingest-revisions.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+      "exit": 0
+    }
+  ],
+  "files": {
+    "lib/services/sale-consumption-service.ts": "c2426359d40f9ea01c0e155edd5f268344c3486303be9105449f67ea8dc98b15",
+    "tests/integration/sale-consumption-application-db.test.ts": "44e68c01caee18c0554c1a04652af8dace266343f02a809d5bfc344b3008c5fe",
+    "lib/services/sales-ingest-pure.ts": "4e7dd49882a1c19817f89cbb65d6b04b2be0871bdda98ace39d588c02b4532d4",
+    "lib/services/sales-ingest-plan.ts": "56928959b458ad5c8ee84a571b780ae194b90d96d12bb6c271d11d6d37e49355",
+    "lib/services/__tests__/sales-ingest-revisions.test.ts": "8be4243ffc3e9125cf3d314865e0db4a3a9a9dbd310a8e002a0929370c987bb1",
+    "lib/db/schema.ts": "3f4b5e59f63a04612c0935f2a674cd8cb76677ed38911ce45b032a9930895c44",
+    "drizzle/0139_inv01b_application_scope.sql": "adcd6dda1408584323d4444b9c82d606e00ddd94940b5a7124549f44311ab7f2"
+  },
+  "pending": [
+    "Sujeto canónico y servicio autenticado de recuperación",
+    "Recuperación auditada/idempotente, aceptación HTTP/UI y SEC-05"
+  ]
+}

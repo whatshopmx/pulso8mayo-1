@@ -1,0 +1,113 @@
+{
+  "task": "INV-01.c.recovery.provenance",
+  "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "recordedAt": "2026-11-14T15:52:21.414Z",
+  "continuedOn": "2026-11-14",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "sqlPrecision": "SELECT escalares/JSONB reales, sin DDL/DML; no prueba nueva de RLS",
+    "sqlRegression": "0143/0145 y fixtures runtime NOSUPERUSER/NOBYPASSRLS solo en rollback aislado",
+    "auth": "simulada en regresión de servicios/rutas; no corresponde al contrato puro de precisión",
+    "storage": "R2 simulado; ningún objeto real creado",
+    "main": "sin DDL/DML/despliegue"
+  },
+  "verification": {
+    "unit": {
+      "exit": 0,
+      "passed": 65,
+      "files": 10,
+      "log": "unit.txt"
+    },
+    "unitFinal": {
+      "exit": 0,
+      "passed": 21,
+      "files": 2,
+      "log": "unit-final.txt",
+      "scope": "Contrato 14 + histórico 7; veinte casos repetidos y uno adicional null/ausencia"
+    },
+    "sqlPrecision": {
+      "exit": 0,
+      "passed": 3,
+      "files": 1,
+      "log": "integration.txt"
+    },
+    "sqlRegression": {
+      "exit": 0,
+      "passed": 15,
+      "files": 3,
+      "log": "integration-final.txt",
+      "scope": "Precisión 3 + histórico 5 + persistencia 7"
+    },
+    "lint": {
+      "exit": 0,
+      "warnings": 0,
+      "log": "lint-final.txt"
+    },
+    "typecheck": {
+      "exit": 0,
+      "log": "typecheck.txt",
+      "scope": "Nuevo proceso 36567 tras corregir TS2322 del codec; proceso anterior 37425 terminal exit 2"
+    },
+    "build": {
+      "state": "running",
+      "sessionId": 13731,
+      "log": "build.txt",
+      "scope": "Build nuevo; no atribuir compilaciones anteriores"
+    },
+    "traceability": {
+      "exit": 0,
+      "rows": 239,
+      "planTasks": 86,
+      "children": 88,
+      "acceptedTasks": 15,
+      "errors": 0
+    },
+    "diffCheck": {
+      "exit": 0
+    }
+  },
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-historical.test.ts lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-historical.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-review-precision-db.test.ts tests/integration/sale-recovery-historical-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/services/sale-recovery-review.ts lib/services/__tests__/sale-recovery-review.test.ts tests/integration/sale-recovery-review-precision-db.test.ts lib/services/sale-recovery-historical-recipe.ts lib/services/__tests__/sale-recovery-historical.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "files": {
+    "lib/services/sale-recovery-review.ts": "b0287ef30d46315a2464dc84b0f3f6970391d6894bc4cb7b629d2355ad9206c8",
+    "lib/services/__tests__/sale-recovery-review.test.ts": "d2ab7f3e3fa652732500532097ca66235daa20fd3e705ad1f1560d8aa7ecf20e",
+    "tests/integration/sale-recovery-review-precision-db.test.ts": "cdb2f5122a05fc1a41a9eaa43ef540081d16909f67aa6b83e919cda61d5cddff"
+  },
+  "pending": [
+    "Resultado terminal del build actual",
+    "Fuente SALE/NO_PRIOR_CONSUMPTION concordante y registro transaccional desde servidor",
+    "Revisión independiente y aplicación auditada/idempotente con revalidación/carreras",
+    "V2 integrada con HTTP/sesión/objetos reales, AUD-02, UI y aceptación del padre/11.11"
+  ]
+}

@@ -19,6 +19,7 @@ import { purchaseTypeEnum, costCenters, serviceOrders } from './schema/service-o
 import { recurringContracts, paymentRunItems } from './schema/treasury';
 import { accountingJournals } from './schema/accounting';
 import { branchTerminals } from './schema/finance';
+import { evidence as recoveryEvidence } from './schema/evidence';
 
 // Re-export modular schema
 export * from './schema/index';
@@ -2985,7 +2986,7 @@ export const salesConsumptionRevisions = pgTable("sales_consumption_revisions", 
     ];
 }).enableRLS();
 
-// Immutable recovery records required by the published decision service.
+/** Expediente inmutable. Persistir un registro no acredita pruebas ni autoriza recuperar stock. */
 export const saleRecoveryProposals = pgTable("sale_recovery_proposals", {
     id: uuid("id").defaultRandom().primaryKey(),
     companyId: uuid("company_id").notNull().references(() => companies.id),
@@ -3052,6 +3053,53 @@ export const saleRecoveryDecisions = pgTable("sale_recovery_decisions", {
     ];
 }).enableRLS();
 
+/** Hecho documental; la aplicación debe comprobar la autoridad real y los bytes antes de escribirlo. */
+export const saleRecoveryAttestations = pgTable("sale_recovery_attestations", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    legacySaleId: uuid("legacy_sale_id").notNull().references(() => salesEntries.id),
+    evidenceId: uuid("evidence_id").notNull().references(() => recoveryEvidence.id),
+    idempotencyKey: uuid("idempotency_key").notNull(),
+    purpose: text("purpose", { enum: ["SALE", "RECIPE_VERSION", "NO_PRIOR_CONSUMPTION"] }).notNull(),
+    storageKey: text("storage_key").notNull(),
+    evidenceUpdatedAt: timestamp("evidence_updated_at").notNull(),
+    contentSha256: text("content_sha256").notNull(),
+    byteLength: integer("byte_length").notNull(),
+    sourceReference: text("source_reference").notNull(),
+    reason: text("reason").notNull(),
+    verifiedBy: text("verified_by").notNull().references(() => users.id),
+    verifiedRole: text("verified_role", { enum: ["ADMIN", "OWNER", "SUPER_ADMIN"] }).notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).default(sql`clock_timestamp()`).notNull(),
+}, (table) => {
+    const scope = sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+            OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`;
+    return [
+        unique("sale_recovery_attestation_idempotency_unique").on(table.companyId, table.idempotencyKey),
+        index("sale_recovery_attestation_subject_idx").on(table.companyId, table.branchId, table.legacySaleId),
+        check("sale_recovery_attestation_purpose_check", sql`${table.purpose} IN ('SALE','RECIPE_VERSION','NO_PRIOR_CONSUMPTION')`),
+        check("sale_recovery_attestation_actor_check", sql`${table.verifiedRole} IN ('ADMIN','OWNER','SUPER_ADMIN')
+            AND ${table.verifiedBy} = btrim(${table.verifiedBy}) AND length(${table.verifiedBy}) BETWEEN 1 AND 256`),
+        check("sale_recovery_attestation_content_check", sql`${table.contentSha256} ~ '^[a-f0-9]{64}$' AND ${table.byteLength} BETWEEN 1 AND 20971520`),
+        check("sale_recovery_attestation_source_check", sql`${table.sourceReference} = btrim(${table.sourceReference}) AND length(${table.sourceReference}) BETWEEN 1 AND 2000
+            AND ${table.reason} = btrim(${table.reason}) AND length(${table.reason}) BETWEEN 1 AND 2000`),
+        check("sale_recovery_attestation_key_check", sql`${table.storageKey} = 'companies/' || ${table.companyId}::text
+            || '/branches/' || ${table.branchId}::text || '/sales-recovery/' || ${table.legacySaleId}::text || '/' || ${table.evidenceId}::text`),
+        check("sale_recovery_attestation_time_check", sql`isfinite(${table.verifiedAt}) AND isfinite(${table.evidenceUpdatedAt})`),
+        pgPolicy("sale_recovery_attestation_tenant", { for: "all", to: "public", using: scope,
+            withCheck: sql`${scope} AND ${table.verifiedBy} = nullif(current_setting('app.current_actor_id', true), '')
+                AND EXISTS (SELECT 1 FROM public.evidence e
+                  JOIN public.sales_entries s ON s.id = ${table.legacySaleId} AND s.id::text = e.entity_id
+                  JOIN public.branches b ON b.id = s.branch_id AND b.company_id = s.company_id
+                  WHERE e.id = ${table.evidenceId} AND e.entity_type = 'SALE_RECOVERY' AND e.deleted_at IS NULL
+                    AND e.company_id = ${table.companyId} AND e.branch_id = ${table.branchId}
+                    AND s.company_id = ${table.companyId} AND s.branch_id = ${table.branchId}
+                    AND e.storage_key = ${table.storageKey} AND e.updated_at = ${table.evidenceUpdatedAt}
+                    AND ${table.verifiedAt} >= e.created_at AT TIME ZONE 'UTC'
+                    AND ${table.verifiedAt} >= e.updated_at AT TIME ZONE 'UTC')` }),
+    ];
+}).enableRLS();
 
 // M13: Daily sales cuts (corte de ventas diario por sucursal/turno/canal)
 // Ingested from POS files (upload/WhatsApp) or a manual fallback form.

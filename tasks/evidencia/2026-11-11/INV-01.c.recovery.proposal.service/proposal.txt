@@ -1,0 +1,24 @@
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+stdout | tests/integration/sale-recovery-proposals-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > persiste hash/estado/atestaciones exactos y repite sin duplicar; no cambia venta, movimientos ni revisiones 22608ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > bloquea fuente/producto/día/cobertura divergentes y no persiste propuesta parcial 20949ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > rechaza estado de adjunto obsoleto, objetos alterados y venta modificada sin crear expediente 20491ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > clave repetida no acepta otro motivo, solicitante o versión nativa de venta 20833ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > no transforma movimientos huérfanos, ambiguos o revisiones de proyección en consumo cero 22809ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > cantidades cero no ocultan movimientos ambiguos de ingredientes históricos 15242ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > fallo después del INSERT revierte el expediente aunque el llamador capture el error 15515ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > otra empresa/sucursal/venta y declaraciones de autoridad ajenas fallan sin acceder a R2 16456ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  14:29:16
+   Duration  169.79s (transform 2.27s, setup 663ms, import 4.86s, tests 160.57s, environment 1ms)
+

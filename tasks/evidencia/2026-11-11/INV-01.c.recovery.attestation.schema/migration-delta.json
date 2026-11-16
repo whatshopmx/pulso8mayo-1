@@ -1,0 +1,11 @@
+{
+  "tables": [
+    "public.sale_recovery_attestations"
+  ],
+  "enums": [],
+  "schemas": [],
+  "sequences": [],
+  "roles": [],
+  "policies": [],
+  "views": []
+}

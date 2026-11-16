@@ -1,0 +1,11 @@
+| Tarea | Qué falta |
+|---|---|
+| FC-15 — Nómina y caja chica | Contabilizar nómina confirmada, pagos y reposiciones sin duplicar gastos. |
+| FC-16 — Cierre de periodo | Asegurar consistencia al cerrar, bloquear pendientes y controlar reaperturas. |
+| FC-17 — Estados contables | Balanza, balance general y estado de resultados con detalle al mayor. |
+| FC-18 — Flujo realizado | Mostrar entradas/salidas reales y explicar diferencias contra el P&L operativo. |
+| FC-19 — Exportaciones | Expediente del cierre en PDF/CSV con pólizas, estados y pendientes. |
+| FC-20 — Piloto recuperable por empresa | Activación individual, recuperación ante fallos, desactivación y monitoreo. Ya adelantamos la configuración del demo. |
+| FC-21 — Validar primer cierre | Ejecutar y revisar un cierre completo antes de ampliar el piloto. |
+
+El demo ya tiene 23 cuentas, 15 reglas y apertura publicada. También falta verificar operativamente el trabajador de recuperación de Inngest y el uso de un rol SQL restringido.

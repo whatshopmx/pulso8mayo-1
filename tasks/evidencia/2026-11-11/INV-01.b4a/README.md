@@ -1,6 +1,6 @@
 # INV-01.b4a — Normalización y agrupación exacta de importación
 
-Continuación: 2026-11-12. Estado: código implementado; controles finales registrados en `results.json`. HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más diff local compartido. No hay commit automático ni migraciones nuevas. Se conserva el trabajo local contable y los contratos de b3/b3a.
+Continuación: 2026-11-12. Estado vigente: aceptado V1 en checkpoint INV-B3 (2026-11-13); evidencia actual en ese checkpoint y resultados históricos conservados en `results.json`. HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más diff local compartido. No hay commit automático ni migraciones nuevas. Se conserva el trabajo local contable y los contratos de b3/b3a.
 
 Archivos de implementación: `lib/services/sales-ingest-pure.ts`, `lib/services/sales-ingest-plan.ts`, `lib/services/__tests__/sales-ingest-revisions.test.ts`. El contrato de identidad/cantidad existente se reutiliza sin cambios. Esta fase es pura y no requiere V2/V3; conectar el plan al writer y comprobar el runtime corresponde a b4b.
 
@@ -25,3 +25,11 @@ Durante la limpieza, PowerShell también produjo `System.OutOfMemoryException`. 
 Salida final recuperada al cerrar el build: el worker de TypeScript **agotó el heap de Node cerca de 2089 MB**, `FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory`, worker exit **134** (wrapper exit 1). Por tanto el resultado final del segundo intento es OOM, no un error de tipos diagnosticado. [Extracto](global-build-failure.txt). Un último reintento del validador tras cambios solo documentales falló igualmente por `uv_os_get_passwd returned ENOMEM`; se conserva la validación anterior exit 0 del mapa, checklist y matriz ya actualizados. No se vuelve a ejecutar build sobre el equipo sin memoria disponible ni se cambia el estado a aceptado.
 
 Límites: b3/b3a conservan aceptación pendiente de checkpoint global; b4a no se marca aceptado mientras su dependencia no esté aceptada. Ninguna escritura de stock, API/UI, base desplegada ni fila funcional 11.11 se acepta con pruebas puras. No se aplican 0137–0140 a main.
+
+
+## Continuación del checkpoint 2026-11-13
+
+El bloqueo histórico de FC-13/OOM fue superado por builds globales posteriores exit 0. La [revisión actualizada](../CHECKPOINT-INV-B3/README.md) encontró un defecto adicional del writer: movimientos huérfanos compensados sin revisión se adoptaban como venta nueva. El caso falló antes de corregir y pasó con una guardia que exige recuperación; 34/34 SQL con regresión, 103 unitarias focales en dos ejecuciones, tipos globales y lint final exit 0. El build del código corregido está activo en sesión 40200; sigue pendiente la aceptación conjunta b3a → b3 → b4a. Los resultados previos permanecen como historial, no como diagnóstico vigente del frente contable. No acepta el padre b, HTTP/UI, carreras, recuperación ni fila 11.11.
+
+
+Cierre vigente: [checkpoint INV-B3](../CHECKPOINT-INV-B3/README.md) aceptado tras build final exit 0 y comparación de hashes. Este hijo queda aceptado en el entorno aislado; los gates históricos pendientes descritos arriba quedan sustituidos por ese cierre. Padre b, recuperación, API/UI y 11.11 permanecen abiertos.

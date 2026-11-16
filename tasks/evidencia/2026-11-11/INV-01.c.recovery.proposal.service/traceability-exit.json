@@ -1,0 +1,8 @@
+{
+  "code": 0,
+  "signal": null,
+  "args": [
+    "--experimental-strip-types",
+    "scripts/validate-faltantes.ts"
+  ]
+}

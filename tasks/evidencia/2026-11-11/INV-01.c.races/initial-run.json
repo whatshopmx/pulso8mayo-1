@@ -1,0 +1,161 @@
+{
+  "runId": "84b2f0d2-36eb-44a4-ad5a-21ed91c58a29",
+  "fixtures": [
+    {
+      "company": [
+        "b7cdff2b-7ec1-4cd2-94c4-ba1da7218726",
+        "2a3f3678-ded1-4138-864c-d9f1af03540f"
+      ],
+      "branch": [
+        "be23896e-c69b-4404-a2d4-8a3f7ee98b27",
+        "9aad1adc-58e1-4970-b593-443caa50561c"
+      ],
+      "item": [
+        "961ac9a1-f7b1-4c62-8a92-6858983c277c",
+        "e8fd2dc7-1275-48b4-838d-959c5492bf54"
+      ],
+      "recipe": [
+        "5b7c1e9c-c20f-44df-bab0-a7efda1c0d1a",
+        "4f9db494-f6fe-4c93-b6dc-6a1115f1e7ca"
+      ],
+      "batch": [
+        "792f9079-5a90-483b-9b00-d170df962457",
+        "48c4872f-689b-4177-97ed-40381725e710"
+      ]
+    },
+    {
+      "company": [
+        "2178b24f-cfcf-4a08-a3b7-cdb9f41042da",
+        "a3ed52bc-b679-4572-8505-ba39742d5471"
+      ],
+      "branch": [
+        "601f8735-e3ed-47b6-a0e4-a2639b4d5718",
+        "b83a4677-1b31-421c-a5f1-be1c41880e9e"
+      ],
+      "item": [
+        "47fa44e8-ed6e-4abe-a444-e08169d36bac",
+        "15d90ea9-fc7d-400a-844c-b6b4d013ef47"
+      ],
+      "recipe": [
+        "0c16a9f2-2d12-4679-9bf4-e2359a887f22",
+        "8063d01a-0618-4245-908c-dc837fd15276"
+      ],
+      "batch": [
+        "8e4876ff-172b-435b-bd04-1dbbae7bb017",
+        "0a6a83cc-da94-4832-b99b-02bdda5a30a3"
+      ]
+    },
+    {
+      "company": [
+        "92183b93-8b9d-42b1-8c50-67b253eb5574",
+        "1e675098-281b-4ad0-9170-8e16ce791947"
+      ],
+      "branch": [
+        "eeb4afbc-0202-4ffc-a4f8-7cd362abed36",
+        "3ef7d792-3761-401f-bf74-d25ee8ddb79b"
+      ],
+      "item": [
+        "6ab96caf-7de8-4557-a1b0-841772cee617",
+        "de1f1d0f-efdb-4644-9709-8fe3657f49f9"
+      ],
+      "recipe": [
+        "69fc6cf3-ed28-456e-9494-6b1f58a457c4",
+        "3e82a5b7-ce7e-4ca5-b8bf-11ae54a89020"
+      ],
+      "batch": [
+        "1d7191ce-b494-4dfa-97f8-54343a423445",
+        "3d39a035-5007-4323-90da-08f8e8fe10c4"
+      ]
+    },
+    {
+      "company": [
+        "4363342b-977c-48aa-9eee-db70ad0c47d2",
+        "a8b7f89b-fc2e-49bb-9141-6d383c9dcbec"
+      ],
+      "branch": [
+        "2e9ac69d-8275-4b9c-9273-dec07555be04",
+        "26b23279-6b6e-45a3-a6ee-8cfb2230e117"
+      ],
+      "item": [
+        "92d402c5-15aa-4745-9be3-d3afccf64bc9",
+        "7ff4a910-a8f4-4f7a-b827-82a91773b241"
+      ],
+      "recipe": [
+        "e1a47d0a-569a-45ba-b853-57c17513b99f",
+        "71cac10d-150a-45db-969d-d1b7221fb4d0"
+      ],
+      "batch": [
+        "6e612273-be10-4b8e-871c-d09d961a973b",
+        "da85b773-8b62-4c18-bc44-8600abd36b65"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "pid": 1002,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1001,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1002,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1002,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1001,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1002,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1001,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1001,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1002,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1001,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1001,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1002,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1002,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    }
+  ],
+  "retained": "Fixtures sintéticas con historial append-only en rama aislada; no se deshabilitan protecciones"
+}

@@ -1,0 +1,48 @@
+{
+  "task": "INV-01.c.recovery.objects",
+  "headAtStart": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "environment": "Windows local, Node 22.17.1; SDK R2 simulado, sin acceso a objetos reales",
+  "state": "código implementado",
+  "verification": {
+    "tests": {
+      "exit": 0,
+      "passed": 62,
+      "files": 5
+    },
+    "typecheck": {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    "lint": {
+      "exit": 0,
+      "warnings": "Una advertencia previa no-unused-vars en fileExistsInR2"
+    },
+    "diffCheck": {
+      "exit": 0
+    },
+    "build": {
+      "state": "passed",
+      "exit": 0,
+      "log": "build-network.txt",
+      "previousAttempt": {
+        "exit": 1,
+        "reason": "Google Fonts connection failure",
+        "log": "build.txt"
+      }
+    },
+    "traceability": {
+      "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+      "exit": 0,
+      "rows": 239,
+      "children": 81,
+      "errors": 0
+    }
+  },
+  "pending": [
+    "V2 con objetos privados reales",
+    "Persistencia de expedientes/decisiones con aislamiento",
+    "Carga de referencias y rol desde servidor",
+    "Aplicación auditada idempotente y carreras"
+  ],
+  "accepted": false
+}

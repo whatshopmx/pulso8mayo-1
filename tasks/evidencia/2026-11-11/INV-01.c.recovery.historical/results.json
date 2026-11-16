@@ -1,0 +1,133 @@
+{
+  "task": "INV-01.c.recovery.historical",
+  "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "recordedAt": "2026-11-14T15:52:21.444Z",
+  "continuedOn": "2026-11-14",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "runtime": "pulso_app NOSUPERUSER/NOBYPASSRLS",
+    "ddl": "0145 exclusivamente rollback; ausencia posterior de tabla y empresas sintéticas",
+    "auth": "simulada",
+    "storage": "R2 simulado; bytes reales de fixture JSON, hash calculado sobre bytes",
+    "mutableRecipeFixture": "RESET ROLE solo para modificar receta sintética; SET LOCAL ROLE pulso_app antes de cada lectura; sin grants"
+  },
+  "verification": {
+    "unit": {
+      "exit": 0,
+      "passed": 60,
+      "files": 10,
+      "ownCases": 6,
+      "log": "unit.txt"
+    },
+    "sqlRegression": {
+      "exit": 0,
+      "passed": 9,
+      "files": 2,
+      "log": "integration.txt",
+      "scope": "Histórico 4 + atestaciones 5, antes de guardia adicional"
+    },
+    "sqlFinal": {
+      "exit": 0,
+      "passed": 5,
+      "files": 1,
+      "log": "integration-final.txt",
+      "scope": "Cinco casos propios; repite cuatro de la regresión anterior"
+    },
+    "lint": {
+      "exit": 0,
+      "warnings": 0,
+      "log": "lint-final.txt"
+    },
+    "typecheck": {
+      "exit": 0,
+      "sessionId": 36567,
+      "log": "../INV-01.c.recovery.provenance/typecheck.txt",
+      "scope": "Chequeo global posterior a corrección del codec y contrato v2"
+    },
+    "build": {
+      "state": "running",
+      "sessionId": 13731,
+      "log": "../INV-01.c.recovery.provenance/build.txt"
+    },
+    "traceability": {
+      "exit": 0,
+      "rows": 239,
+      "planTasks": 86,
+      "children": 87,
+      "acceptedTasks": 15,
+      "errors": 0
+    },
+    "diffCheck": {
+      "exit": 0
+    },
+    "typecheckOriginal": {
+      "exit": 2,
+      "sessionId": 37425,
+      "log": "typecheck.txt",
+      "scope": "TS2322 del codec propio: yieldPercent opcional inferido con strictNullChecks=false; corregido sin cast"
+    },
+    "followupUnit": {
+      "exit": 0,
+      "passed": 21,
+      "files": 2,
+      "log": "../INV-01.c.recovery.provenance/unit-final.txt",
+      "scope": "Histórico 7 + revisión 14; no sumar a casos iniciales como distintos"
+    },
+    "followupSQL": {
+      "exit": 0,
+      "passed": 15,
+      "files": 3,
+      "log": "../INV-01.c.recovery.provenance/integration-final.txt",
+      "scope": "Histórico 5 + precisión 3 + persistencia 7"
+    }
+  },
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-historical.test.ts lib/services/__tests__/sale-recovery-attestations.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts lib/services/__tests__/sale-recovery-attachments.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-historical-db.test.ts tests/integration/sale-recovery-attestations-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0,
+      "scope": "Antes del quinto caso y guardia de pertenencia de identidad de receta"
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-historical-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/services/sale-recovery-historical-recipe.ts lib/services/sale-recovery-historical.ts lib/services/__tests__/sale-recovery-historical.test.ts tests/integration/sale-recovery-historical-db.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "files": {
+    "lib/services/sale-recovery-historical-recipe.ts": "be6d438e74e92f1347dc4cf9a8d49166b8465b2aac83bd33bcfced7d72406cc4",
+    "lib/services/sale-recovery-historical.ts": "f9f962acdcb7ac59e2c395e626807d03a6ea05b3dab832b8ffd7ece451ef12a9",
+    "lib/services/__tests__/sale-recovery-historical.test.ts": "b29f9e8a34cbc3abcc4458ee703efa4dd58868fe333cb1477e63d6b0651ab250",
+    "tests/integration/sale-recovery-historical-db.test.ts": "b48c11c4199c8e0cf1de8c38c28b673b8ca743c86c107eb4a94d8172a04626fe"
+  },
+  "pending": [
+    "Build actual en curso; ver recovery.provenance",
+    "HTTP/sesión/objetos privados reales; no V2 integrada",
+    "Fuente SALE y NO_PRIOR_CONSUMPTION concordantes, día operativo resuelto y receta histórica vinculada al expediente",
+    "Propuesta/decisión persistidas del servidor y aplicación auditada/idempotente con revalidación/carreras",
+    "AUD-02, UI y aceptación del padre/11.11"
+  ],
+  "previousFiles": {
+    "lib/services/sale-recovery-historical-recipe.ts": "be6d438e74e92f1347dc4cf9a8d49166b8465b2aac83bd33bcfced7d72406cc4",
+    "lib/services/sale-recovery-historical.ts": "f9f962acdcb7ac59e2c395e626807d03a6ea05b3dab832b8ffd7ece451ef12a9",
+    "lib/services/__tests__/sale-recovery-historical.test.ts": "b29f9e8a34cbc3abcc4458ee703efa4dd58868fe333cb1477e63d6b0651ab250",
+    "tests/integration/sale-recovery-historical-db.test.ts": "b48c11c4199c8e0cf1de8c38c28b673b8ca743c86c107eb4a94d8172a04626fe"
+  }
+}

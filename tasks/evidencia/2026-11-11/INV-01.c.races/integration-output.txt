@@ -1,0 +1,9 @@
+Command: NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-concurrency-db.test.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads
+
+ Test Files  2 passed (2)
+      Tests  21 passed (21)
+   Start at  13:39:41
+   Duration  156.06s (transform 628ms, setup 92ms, import 2.32s, tests 152.72s, environment 0ms)
+
+
+Process exit: 0

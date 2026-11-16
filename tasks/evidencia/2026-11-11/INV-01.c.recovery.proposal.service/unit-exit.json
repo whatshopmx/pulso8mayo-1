@@ -1,0 +1,19 @@
+{
+  "code": 0,
+  "signal": null,
+  "args": [
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "--configLoader",
+    "bundle",
+    "lib/services/__tests__/sale-recovery-proposals.test.ts",
+    "lib/services/__tests__/sale-recovery-sources.test.ts",
+    "lib/services/__tests__/sale-recovery-source-documents.test.ts",
+    "lib/services/__tests__/sale-recovery-review.test.ts",
+    "lib/services/__tests__/sale-recovery-historical.test.ts",
+    "lib/services/__tests__/sale-recovery-attestations.test.ts",
+    "tests/unit/faltantes-traceability.test.ts",
+    "--maxWorkers=1",
+    "--pool=threads"
+  ]
+}

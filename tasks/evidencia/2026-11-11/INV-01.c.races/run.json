@@ -1,0 +1,347 @@
+{
+  "runId": "0ae7b614-83b9-4272-a547-1dacac469e52",
+  "fixtures": [
+    {
+      "company": [
+        "9eaee15d-0da8-4871-8427-1664f62ba3f2",
+        "eec804f0-5976-4f34-b2a6-4745cd47bd0d"
+      ],
+      "branch": [
+        "ac31b576-3652-4ca6-a6aa-7e8b35f4c6fc",
+        "a7125c13-8214-4a70-9fd6-4a4ac23af6d8"
+      ],
+      "item": [
+        "586b67ab-322c-465e-905f-a48138edd9d5",
+        "ec1dd957-7533-40a2-927b-2be71df6e611"
+      ],
+      "recipe": [
+        "efc76c37-3e47-40e1-81d9-3ca0683c83a6",
+        "fd63a52c-1657-416e-8766-cb4f5b01bc95"
+      ],
+      "batch": [
+        "13b514b3-4b55-4bf1-a96d-c0fd3ddddfc5",
+        "13360084-85f8-4da7-9c56-66d1d777e5a9"
+      ]
+    },
+    {
+      "company": [
+        "82f71d51-e171-4a3d-933a-28b2b27db59a",
+        "c69dc787-d660-4b1c-80f7-eea5ad6d51a9"
+      ],
+      "branch": [
+        "9d4bd7e5-5ff9-4ef7-b36d-39a3464047c7",
+        "40854b94-bfbc-4b6b-b75b-e35b1ebee115"
+      ],
+      "item": [
+        "2df63a49-1e54-4159-b2b3-0fbe63068974",
+        "d36a43ac-fe0a-45d6-9ee5-e71efb14fd71"
+      ],
+      "recipe": [
+        "f0e4901e-9dc2-4efb-8e1e-6a81f74493af",
+        "3183770a-517d-41f2-a273-af19565069df"
+      ],
+      "batch": [
+        "c43bc0e3-ab90-43c9-8354-0d934ee919a9",
+        "49f02767-4efd-4ab9-8250-00b49afcacbb"
+      ]
+    },
+    {
+      "company": [
+        "8cfdeab8-1b0d-483a-85c7-86a9c877c6ae",
+        "0ff84f7d-dcd6-4ed2-852e-797f5f0bfd3c"
+      ],
+      "branch": [
+        "20c71c3c-d3de-4386-865e-5c73eb1e7526",
+        "7283b3de-8cc1-4b3f-9b33-b18e362b9d83"
+      ],
+      "item": [
+        "2fcbcd6d-ec76-4e43-9439-5d8c450053e5",
+        "65b5fe1f-4bb1-4709-b733-41cc6671ad3c"
+      ],
+      "recipe": [
+        "2351d36e-2a4f-4a5e-90b2-7da3d31f898d",
+        "0e476369-9e7c-4990-a591-9a9477b82b75"
+      ],
+      "batch": [
+        "1ba4dfd9-f1d5-4f1f-b75d-308552d53e0b",
+        "d932b309-acc1-4333-872a-58aa24e65ce7"
+      ]
+    },
+    {
+      "company": [
+        "c8848fc8-ec8f-42c2-97c0-86f54312f536",
+        "ba39517a-f430-4bf2-96ab-0b3ba7921cdd"
+      ],
+      "branch": [
+        "cf74efc9-9ff3-4bbf-8fa0-1a2c2d2b0824",
+        "1f6cb279-d446-4a72-84f2-12887f6a41b6"
+      ],
+      "item": [
+        "fcfff895-bf09-4f56-bcda-3cf7e5f14592",
+        "26b78792-e33b-4664-ad3f-2d9ae04c560e"
+      ],
+      "recipe": [
+        "bd80faf1-4d78-40dc-a308-2c331142a4eb",
+        "50afd4c9-e236-4fe5-aad4-538689a64314"
+      ],
+      "batch": [
+        "f9875671-01a4-4e05-9325-68cb9d6dd42b",
+        "af177b18-0860-4fd7-b726-3975f5cccdcf"
+      ]
+    },
+    {
+      "company": [
+        "161174f4-d743-47e0-bf8d-09222cebfe9d",
+        "063d6779-9ea2-47c5-b621-6795d011831e"
+      ],
+      "branch": [
+        "9bc4e0c8-6172-4875-aa07-bbdb8f15684f",
+        "efc5ede9-8fd2-4016-a932-89d74fb27993"
+      ],
+      "item": [
+        "3fccf11b-bc87-49c8-a504-ae0e22e85e02",
+        "9e5f7a02-0dfa-4abf-be71-cf2a28cd8a39"
+      ],
+      "recipe": [
+        "799d2c3c-96f9-414c-9427-63622bf90e8e",
+        "7afbb0cd-bd19-459c-b9e0-516d5c3cd970"
+      ],
+      "batch": [
+        "ce8cf2f4-b786-4548-ad9f-ce1b98ea7449",
+        "dbbc447e-6217-4259-8242-ee20fa2a2620"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1624,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1624,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1624,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1624,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1625,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    },
+    {
+      "pid": 1624,
+      "actor": "pulso_app",
+      "isolation": "serializable"
+    }
+  ],
+  "states": [
+    {
+      "companyId": "9eaee15d-0da8-4871-8427-1664f62ba3f2",
+      "stock": "10.0000",
+      "foreignStock": "20.0000",
+      "sales": [
+        {
+          "quantitySold": "10.00",
+          "totalRevenue": 1000,
+          "saleDate": "2026-11-13T00:00:00.000Z"
+        }
+      ],
+      "revisions": [
+        {
+          "revision": 1,
+          "quantitySold": "10.00",
+          "identityId": "0dc69d82-2847-4f8a-be64-586d0aa4eeba"
+        }
+      ],
+      "movements": [
+        {
+          "id": "3622611e-f646-4397-affc-8a63b0e8a03a",
+          "quantityChange": "-10.0000",
+          "referenceId": "salecons:0dc69d82-2847-4f8a-be64-586d0aa4eeba"
+        }
+      ]
+    },
+    {
+      "companyId": "82f71d51-e171-4a3d-933a-28b2b27db59a",
+      "stock": "12.0000",
+      "foreignStock": "20.0000",
+      "sales": [
+        {
+          "quantitySold": "8.00",
+          "totalRevenue": 800,
+          "saleDate": "2026-11-13T00:00:00.000Z"
+        }
+      ],
+      "revisions": [
+        {
+          "revision": 2,
+          "quantitySold": "8.00",
+          "identityId": "9817545f-f50a-4967-a228-e34301889287"
+        },
+        {
+          "revision": 1,
+          "quantitySold": "10.00",
+          "identityId": "9817545f-f50a-4967-a228-e34301889287"
+        }
+      ],
+      "movements": [
+        {
+          "id": "a66d9811-f962-4266-90c5-34e02a5578b7",
+          "quantityChange": "-10.0000",
+          "referenceId": "salecons:9817545f-f50a-4967-a228-e34301889287"
+        },
+        {
+          "id": "aec182ba-9e06-4398-9859-5647135b5e54",
+          "quantityChange": "2.0000",
+          "referenceId": "salecons:9817545f-f50a-4967-a228-e34301889287:reverse:a66d9811-f962-4266-90c5-34e02a5578b7"
+        }
+      ]
+    },
+    {
+      "companyId": "8cfdeab8-1b0d-483a-85c7-86a9c877c6ae",
+      "stock": "13.0000",
+      "foreignStock": "20.0000",
+      "sales": [
+        {
+          "quantitySold": "7.00",
+          "totalRevenue": 700,
+          "saleDate": "2026-11-13T00:00:00.000Z"
+        }
+      ],
+      "revisions": [
+        {
+          "revision": 1,
+          "quantitySold": "3.00",
+          "identityId": "356b876b-aa58-4774-b792-6c5087942351"
+        },
+        {
+          "revision": 1,
+          "quantitySold": "4.00",
+          "identityId": "b515f719-dc86-42ae-b0ce-8948a222a87d"
+        }
+      ],
+      "movements": [
+        {
+          "id": "5610a98e-d15b-4b83-acaa-839e8f313291",
+          "quantityChange": "-3.0000",
+          "referenceId": "salecons:356b876b-aa58-4774-b792-6c5087942351"
+        },
+        {
+          "id": "1d1b833a-fbec-493b-8d4c-078f9e26bb4a",
+          "quantityChange": "-4.0000",
+          "referenceId": "salecons:b515f719-dc86-42ae-b0ce-8948a222a87d"
+        }
+      ]
+    },
+    {
+      "companyId": "c8848fc8-ec8f-42c2-97c0-86f54312f536",
+      "stock": "5.0000",
+      "foreignStock": "20.0000",
+      "sales": [
+        {
+          "quantitySold": "15.00",
+          "totalRevenue": 1500,
+          "saleDate": "2026-11-14T00:00:00.000Z"
+        }
+      ],
+      "revisions": [
+        {
+          "revision": 1,
+          "quantitySold": "15.00",
+          "identityId": "51786863-ac5a-4920-90ad-124f9348d3b2"
+        }
+      ],
+      "movements": [
+        {
+          "id": "912ca457-68b7-4c6b-a6d7-080ffe1cf0bf",
+          "quantityChange": "-15.0000",
+          "referenceId": "salecons:51786863-ac5a-4920-90ad-124f9348d3b2"
+        }
+      ]
+    },
+    {
+      "companyId": "161174f4-d743-47e0-bf8d-09222cebfe9d",
+      "stock": "20.0000",
+      "foreignStock": "20.0000",
+      "sales": [
+        {
+          "quantitySold": "1.00",
+          "totalRevenue": 100,
+          "saleDate": "2026-11-13T00:00:00.000Z"
+        }
+      ],
+      "revisions": [],
+      "movements": []
+    },
+    {
+      "companyId": "161174f4-d743-47e0-bf8d-09222cebfe9d",
+      "stock": "20.0000",
+      "foreignStock": "20.0000",
+      "sales": [
+        {
+          "quantitySold": "1.00",
+          "totalRevenue": 100,
+          "saleDate": "2026-11-13T00:00:00.000Z"
+        }
+      ],
+      "revisions": [],
+      "movements": []
+    }
+  ],
+  "retained": "Fixtures sintéticas con historial append-only en rama aislada; no se deshabilitan protecciones"
+}

@@ -349,6 +349,83 @@ export async function main() {
     await db.insert(breakReminderLogs).values(reminderValues);
   }
 
+  console.log("Creating today's active shifts & upcoming schedule...");
+  const todayStr = seedDate(0, now).toISOString().split("T")[0];
+  const todayStaff = [...EMPLOYEES, USER_GERENTE];
+  const todayShiftValues = todayStaff.map((userId, idx) => {
+    const role = userId === USER_GERENTE ? "GERENTE" : userId === USER_SUPERVISOR ? "SUPERVISOR" : "EMPLEADO";
+    const templateIdx = userId === USER_SUPERVISOR || userId === USER_GERENTE ? 3 : idx % 2;
+    const tmpl = SHIFT_TEMPLATES_DATA[templateIdx];
+    return {
+      companyId: COMPANY_ID,
+      userId,
+      branchId: branchForUser(userId),
+      shiftDate: todayStr,
+      startTime: tmpl.startTime,
+      endTime: tmpl.endTime,
+      templateId: tmplRows[templateIdx]?.id,
+      role,
+      status: "PUBLISHED" as const,
+      createdBy: USER_ADMIN,
+    };
+  });
+  const insertedTodayShifts = await db.insert(plannedShifts).values(todayShiftValues).returning({
+    id: plannedShifts.id,
+    userId: plannedShifts.userId,
+    branchId: plannedShifts.branchId,
+    startTime: plannedShifts.startTime,
+    endTime: plannedShifts.endTime,
+  });
+
+  const activeCheckIn = new Date(now.getTime() - 45 * 60000);
+  await db.insert(shiftSessions).values(
+    insertedTodayShifts.map((ps) => ({
+      plannedShiftId: ps.id,
+      userId: ps.userId,
+      branchId: ps.branchId,
+      status: "IN_PROGRESS",
+      scheduledStartTime: ps.startTime,
+      scheduledEndTime: ps.endTime,
+      checkInTime: activeCheckIn,
+      startedAt: activeCheckIn,
+      endedAt: null,
+      totalBreakMinutes: 0,
+      totalWorkMinutes: 45,
+      overtimeMinutes: 0,
+      lateMinutes: 0,
+      complianceFlags: { lateCheckIn: false, missedBreak: false, overtime: false } as unknown as Record<string, unknown>,
+      requiresApproval: false,
+    }))
+  );
+
+  const upcomingShiftValues: any[] = [];
+  for (let ahead = 1; ahead <= 3; ahead++) {
+    const futureDate = seedDate(ahead, now);
+    if (futureDate.getUTCDay() === 0) continue;
+    const futureStr = futureDate.toISOString().split("T")[0];
+    for (let idx = 0; idx < todayStaff.length; idx++) {
+      const userId = todayStaff[idx];
+      const role = userId === USER_GERENTE ? "GERENTE" : userId === USER_SUPERVISOR ? "SUPERVISOR" : "EMPLEADO";
+      const templateIdx = userId === USER_SUPERVISOR || userId === USER_GERENTE ? 3 : idx % 2;
+      const tmpl = SHIFT_TEMPLATES_DATA[templateIdx];
+      upcomingShiftValues.push({
+        companyId: COMPANY_ID,
+        userId,
+        branchId: branchForUser(userId),
+        shiftDate: futureStr,
+        startTime: tmpl.startTime,
+        endTime: tmpl.endTime,
+        templateId: tmplRows[templateIdx]?.id,
+        role,
+        status: "PUBLISHED",
+        createdBy: USER_ADMIN,
+      });
+    }
+  }
+  if (upcomingShiftValues.length > 0) {
+    await db.insert(plannedShifts).values(upcomingShiftValues);
+  }
+
   console.log("Phase 6 complete!");
 }
 

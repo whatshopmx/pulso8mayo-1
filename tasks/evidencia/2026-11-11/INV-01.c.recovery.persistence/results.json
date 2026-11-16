@@ -1,0 +1,82 @@
+{
+  "task": "INV-01.c.recovery.persistence",
+  "headAtStart": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "runtime": "pulso_app NOBYPASSRLS NOSUPERUSER via SET LOCAL ROLE",
+    "migration": "0143 ejecutada dentro de rollback en cada caso; tablas ausentes después de cada transacción; main sin cambios"
+  },
+  "verification": {
+    "unit": {
+      "exit": 0,
+      "passed": 62,
+      "files": 5,
+      "log": "unit.txt"
+    },
+    "integration": {
+      "exit": 0,
+      "passed": 18,
+      "files": 3,
+      "newTests": 7,
+      "log": "integration.txt"
+    },
+    "typecheck": {
+      "exit": 0
+    },
+    "lint": {
+      "exit": 0,
+      "priorWarnings": 3
+    },
+    "diffCheck": {
+      "exit": 0
+    },
+    "build": {
+      "state": "passed",
+      "exit": 0,
+      "log": "build.txt",
+      "scope": "Modelo persistido y código previo a la corrección de movimientos huérfanos del checkpoint INV-B3"
+    },
+    "traceability": {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0,
+      "rows": 239,
+      "children": 82,
+      "errors": 0,
+      "priorAttempt": "pnpm exec tsx no arrancó por ENOMEM durante build simultáneo; mismo validador ejecutado con TypeScript stripping nativo de Node 22"
+    }
+  },
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-storage.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-identity-db.test.ts tests/integration/sale-consumption-application-schema-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/db/schema.ts tests/integration/sale-recovery-persistence-db.test.ts",
+      "exit": 0
+    }
+  ],
+  "files": {
+    "lib/db/schema.ts": "3f4b5e59f63a04612c0935f2a674cd8cb76677ed38911ce45b032a9930895c44",
+    "drizzle/0143_inv01c_recovery_review.sql": "4775d7cb43c8e53f6b0f3ca114e2d067e5d97fc2e945267547991fd2bbf7ed19",
+    "drizzle/meta/0143_snapshot.json": "76f7ddc15249d9bed0cf9f3ab8a773eba6d5fa827d61d9243c77cb4adfe35644",
+    "drizzle/meta/_journal.json": "6604ad84ff42275668444937d62971c99554502ec3f98b935a2fc0eed9b201b0",
+    "tests/integration/sale-recovery-persistence-db.test.ts": "8d195f9a0c3a02da0fab438c620fdd954ca4c7aa47a0ac5925c0d1af7fe6f746"
+  },
+  "pending": [
+    "Servicio de carga/registro desde sesión, rol y referencias propias",
+    "Sujeto canónico de evidencia de recuperación",
+    "Writer auditado e idempotente con revalidación bajo lock",
+    "Aplicación de migración al entorno operativo y aceptación integrada"
+  ]
+}

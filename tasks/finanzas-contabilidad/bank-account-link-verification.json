@@ -1,0 +1,41 @@
+{
+  "verifiedAt": "2026-11-12T21:54:46.117Z",
+  "commit": "b91355ba8a0167aef02089118fb2b1606c9936db",
+  "ci": {
+    "conclusion": "success",
+    "head_sha": "b91355ba8a0167aef02089118fb2b1606c9936db",
+    "html_url": "https://github.com/whatshopmx/pulso8mayo-1/actions/runs/43313802847",
+    "status": "completed",
+    "updated_at": "2026-11-12T21:52:50Z"
+  },
+  "checks": {
+    "focusedBrowserTests": 6,
+    "preparationRegressionBrowserTests": 5,
+    "financialUnitTests": 203,
+    "typecheckExit": 0,
+    "globalLintExit": 0,
+    "globalLintErrors": 0,
+    "globalLintWarnings": 2435,
+    "buildExit": 0
+  },
+  "live": {
+    "url": "https://pulso-horeca.netlify.app/dashboard/finance/settings/bank-accounts",
+    "isolatedBrowser": true,
+    "seedLoginSucceeded": true,
+    "newBankAccountingActionVisible": true,
+    "dialogReadSucceeded": true,
+    "sharedMixedPurposeExplanationVisible": true,
+    "emptyCatalogExplained": true,
+    "inlineAccountCreationFormVisible": true,
+    "consoleErrors": 0,
+    "consoleWarnings": 0,
+    "writesToBusinessData": false,
+    "configuredBankLink": false
+  },
+  "limits": [
+    "La comprobación publicada abre y consulta el diálogo; no crea cuentas ni guarda vínculos en la base del demo.",
+    "Guardado, creación, reapertura y errores se prueban con componentes/CSS reales y HTTP/sesión sintéticos en Playwright.",
+    "La suite general local encontró fallos de inventario concurrente y fue interrumpida sin declararse aprobada. El CI del commit limpio terminó success, incluidas unitarias, lint y build."
+  ],
+  "localDocumentation": "tasks/finanzas-contabilidad/bank-account-link.md"
+}

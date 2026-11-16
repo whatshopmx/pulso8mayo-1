@@ -1,0 +1,49 @@
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+stdout | tests/integration/sale-recovery-proposals-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > persiste hash/estado/atestaciones exactos y repite sin duplicar; no cambia venta, movimientos ni revisiones 13933ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > bloquea fuente/producto/día/cobertura divergentes y no persiste propuesta parcial 19171ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > rechaza estado de adjunto obsoleto, objetos alterados y venta modificada sin crear expediente 23628ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > clave repetida no acepta otro motivo, solicitante o versión nativa de venta 26540ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > no transforma movimientos huérfanos, ambiguos o revisiones de proyección en consumo cero 20050ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > fallo después del INSERT revierte el expediente aunque el llamador capture el error 18738ms
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > otra empresa/sucursal/venta y declaraciones de autoridad ajenas fallan sin acceder a R2 16588ms
+stdout | tests/integration/sale-recovery-historical-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+
+ ✓ tests/integration/sale-recovery-historical-db.test.ts > receta histórica desde atestación SQL y bytes verificados > lee finalidad/version nativa, verifica bytes y reconstruye receta sin catálogo mutable ni DML 8895ms
+ ✓ tests/integration/sale-recovery-historical-db.test.ts > receta histórica desde atestación SQL y bytes verificados > no lee objetos con versión obsoleta por un microsegundo, propósito ajeno o adjunto retirado 13416ms
+ ✓ tests/integration/sale-recovery-historical-db.test.ts > receta histórica desde atestación SQL y bytes verificados > no acepta bytes cambiados/ausentes ni JSON inválido aunque tenga una atestación 15765ms
+ ✓ tests/integration/sale-recovery-historical-db.test.ts > receta histórica desde atestación SQL y bytes verificados > rechaza una venta cuyo ID de receta apunta a otra empresa antes de R2 9320ms
+ ✓ tests/integration/sale-recovery-historical-db.test.ts > receta histórica desde atestación SQL y bytes verificados > sujeto/tenant/campos de autoridad ajenos y rol no administrativo fallan antes de R2 8712ms
+stdout | tests/integration/sale-recovery-persistence-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: ⚙️  override existing env vars with { override: true }
+
+ ✓ tests/integration/sale-recovery-persistence-db.test.ts > INV-01.c.recovery.persistence: expediente inmutable y revisión aislada > sin contexto no lee y scope de empresa/sucursal filtra tablas sin WHERE 7300ms
+ ✓ tests/integration/sale-recovery-persistence-db.test.ts > INV-01.c.recovery.persistence: expediente inmutable y revisión aislada > habilita solo SELECT/INSERT con RLS forzada en ambas tablas 6636ms
+ ✓ tests/integration/sale-recovery-persistence-db.test.ts > INV-01.c.recovery.persistence: expediente inmutable y revisión aislada > conserva aprobación/rechazo y restringe su lectura a la sucursal 7289ms
+ ✓ tests/integration/sale-recovery-persistence-db.test.ts > INV-01.c.recovery.persistence: expediente inmutable y revisión aislada > rechaza duplicar clave idempotente, omitir envelope o inventar hashes 8072ms
+ ✓ tests/integration/sale-recovery-persistence-db.test.ts > INV-01.c.recovery.persistence: expediente inmutable y revisión aislada > no acepta hashes/solicitante/scope distintos ni autoaprobación o rol insuficiente 10341ms
+ ✓ tests/integration/sale-recovery-persistence-db.test.ts > INV-01.c.recovery.persistence: expediente inmutable y revisión aislada > deniega escrituras laterales aunque el JSON declare la empresa propia 6348ms
+ ✓ tests/integration/sale-recovery-persistence-db.test.ts > INV-01.c.recovery.persistence: expediente inmutable y revisión aislada > no reescribe ni borra hechos con runtime o dueño ordinario 11164ms
+stdout | tests/integration/sale-recovery-sources-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: ⚙️  override existing env vars with { override: true }
+
+ ✓ tests/integration/sale-recovery-sources-db.test.ts > fuentes SALE y NO_PRIOR_CONSUMPTION desde SQL runtime y bytes > retorna declaraciones, ingreso desconocido y metadatos nativos sin crear hechos 13381ms
+ ✓ tests/integration/sale-recovery-sources-db.test.ts > fuentes SALE y NO_PRIOR_CONSUMPTION desde SQL runtime y bytes > versión cambiada un microsegundo, finalidad cruzada y retiro fallan antes del objeto 13621ms
+ ✓ tests/integration/sale-recovery-sources-db.test.ts > fuentes SALE y NO_PRIOR_CONSUMPTION desde SQL runtime y bytes > no admite objetos cambiados, proveedor fallido ni declaraciones discordantes atestiguadas 29179ms
+ ✓ tests/integration/sale-recovery-sources-db.test.ts > fuentes SALE y NO_PRIOR_CONSUMPTION desde SQL runtime y bytes > venta, empresa y sucursal ajenas no permiten consultar el objeto 10242ms
+ ✓ tests/integration/sale-recovery-sources-db.test.ts > fuentes SALE y NO_PRIOR_CONSUMPTION desde SQL runtime y bytes > receta lateral y cantidad modificada bloquean la declaración de la venta 10219ms
+
+ Test Files  4 passed (4)
+      Tests  24 passed (24)
+   Start at  03:54:05
+   Duration  357.93s (transform 3.69s, setup 1.02s, import 16.31s, tests 334.84s, environment 1ms)
+

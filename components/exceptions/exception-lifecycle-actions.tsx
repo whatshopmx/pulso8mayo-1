@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, ShieldCheck, UserCheck } from "lucide-react";
+import { Clock, Paperclip, ShieldCheck, UserCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -25,6 +25,7 @@ import {
   type ExceptionStatus,
 } from "@/lib/services/exception-lifecycle";
 import type { GroupExceptionLifecycle } from "@/lib/services/group-exceptions-service";
+import { ExceptionEvidenceDialog } from "./exception-evidence-dialog";
 
 const STATUS_LABELS: Record<ExceptionStatus, string> = {
   OPEN: "Abierta",
@@ -119,6 +120,7 @@ export function ExceptionLifecycleActions({
   const [openEvent, setOpenEvent] = useState<ExceptionEvent | null>(null);
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
 
   const events = allowedEvents(lifecycle.status);
   const primary = PRIMARY_EVENT[lifecycle.status];
@@ -209,6 +211,15 @@ export function ExceptionLifecycleActions({
       </div>
 
       <div className="flex items-center gap-2 flex-wrap justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-8 gap-1.5"
+          onClick={() => setEvidenceDialogOpen(true)}
+        >
+          <Paperclip className="w-3.5 h-3.5" />
+          Evidencias
+        </Button>
         {primary && (
           <Button
             size="sm"
@@ -312,6 +323,13 @@ export function ExceptionLifecycleActions({
           )}
         </DialogContent>
       </Dialog>
+
+      <ExceptionEvidenceDialog
+        exceptionId={exceptionId}
+        open={evidenceDialogOpen}
+        onOpenChange={setEvidenceDialogOpen}
+        onEvidenceChanged={onDone}
+      />
     </div>
   );
 }

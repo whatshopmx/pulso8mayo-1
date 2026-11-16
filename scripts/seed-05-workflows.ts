@@ -131,23 +131,30 @@ export async function main() {
     { templateIdx: 0, branchIdx: 2, title: "Reporte de Incidentes - Roma", freq: "DAILY", time: "14:00", role: "GERENTE" },
     { templateIdx: 1, branchIdx: 0, title: "Asistencia Diaria - Condesa", freq: "DAILY", time: "08:00", role: "SUPERVISOR" },
     { templateIdx: 1, branchIdx: 1, title: "Asistencia Diaria - Polanco", freq: "DAILY", time: "08:00", role: "SUPERVISOR" },
+    { templateIdx: 1, branchIdx: 2, title: "Asistencia Diaria - Roma", freq: "DAILY", time: "08:00", role: "SUPERVISOR" },
     { templateIdx: 2, branchIdx: 0, title: "Fumigación - Condesa", freq: "WEEKLY", dayOfWeek: 0, time: "06:00", role: "SUPERVISOR" },
     { templateIdx: 2, branchIdx: 1, title: "Fumigación - Polanco", freq: "WEEKLY", dayOfWeek: 0, time: "06:00", role: "SUPERVISOR" },
     { templateIdx: 3, branchIdx: 0, title: "Inspección Incendios - Condesa", freq: "MONTHLY", dayOfMonth: 1, time: "09:00", role: "GERENTE" },
     { templateIdx: 4, branchIdx: 0, title: "NOM-035 Survey", freq: "MONTHLY", dayOfMonth: 15, time: "10:00", role: "ADMIN" },
     { templateIdx: 5, branchIdx: 0, title: "Higiene Personal - Condesa", freq: "DAILY", time: "07:00", role: "SUPERVISOR" },
     { templateIdx: 5, branchIdx: 1, title: "Higiene Personal - Polanco", freq: "DAILY", time: "07:00", role: "SUPERVISOR" },
+    { templateIdx: 5, branchIdx: 2, title: "Higiene Personal - Roma", freq: "DAILY", time: "07:00", role: "SUPERVISOR" },
     { templateIdx: 6, branchIdx: 0, title: "Control Temperaturas - Condesa", freq: "DAILY", time: "09:00", role: "EMPLEADO" },
     { templateIdx: 6, branchIdx: 1, title: "Control Temperaturas - Polanco", freq: "DAILY", time: "09:00", role: "EMPLEADO" },
+    { templateIdx: 6, branchIdx: 2, title: "Control Temperaturas - Roma", freq: "DAILY", time: "09:00", role: "EMPLEADO" },
     { templateIdx: 7, branchIdx: 0, title: "Inspección Alimentos - Condesa", freq: "DAILY", time: "07:30", role: "SUPERVISOR" },
     { templateIdx: 8, branchIdx: 0, title: "Recepción Mercancía - Condesa", freq: "DAILY", time: "06:00", role: "EMPLEADO" },
     { templateIdx: 9, branchIdx: 0, title: "Checklist Mantenimiento - Condesa", freq: "WEEKLY", dayOfWeek: 5, time: "08:00", role: "GERENTE" },
     { templateIdx: 10, branchIdx: 0, title: "Mantenimiento Refrigeradores - Condesa", freq: "WEEKLY", dayOfWeek: 1, time: "07:00", role: "SUPERVISOR" },
     { templateIdx: 11, branchIdx: 0, title: "Apertura Restaurante - Condesa", freq: "DAILY", time: "06:00", role: "EMPLEADO" },
     { templateIdx: 11, branchIdx: 1, title: "Apertura Restaurante - Polanco", freq: "DAILY", time: "06:00", role: "EMPLEADO" },
+    { templateIdx: 11, branchIdx: 2, title: "Apertura Restaurante - Roma", freq: "DAILY", time: "06:00", role: "EMPLEADO" },
     { templateIdx: 12, branchIdx: 0, title: "Cierre Restaurante - Condesa", freq: "DAILY", time: "22:00", role: "EMPLEADO" },
     { templateIdx: 12, branchIdx: 1, title: "Cierre Restaurante - Polanco", freq: "DAILY", time: "22:00", role: "EMPLEADO" },
+    { templateIdx: 12, branchIdx: 2, title: "Cierre Restaurante - Roma", freq: "DAILY", time: "22:00", role: "EMPLEADO" },
     { templateIdx: 13, branchIdx: 0, title: "Limpieza y Sanitización - Condesa", freq: "DAILY", time: "23:00", role: "EMPLEADO" },
+    { templateIdx: 13, branchIdx: 1, title: "Limpieza y Sanitización - Polanco", freq: "DAILY", time: "23:00", role: "EMPLEADO" },
+    { templateIdx: 13, branchIdx: 2, title: "Limpieza y Sanitización - Roma", freq: "DAILY", time: "23:00", role: "EMPLEADO" },
     { templateIdx: 14, branchIdx: 0, title: "Conteo Inventario - Condesa", freq: "WEEKLY", dayOfWeek: 6, time: "23:00", role: "SUPERVISOR" },
     { templateIdx: 15, branchIdx: 0, title: "Control Accesos - Condesa", freq: "DAILY", time: "08:00", role: "SUPERVISOR" },
     { templateIdx: 16, branchIdx: 0, title: "Seguridad Local - Condesa", freq: "DAILY", time: "22:00", role: "SUPERVISOR" },
@@ -159,13 +166,18 @@ export async function main() {
   for (const sc of scheduleConfigs) {
     const tmpl = scheduledTemplate(sc.templateIdx);
     if (!tmpl) continue;
+    const hours = parseInt(sc.time.split(":")[0], 10);
+    const shift = hours < 14 ? "MATUTINO" : "VESPERTINO";
     const [row] = await db.insert(workflowSchedules).values({
       templateId: tmpl.id,
       branchId: BRANCHES[sc.branchIdx],
       assignmentType: "ROLE",
       assignedRole: sc.role as any,
+      assignedRoles: [sc.role],
+      assignedShifts: [shift],
       frequency: sc.freq,
       dayOfWeek: sc.dayOfWeek,
+      daysOfWeek: sc.dayOfWeek !== undefined ? [sc.dayOfWeek] : null,
       dayOfMonth: sc.dayOfMonth,
       timeOfDay: sc.time,
       startDate: new Date("2026-01-01"),
@@ -205,18 +217,31 @@ export async function main() {
 
       const hours = parseInt(sc.time.split(":")[0]);
       const mins = parseInt(sc.time.split(":")[1]);
-      const dueDate = new Date(date);
+      let dueDate = new Date(date);
       dueDate.setHours(hours, mins, 0, 0);
+
+      // Para hoy (day === 0), anclamos los flujos de apertura (06:00) y primera
+      // hora (07:00) minutos antes de `now` para que Pulso en Vivo y Hoy vean
+      // las sucursales abiertas sin sembrar timestamps en el futuro (SEED-01).
+      if (day === 0 && hours === 6) {
+        dueDate = new Date(now.getTime() - (50 - sc.branchIdx * 8) * 60000);
+      } else if (day === 0 && hours === 7) {
+        dueDate = new Date(now.getTime() - (20 - sc.branchIdx * 4) * 60000);
+      }
 
       // SEED-01: la actividad reciente no debe mostrar eventos futuros. La
       // ejecución de hoy cuya hora aún no llega se omite en vez de sembrarse
       // como PENDING "en unas horas".
       if (dueDate.getTime() > now.getTime()) continue;
 
-      const completed = dueDate.getTime() + 120 * 60000 < now.getTime() && seedRandom("05-workflows") > 0.15;
+      const completed = day === 0
+        ? hours === 6
+        : dueDate.getTime() + 120 * 60000 < now.getTime() && seedRandom("05-workflows") > 0.15;
       const score = completed ? (seedRandom("05-workflows") > 0.2 ? randomInt(70, 100) : randomInt(40, 69)) : undefined;
 
       const assigneeId = BRANCH_OPERATORS[sc.branchIdx];
+      const startedAt = completed ? new Date(dueDate.getTime() + (day === 0 ? 5 : randomInt(0, 30)) * 60000) : null;
+      const completedAt = completed ? new Date(dueDate.getTime() + (day === 0 ? 25 : randomInt(30, 120)) * 60000) : null;
 
       instanceValues.push({
         workflowTemplateId: tmpl.id,
@@ -224,14 +249,14 @@ export async function main() {
         assigneeId,
         scheduleId: scheduleRows[s]?.id,
         status: completed ? "COMPLETED" : "PENDING",
-        startedAt: completed ? new Date(dueDate.getTime() + randomInt(0, 30) * 60000) : null,
-        completedAt: completed ? new Date(dueDate.getTime() + randomInt(30, 120) * 60000) : null,
+        startedAt,
+        completedAt,
         dueDate,
         priority: "MEDIUM",
         score,
         reviewStatus: completed ? (instanceCount % 3 === 0 ? "APPROVED" : "PENDING_REVIEW") : null,
         reviewedBy: completed && instanceCount % 3 === 0 ? USER_ADMIN : null,
-        reviewedAt: completed && instanceCount % 3 === 0 ? new Date(dueDate.getTime() + 120 * 60000) : null,
+        reviewedAt: completed && instanceCount % 3 === 0 ? completedAt : null,
         createdAt: dueDate,
         data: {},
       });
@@ -408,10 +433,6 @@ export async function main() {
   console.log("Phase 5 complete!");
 }
 
-// `seed-full` importa esta etapa y la encadena, por eso el módulo solo exportaba
-// `main`. El efecto era que `pnpm seed:5` importaba el archivo, no llamaba a
-// nada y salía con código 0: una siembra que "funcionaba" sin tocar la base.
-// Bajo `require.main === module` solo corre cuando se invoca directamente.
 if (require.main === module) {
   main()
     .then(() => process.exit(0))

@@ -36,6 +36,7 @@ import {
 } from "./cash-flow-service";
 import { PlaybookService } from "./playbook-service";
 import { inngest } from "@/lib/inngest/client";
+import { isLocalDomainEventsOnly } from "./domain-event-service";
 import { branchVisibilityFilter } from "@/lib/rbac/branch-visibility";
 import type { AccessContext } from "@/lib/rbac/abac";
 import type {
@@ -214,7 +215,8 @@ export const ExecutiveTwinEngine = {
         .returning();
 
       // 5. Emit the unified-bus event (downstream: brief, decision feed).
-      try {
+      // En seeds/replays locales no se disparan automatizaciones.
+      if (!isLocalDomainEventsOnly()) try {
         await inngest.send({
           name: "executive/twin.updated",
           data: { companyId, twinId: base.id },

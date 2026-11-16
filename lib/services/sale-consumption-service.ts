@@ -10,7 +10,7 @@ import { allocateScopedBatches } from "./fefo-allocator";
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Head = typeof revisions.$inferSelect;
 export interface ApplySaleConsumptionInput extends SaleConsumptionIdentity {
-  recipeId: string; quantitySold: string; totalRevenueCents: number; userId: string;
+  recipeId: string; quantitySold: string; totalRevenueCents: number | null; userId: string;
   expectedRevision?: number | null;
   /** Solo para cambiar explícitamente la definición de la misma receta; nunca acepta un snapshot del cliente. */
   recipeVersionKey?: string;
@@ -35,14 +35,15 @@ function validate(input: ApplySaleConsumptionInput) {
   try { identity = normalizeSaleConsumptionIdentity(input); quantity = soldQuantity(input.quantitySold); }
   catch (error) { throw new SaleConsumptionError("INVALID_INPUT", error instanceof Error ? error.message : "Identidad o cantidad inválida"); }
   if (typeof input.recipeId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.recipeId)
-    || !Number.isInteger(input.totalRevenueCents) || input.totalRevenueCents < 0 || input.totalRevenueCents > Number(maxRevenue)
+    || (input.totalRevenueCents !== null && (!Number.isInteger(input.totalRevenueCents) || input.totalRevenueCents < 0 || input.totalRevenueCents > Number(maxRevenue)))
     || typeof input.userId !== "string" || !input.userId.trim() || input.userId !== input.userId.trim() || input.userId.length > 256
     || (input.expectedRevision != null && (!Number.isInteger(input.expectedRevision) || input.expectedRevision < 1 || input.expectedRevision > 2147483647))
     || (input.recipeVersionKey !== undefined && !/^[a-f0-9]{64}$/.test(input.recipeVersionKey))) throw new SaleConsumptionError("INVALID_INPUT", "Receta, ingreso, actor o versión inválidos");
   return { identity, quantity, recipeId: input.recipeId.toLowerCase() };
 }
 
-/** Compara la proyección con TODOS los heads del día antes de cambiar un producto. */
+/** La proyección legada conserva el subtotal conocido; los heads nullable declaran cobertura.
+ * Compara TODOS los heads del día antes de cambiar un producto; nunca adopta ventas sin revisión. */
 async function projection(tx: Tx, identity: SaleConsumptionIdentity, recipeIds: string[]) {
   const heads = await tx.execute<{ recipeId: string; quantitySold: string; totalRevenue: number | null }>(sql`
     SELECT DISTINCT ON (r.identity_id) r.recipe_id AS "recipeId", r.quantity_sold AS "quantitySold", r.total_revenue AS "totalRevenue"
@@ -52,12 +53,12 @@ async function projection(tx: Tx, identity: SaleConsumptionIdentity, recipeIds: 
   const history = await tx.execute<{ recipeId: string }>(sql`SELECT DISTINCT r.recipe_id AS "recipeId"
     FROM sales_consumption_revisions r JOIN sales_consumption_identities i ON i.id=r.identity_id
     WHERE i.company_id=${identity.companyId} AND i.branch_id=${identity.branchId} AND i.sale_day=${identity.saleDay}::date`);
-  const totals = new Map(recipeIds.map(id => [id, { quantity: zero, revenue: zero }]));
+  const totals = new Map(recipeIds.map(id => [id, { quantity: zero, revenue: zero, unknownRevenue: 0 }]));
   for (const row of heads.rows) {
     const total = totals.get(row.recipeId);
     if (!total) continue;
-    if (row.totalRevenue === null) pending("Ingreso anterior desconocido: requiere recuperación con evidencia");
-    total.quantity += ticks(row.quantitySold, 2); total.revenue += BigInt(row.totalRevenue);
+    if (row.totalRevenue === null) total.unknownRevenue++;
+    total.quantity += ticks(row.quantitySold, 2); total.revenue += BigInt(row.totalRevenue ?? 0);
   }
   const existing = await tx.select().from(salesEntries).where(and(eq(salesEntries.companyId, identity.companyId),
     eq(salesEntries.branchId, identity.branchId), eq(salesEntries.saleDate, new Date(`${identity.saleDay}T00:00:00Z`)), inArray(salesEntries.recipeId, recipeIds)))
@@ -78,6 +79,8 @@ async function checkAllocations(tx: Tx, identity: SaleConsumptionIdentity, ident
     .from(inventoryMovements).innerJoin(inventoryItems, eq(inventoryMovements.itemId, inventoryItems.id))
     .where(and(eq(inventoryMovements.branchId, identity.branchId), eq(inventoryItems.companyId, identity.companyId),
       or(eq(inventoryMovements.referenceId, reference), like(inventoryMovements.referenceId, `${reference}:reverse:%`))));
+  // Un saldo neto cero no demuestra el estado histórico sin una revisión aplicada.
+  if (!head && rows.length) pending("Movimientos de venta sin revisión: requiere recuperación con evidencia");
   const balances = new Map<string, { row: typeof rows[number]; quantity: bigint }>();
   for (const row of rows.filter(row => row.reference === reference)) {
     const amount = ticks(row.quantity);
@@ -122,7 +125,6 @@ async function applyRevision(tx: Tx, input: ApplySaleConsumptionInput) {
   if (!key) throw new SaleConsumptionError("INVALID_SCOPE", "Identidad de venta no disponible");
   const [head] = await tx.select().from(revisions).where(eq(revisions.identityId, key.id)).orderBy(desc(revisions.revision)).limit(1);
   if (input.expectedRevision !== undefined && input.expectedRevision !== (head?.revision ?? null)) throw new SaleConsumptionError("REVISION_CONFLICT", "La venta ya tiene otra revisión; recarga antes de corregir");
-  if (head && head.totalRevenue === null) pending("Ingreso anterior desconocido: requiere recuperación con evidencia");
   const recipeIds = [...new Set([recipeId, ...(head ? [head.recipeId] : [])])].sort();
   const totals = await projection(tx, identity, recipeIds);
   await checkAllocations(tx, identity, key.id, head);
@@ -131,7 +133,7 @@ async function applyRevision(tx: Tx, input: ApplySaleConsumptionInput) {
     : await buildSaleRecipeSnapshot(identity.companyId, recipeId, saleRecipeReader(tx));
   if (input.recipeVersionKey !== undefined && input.recipeVersionKey !== snapshot.versionKey) throw new SaleConsumptionError("RECIPE_VERSION_CONFLICT", "La definición de receta cambió; recarga su versión");
   const target = saleSnapshotDemand(snapshot, quantity);
-  if (head && head.quantitySold === quantity && head.totalRevenue === input.totalRevenueCents && head.recipeId === recipeId && head.recipeSnapshot.versionKey === snapshot.versionKey) return { identityId: key.id, revision: head.revision, applied: false, created: false, movementIds: [] as string[] };
+  if (head && head.quantitySold === quantity && head.totalRevenue === input.totalRevenueCents && head.recipeId === recipeId && head.recipeSnapshot.versionKey === snapshot.versionKey) return { identityId: key.id, revision: head.revision, applied: false, created: false, movementIds: [] as string[], revenueComplete: [...totals.values()].every(total => total.unknownRevenue === 0) };
   const next = nextSaleConsumptionRevision(head ?? null, quantity);
   const delta = planSaleConsumptionDelta(head?.allocations ?? [], target, !!head && head.recipeSnapshot.versionKey !== snapshot.versionKey);
   const itemIds = [...new Set([...target.map(row => row.itemId), ...(head?.allocations ?? []).map(row => row.itemId)])];
@@ -169,8 +171,8 @@ async function applyRevision(tx: Tx, input: ApplySaleConsumptionInput) {
       allocations.push({ itemId: row.itemId, batchId: allocation.batchId, unit: row.unit, movementId, remainingQuantity: amount });
     }
   }
-  if (head) { const old = totals.get(head.recipeId)!; old.quantity -= ticks(head.quantitySold, 2); old.revenue -= BigInt(head.totalRevenue); }
-  const current = totals.get(recipeId)!; current.quantity += ticks(quantity, 2); current.revenue += BigInt(input.totalRevenueCents);
+  if (head) { const old = totals.get(head.recipeId)!; old.quantity -= ticks(head.quantitySold, 2); old.revenue -= BigInt(head.totalRevenue ?? 0); if (head.totalRevenue === null) old.unknownRevenue--; }
+  const current = totals.get(recipeId)!; current.quantity += ticks(quantity, 2); current.revenue += BigInt(input.totalRevenueCents ?? 0); if (input.totalRevenueCents === null) current.unknownRevenue++;
   for (const [id, total] of totals) {
     if (total.quantity < zero || total.quantity > maxSale || total.revenue < zero || total.revenue > maxRevenue) throw new SaleConsumptionError("INVALID_INPUT", "Total agregado de venta fuera de rango");
     await tx.execute(sql`INSERT INTO public.sales_entries (company_id,branch_id,recipe_id,sale_date,quantity_sold,total_revenue)
@@ -180,7 +182,7 @@ async function applyRevision(tx: Tx, input: ApplySaleConsumptionInput) {
   }
   await tx.insert(revisions).values({ identityId: key.id, companyId: identity.companyId, branchId: identity.branchId, ...next, totalRevenue: input.totalRevenueCents,
     recipeId, recipeSnapshot: snapshot, allocations, movementRefs, recordedBy: input.userId });
-  return { identityId: key.id, revision: next.revision, applied: true, created: !head, movementIds: movementRefs.map(row => row.movementId) };
+  return { identityId: key.id, revision: next.revision, applied: true, created: !head, movementIds: movementRefs.map(row => row.movementId), revenueComplete: [...totals.values()].every(total => total.unknownRevenue === 0) };
 }
 
 /** Unidad atómica propia incluso si el llamador captura el error y conserva su transacción. */

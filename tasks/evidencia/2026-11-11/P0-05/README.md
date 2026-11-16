@@ -28,3 +28,6 @@ Renovación durante INV-01.b3: aparecieron `accounting/purchase-contract.ts`, `p
 La base nueva recibió un baseline del esquema local, incluido FC-12 sin commit, exclusivamente por la nueva solicitud de instalación. Esto no demuestra aplicación de 0136 en la cuenta anterior, aceptación funcional de FC-12 ni despliegue de la aplicación. Ver [NEON-NEW](../NEON-NEW/README.md).
 
 Comprobación D: lectura de ambos planes/checklists y contratos; `pnpm.cmd exec tsx scripts/validate-faltantes.ts`, exit 0. No se enviaron mensajes a otros responsables ni se inició trabajo paralelo sobre archivos compartidos.
+
+
+Renovación 2026-11-14 — atestaciones: se preservan los cambios concurrentes de Nómina/Tesorería, incluida 0146. El TypeScript global de esta continuación falla con TS2345 en `lib/services/treasury-service.ts:726` (executor DB|Tx pasado a helper que requiere Tx); [captura](../INV-01.c.recovery.attestation.service/typecheck-final.txt). No se amplió ni convirtió ese contrato para forzar el gate. La comparación completa 0144→0145 muestra únicamente `public.sale_recovery_attestations`; [delta](../INV-01.c.recovery.attestation.schema/migration-delta.json). 0145 se prueba exclusivamente dentro de rollback aislado, sin aplicar a main. Los incrementos se registran como código implementado, sin aceptación ni build global nuevo.

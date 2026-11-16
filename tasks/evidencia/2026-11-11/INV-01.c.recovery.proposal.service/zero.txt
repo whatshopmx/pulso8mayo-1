@@ -1,0 +1,24 @@
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+stdout | tests/integration/sale-recovery-proposals-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: ⚙️  override existing env vars with { override: true }
+
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > persiste hash/estado/atestaciones exactos y repite sin duplicar; no cambia venta, movimientos ni revisiones
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > bloquea fuente/producto/día/cobertura divergentes y no persiste propuesta parcial
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > rechaza estado de adjunto obsoleto, objetos alterados y venta modificada sin crear expediente
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > clave repetida no acepta otro motivo, solicitante o versión nativa de venta
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > no transforma movimientos huérfanos, ambiguos o revisiones de proyección en consumo cero
+ ✓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > cantidades cero no ocultan movimientos ambiguos de ingredientes históricos 16608ms
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > fallo después del INSERT revierte el expediente aunque el llamador capture el error
+ ↓ tests/integration/sale-recovery-proposals-db.test.ts > expediente preparado desde las tres fuentes en una transacción runtime > otra empresa/sucursal/venta y declaraciones de autoridad ajenas fallan sin acceder a R2
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 7 skipped (8)
+   Start at  14:28:15
+   Duration  21.66s (transform 1.35s, setup 251ms, import 2.90s, tests 17.85s, environment 0ms)
+

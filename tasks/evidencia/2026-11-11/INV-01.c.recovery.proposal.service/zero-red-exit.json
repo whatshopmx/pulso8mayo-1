@@ -1,0 +1,18 @@
+{
+  "code": 1,
+  "signal": null,
+  "args": [
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "--configLoader",
+    "bundle",
+    "--config",
+    "vitest.integration.config.ts",
+    "tests/integration/sale-recovery-proposals-db.test.ts",
+    "--maxWorkers=1",
+    "--pool=threads",
+    "--reporter=verbose",
+    "-t",
+    "cantidades cero"
+  ]
+}

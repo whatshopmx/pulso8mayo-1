@@ -78,7 +78,7 @@ const ITEMS: ItemDef[] = [
   { name: "Desinfectante", sku: "LIM-002", category: "Limpieza", unit: "L", minLevel: 2, maxLevel: 10, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2800, supplierIdx: 5, taxRate: 16, iepsRate: 0 },
   { name: "Papel Higiénico", sku: "LIM-003", category: "Limpieza", unit: "UNIT", minLevel: 20, maxLevel: 100, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 800, supplierIdx: 5, taxRate: 16, iepsRate: 0 },
   { name: "Servilletas", sku: "DES-001", category: "Desechables", unit: "BOX", minLevel: 5, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 4500, supplierIdx: 5, taxRate: 16, iepsRate: 0 },
-];;
+];
 
 export async function main() {
   console.log("=== Phase 4: Inventory ===");
@@ -146,7 +146,7 @@ export async function main() {
   }));
   await db.insert(unitConversions).values(convValues);
 
-  console.log("Inserting inventory batches (2-3 per item)...");
+  console.log("Inserting inventory batches across all 3 branches...");
   const batchValues: any[] = [];
   const branchIds = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];
   const branchStorage = branchIds.map(bid => ({
@@ -156,34 +156,45 @@ export async function main() {
     freezerId: findStorage(bid, "Congelador"),
   }));
 
+  const branchCode = ["COND", "POLA", "ROMA"] as const;
   for (let i = 0; i < itemRows.length; i++) {
     const itemId = itemRows[i].id;
     const item = ITEMS[i];
-    const numBatches = item.category === "Carnes" ? 3 : 2;
-    const batchForBranch = branchIds[i % 3];
 
-    for (let b = 0; b < numBatches; b++) {
-      const receivedDate = new Date();
-      receivedDate.setDate(receivedDate.getDate() - randomInt(1, item.shelfLifeDays > 30 ? 60 : 20));
-      const expiresDate = new Date(receivedDate);
-      expiresDate.setDate(expiresDate.getDate() + item.shelfLifeDays);
-      const qty = randomInt(item.minLevel * 2, item.maxLevel * 2);
-      const used = randomInt(0, Math.floor(qty * 0.7));
-      const cost = Math.max(1, item.lastCost + randomInt(-1000, 1000));
+    for (let bIdx = 0; bIdx < branchIds.length; bIdx++) {
+      const batchForBranch = branchIds[bIdx];
+      const numBatches = bIdx === i % 3 ? 2 : 1;
 
-      batchValues.push({
-        itemId,
-        branchId: batchForBranch,
-        supplierId: findSupplier(item.supplierIdx),
-        lotNumber: `LOTE-${String(randomInt(1, 999)).padStart(4, "0")}`,
-        productionDate: new Date(receivedDate.getTime() - randomInt(1, 5) * 86400000),
-        expirationDate: expiresDate,
-        receivedAt: receivedDate,
-        initialQuantity: qty,
-        currentQuantity: Math.max(0, qty - used),
-        unitCost: cost,
-        status: expiresDate < new Date() ? "EXPIRED" as const : "AVAILABLE" as const,
-      });
+      for (let b = 0; b < numBatches; b++) {
+        const now = new Date();
+        const daysAgo = b === 0
+          ? randomInt(2, Math.min(6, Math.max(2, item.shelfLifeDays - 2)))
+          : randomInt(10, item.shelfLifeDays > 30 ? 45 : 18);
+        const receivedDate = new Date(now.getTime() - daysAgo * 86400000);
+        const shelfLife = b === 0 ? Math.max(item.shelfLifeDays, 12) : item.shelfLifeDays;
+        const expiresDate = new Date(receivedDate.getTime() + shelfLife * 86400000);
+        const qty = b === 0
+          ? Math.max(item.maxLevel * 3, 180)
+          : randomInt(item.minLevel * 2, item.maxLevel * 2);
+        const used = b === 0
+          ? Math.floor(qty * 0.2)
+          : randomInt(Math.floor(qty * 0.3), Math.floor(qty * 0.7));
+        const cost = Math.max(1, item.lastCost + (b === 0 ? 0 : randomInt(-800, 800)));
+
+        batchValues.push({
+          itemId,
+          branchId: batchForBranch,
+          supplierId: findSupplier(item.supplierIdx),
+          lotNumber: `LOTE-${branchCode[bIdx]}-${String(i + 1).padStart(2, "0")}-${b + 1}`,
+          productionDate: new Date(receivedDate.getTime() - randomInt(1, 3) * 86400000),
+          expirationDate: expiresDate,
+          receivedAt: receivedDate,
+          initialQuantity: qty,
+          currentQuantity: Math.max(0, qty - used),
+          unitCost: cost,
+          status: expiresDate < now ? "EXPIRED" as const : "AVAILABLE" as const,
+        });
+      }
     }
   }
   const batchRows = await db.insert(inventoryBatches).values(batchValues).returning();
@@ -377,19 +388,22 @@ export async function main() {
   const tempValues: any[] = [];
   for (let t = 0; t < 24; t++) {
     const bid = branchList[t % 3];
-    const temp = t % 6 === 0 ? randomInt(10, 15) : randomInt(2, 8);
+    const temp = t >= 6 && t % 6 === 0 ? randomInt(10, 15) : randomInt(2, 6);
+    const ts = t < 6
+      ? new Date(Date.now() - (t + 1) * 15 * 60000)
+      : randomDate(7);
     tempValues.push({
       branchId: bid,
       readingValue: temp,
       unit: "C",
-      location: "Refrigerador Cocina",
+      location: t % 2 === 0 ? "Refrigerador Cocina" : "Cámara Fría Carnes",
       isCompliant: temp <= 8,
       minThreshold: 0,
       maxThreshold: 8,
       capturedBy: [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3][t % 3],
       captureMethod: "MANUAL",
       notes: temp > 8 ? "TEMPERATURA ELEVADA - revisar equipo" : "Temperatura normal",
-      timestamp: randomDate(7),
+      timestamp: ts,
     });
   }
   await db.insert(temperatureLogs).values(tempValues);

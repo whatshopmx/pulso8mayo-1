@@ -1,0 +1,64 @@
+{
+  "task": "INV-01.c.recovery.contract",
+  "recordedAt": "2026-11-13T14:54:50.315Z",
+  "initialHead": "a816208911305b36034388f47aa9db9b979e6979",
+  "finalHead": "3a5d60c010cd292d532706d1c368c2ab56b279f4",
+  "workspace": "Diff compartido; HEAD cambió por trabajo concurrente. Sin commit propio.",
+  "sourceSha256": {
+    "lib/services/sale-recovery-review.ts": "bc5c73fb45bc689a091f3b8aaed4e9b79d357f5d6827d03e93b490a8fe5052e4",
+    "lib/services/__tests__/sale-recovery-review.test.ts": "9907ab4ceb447f913015bcbe657658be34d29a3bda2c039454797615411d52bc"
+  },
+  "verification": {
+    "tests": {
+      "files": 3,
+      "passed": 54,
+      "newCases": 9,
+      "exit": 0,
+      "log": "tests.txt"
+    },
+    "types": {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0,
+      "note": "Comprobación global previa; build vuelve a comprobar tipos tras la última variante de demanda alterada."
+    },
+    "lint": {
+      "files": [
+        "lib/services/sale-recovery-review.ts",
+        "lib/services/__tests__/sale-recovery-review.test.ts"
+      ],
+      "exit": 0
+    },
+    "build": {
+      "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+      "exit": 0,
+      "log": "build.txt",
+      "warnings": [
+        "fetchConnectionCache deprecated",
+        "DYNAMIC_SERVER_USAGE en /dashboard/labor/documents; ruta final dinamica y build exit 0"
+      ]
+    },
+    "documentation": {
+      "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+      "rows": 239,
+      "planTasks": 86,
+      "children": 80,
+      "acceptedTasks": 12,
+      "errors": 0,
+      "exit": 0,
+      "note": "Un intento final fallo con uv_os_get_passwd ENOMEM; repeticion inmediata final exit 0, 239 filas, 80 hijos y cero errores."
+    }
+  },
+  "review": "Contrato puro; sin cambios de escritor, API, esquema o DB. Validación estricta, aislamiento de DTO, hashes y demanda derivados, aprobación independiente coherente. No acredita origen de evidencia ni roles persistidos.",
+  "notAccepted": [
+    "INV-01.c.recovery",
+    "INV-01.c",
+    "INV-01.b",
+    "11.11"
+  ],
+  "pending": [
+    "Expedientes y decisiones persistidos con aislamiento",
+    "Verificación de contenido de storage y permisos desde servidor",
+    "Aplicación transaccional auditada e idempotente",
+    "Pruebas SQL/API del recorrido operativo"
+  ]
+}

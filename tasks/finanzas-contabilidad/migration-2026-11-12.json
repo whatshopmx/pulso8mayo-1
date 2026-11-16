@@ -1,0 +1,3121 @@
+{
+  "capturedAt": "2026-11-12T15:38:48.265Z",
+  "appliedAtomically": true,
+  "rehearsalRolledBack": true,
+  "target": {
+    "host": "ep-twilight-shadow-behp01su.c-9.us-east-2.aws.neon.tech",
+    "role": "neondb_owner",
+    "database": "neondb",
+    "rolsuper": false,
+    "rolbypassrls": true
+  },
+  "source": "MIGRATION_DATABASE_URL",
+  "migrations": [
+    {
+      "tag": "0137_inv01a_sale_consumption_identity",
+      "when": 1794435136067,
+      "hash": "9c19af085fec854334211d3ff068fa464be63616c84ed4d3b17d5da7a40e2016"
+    },
+    {
+      "tag": "0138_inv01b_recipe_reader",
+      "when": 1794487594765,
+      "hash": "a48f2fcf5de0f2d92d7325c6fa3e024b0b2b54210abf64842133c11b5bad474e"
+    },
+    {
+      "tag": "0139_inv01b_application_scope",
+      "when": 1794488694351,
+      "hash": "adcd6dda1408584323d4444b9c82d606e00ddd94940b5a7124549f44311ab7f2"
+    },
+    {
+      "tag": "0140_fc13_purchases",
+      "when": 1794490259952,
+      "hash": "564690877933bbdae39cf9e669425a0f42f8e411b0a095db5395282d5371171a"
+    }
+  ],
+  "existingDataUnchanged": true,
+  "legacyHistoryUnchanged": true,
+  "existingRowsBefore": {
+    "account": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_events": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_gateway_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journal_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_opening_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_openings": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rule_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_sales_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_source_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "aggregator_settlements": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "approval_matrix_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "approval_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "arco_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "bank_transactions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_budgets": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_compliance_services": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_equipments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_terminals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_compliance_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_reminder_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cash_flow_assumptions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cfdi_nomina_timbrados": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cfdi_recibidos": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "channel_commission_rates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "civil_protection_drills": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "communication_read_receipts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "companies": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "company_bank_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "company_subscriptions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "compliance_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "compliance_service_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "config_change_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "corporate_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cost_centers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cost_records": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "credit_notes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "daily_sales_cuts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "data_access_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "data_consents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "domain_events": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "electronic_registry_readiness": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_audit_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_benefits": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_communications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_contracts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_offboarding": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_onboarding": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_profiles": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_training": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_training_records": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_catalog": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_maintenance_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_maintenance_schedules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_warranties": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "event_triggers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "evidence": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "exceptions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "executive_decisions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "exit_checklist_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "expense_authorization_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "expense_payments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "extinguisher_inspections": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "financial_periods": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "folio_counters": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "forecast_results": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "gateway_transactions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "holidays": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "imss_files": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "imss_movements": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "incidents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_audit_log": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_expiration_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_knowledge_graph": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_movements": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_periods": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_price_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_snapshots": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_transfer_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_transfers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_waste": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "invoice_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "invoices": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_definitions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_snapshot_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "labor_law_calendar_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_balances": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_types": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "magic_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "message_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "morning_briefs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "nom035_action_plans": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notification_preferences": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "onboarding_steps": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "operating_expenses": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "operational_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payee_bank_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payees": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_approvals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_run_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_runs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_aguinaldo_dispersiones": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_payslips": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_runs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_goals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_review_criteria": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_review_responses": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_reviews": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "petty_cash_funds": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "petty_cash_transactions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "planned_shifts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "playbook_publications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "playbook_versions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "pnl_snapshots": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "policy_overrides": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "pos_mapping_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "privacy_notices": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_ingredients": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_orders": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_plan_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_plans": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_results": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "propina_asignaciones": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "propinas": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "psychosocial_surveys": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_delegation_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_order_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_orders": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "receiving_report_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "receiving_reports": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipe_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipe_versions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recurring_contracts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recurring_payables": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "remediation_actions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "report_execution_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "report_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "requisition_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "requisitions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "salary_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_cut_cashiers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "saved_searches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "schedule_configs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_order_evidence": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_order_quotes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_orders": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_providers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "session": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sessions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_approvals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_assignments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_change_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_sessions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "stock_counts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "storage_locations": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "subscription_tiers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_bank_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_claims": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "suppliers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "temperature_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tenant_keys": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tenant_operating_config": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tpv_shift_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "unit_conversions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "users": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "vacation_accruals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "vacation_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "verifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_conversation_states": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_messages": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_sessions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_assignments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_completion_outbox": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_instance_steps": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_instances": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_schedules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  },
+  "existingRowsAfter": {
+    "account": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_events": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_gateway_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journal_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_journals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_opening_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_openings": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_purchase_facts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rule_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_sales_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "accounting_source_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "aggregator_settlements": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "approval_matrix_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "approval_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "arco_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "bank_transactions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_budgets": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_compliance_services": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_equipments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branch_terminals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "branches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_compliance_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "break_reminder_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cash_flow_assumptions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cfdi_nomina_timbrados": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cfdi_recibidos": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "channel_commission_rates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "civil_protection_drills": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "communication_read_receipts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "companies": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "company_bank_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "company_subscriptions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "compliance_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "compliance_service_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "config_change_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "corporate_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cost_centers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "cost_records": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "credit_notes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "daily_sales_cuts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "data_access_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "data_consents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "domain_events": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "electronic_registry_readiness": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_audit_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_benefits": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_communications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_contracts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_documents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_offboarding": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_onboarding": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_profiles": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_training": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "employee_training_records": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_catalog": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_maintenance_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_maintenance_schedules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "equipment_warranties": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "event_triggers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "evidence": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "exceptions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "executive_decisions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "exit_checklist_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "expense_authorization_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "expense_payments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "extinguisher_inspections": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "financial_periods": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "folio_counters": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "forecast_results": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "gateway_transactions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "holidays": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "imss_files": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "imss_movements": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "incidents": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_audit_log": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_expiration_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_knowledge_graph": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_movements": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_periods": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_price_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_snapshots": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_transfer_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_transfers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "inventory_waste": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "invoice_lines": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "invoices": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_alerts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_definitions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "kpi_snapshot_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "labor_law_calendar_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_balances": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "leave_types": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "magic_links": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "message_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "morning_briefs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "nom035_action_plans": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notification_preferences": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "onboarding_steps": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "operating_expenses": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "operational_twins": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payee_bank_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payees": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_approvals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_run_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payment_runs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_aguinaldo_dispersiones": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_payslips": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "payroll_runs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_goals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_review_criteria": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_review_responses": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "performance_reviews": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "petty_cash_funds": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "petty_cash_transactions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "planned_shifts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "playbook_publications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "playbook_versions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "pnl_snapshots": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "policy_overrides": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "pos_mapping_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "privacy_notices": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_ingredients": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_orders": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_plan_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_plans": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "production_results": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "propina_asignaciones": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "propinas": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "psychosocial_surveys": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_delegation_rules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_order_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "purchase_orders": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "receiving_report_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "receiving_reports": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipe_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipe_versions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recipes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recurring_contracts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "recurring_payables": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "remediation_actions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "report_execution_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "report_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "requisition_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "requisitions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "salary_history": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_consumption_identities": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_consumption_revisions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_cut_cashiers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sales_entries": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "saved_searches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "schedule_configs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_order_evidence": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_order_quotes": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_orders": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "service_providers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "session": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sessions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_approvals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_assignments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_change_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_sessions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "shift_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "stock_counts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "storage_locations": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "subscription_tiers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_bank_accounts": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_claims": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "supplier_items": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "suppliers": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "temperature_logs": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tenant_keys": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tenant_operating_config": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "tpv_shift_batches": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "unit_conversions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "users": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "vacation_accruals": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "vacation_requests": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "verifications": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_conversation_states": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_messages": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "whatsapp_sessions": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_assignments": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_completion_outbox": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_instance_steps": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_instances": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_schedules": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "workflow_templates": {
+      "rows": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  },
+  "historyBefore": [
+    {
+      "id": 1,
+      "hash": "4bb9a9332ed477cc93146c5aef2260b030d2a07c9ecfcf249bd63255ade801c5",
+      "created_at": "1793745547475"
+    }
+  ],
+  "historyAfter": [
+    {
+      "id": 1,
+      "hash": "4bb9a9332ed477cc93146c5aef2260b030d2a07c9ecfcf249bd63255ade801c5",
+      "created_at": "1793745547475"
+    },
+    {
+      "id": 6,
+      "hash": "9c19af085fec854334211d3ff068fa464be63616c84ed4d3b17d5da7a40e2016",
+      "created_at": "1794435136067"
+    },
+    {
+      "id": 7,
+      "hash": "a48f2fcf5de0f2d92d7325c6fa3e024b0b2b54210abf64842133c11b5bad474e",
+      "created_at": "1794487594765"
+    },
+    {
+      "id": 8,
+      "hash": "adcd6dda1408584323d4444b9c82d606e00ddd94940b5a7124549f44311ab7f2",
+      "created_at": "1794488694351"
+    },
+    {
+      "id": 9,
+      "hash": "564690877933bbdae39cf9e669425a0f42f8e411b0a095db5395282d5371171a",
+      "created_at": "1794490259952"
+    }
+  ],
+  "flags": {
+    ".env": {
+      "ACCOUNTING_POSTING_ENABLED": null,
+      "ACCOUNTING_REVIEW_ENABLED": null
+    }
+  },
+  "flagsActivated": false,
+  "runtimeRoles": [],
+  "runtimeRoleCreated": false,
+  "previousMigrationStates": [
+    {
+      "tag": "0000_mixed_arclight",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0001_solid_blonde_phantom",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0002_melodic_silverclaw",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0003_sudden_mister_fear",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0004_secret_vance_astro",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0005_cuddly_unus",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0006_faithful_sumo",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0007_add_manager_invite_token",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0008_simple_wolf_cub",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0009_naive_luminals",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0010_clean_leech",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0011_sour_roughhouse",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0012_sudden_madripoor",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0013_pale_robin_chapel",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0014_elite_mandrill",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0015_fine_thena",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0016_classy_post",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0017_mean_sharon_carter",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0018_sad_bloodstorm",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0019_next_ricochet",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0020_volatile_dormammu",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0021_striped_wallop",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0022_flat_wonder_man",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0023_amazing_unus",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0024_cuddly_gertrude_yorkes",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0025_new_kylun",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0026_useful_ikaris",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0027_sleepy_nocturne",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0028_melted_reavers",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0029_vengeful_scarlet_spider",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0030_pnl_snapshots",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0031_closed_vampiro",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0032_arqueo-cierre-turno",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0033_desglose-agregadores",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0034_sku-alto-valor",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0035_gaps-avanzados",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0036_tags-inventory-items",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0037_lush_malice",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0038_builder-settings-arrays",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0039_objetivos-financieros-tenant",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0040_cuentas-por-pagar",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0041_supplier-bank-accounts",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0042_nebulous_alex_wilder",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0043_workflow-review-fields",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0044_smartlink-session-optional",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0045_regular_sebastian_shaw",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0046_tricky_wendigo",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0047_same_jack_power",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0048_majestic_ozymandias",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0049_organic_puck",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0050_step-definition-freeze",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0051_merma-decimal-quantities",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0052_supuestos-flujo-efectivo",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0053_demonic_viper",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0054_produccion-cantidades-decimales",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0055_idempotencia-extractores",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0056_cfdi-nomina-timbrados",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0057_omniscient_colossus",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0058_add-waste-evidence-url",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0059_add_invoice_number_to_receiving_reports",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0060_mysterious_pride",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0061_cute_the_captain",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0062_loving_paibok",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0063_square_mister_sinister",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0064_closed_shen",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0065_blushing_ronan",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0066_sudden_stepford_cuckoos",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0068_new_ben_grimm",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0069_freezing_mathemanic",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0070_faulty_joystick",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0071_busy_felicia_hardy",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0072_nosy_bloodstrike",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0073_solid_blizzard",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0074_brief_gressill",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0075_modern_hex",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0076_magenta_tenebrous",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0077_tranquil_living_mummy",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0078_blue_peter_parker",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0079_remarkable_la_nuit",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0080_naive_siren",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0081_fat_glorian",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0082_factura-contrato-recurrente",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0083_deep_barracuda",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0084_marvelous_agent_brand",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0085_natural_wrecking_crew",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0086_plain_arclight",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0087_volatile_blue_blade",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0088_black_archangel",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0089_slim_katie_power",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0090_modern_luminals",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0091_known_namorita",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0092_remarkable_ben_urich",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0093_slippery_meggan",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0094_minor_jasper_sitwell",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0095_square_gladiator",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0096_workflow_completion_outbox",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0097_cooing_william_stryker",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0098_closed_lenny_balinger",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0099_exotic_warpath",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0100_green_excalibur",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0101_clammy_talkback",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0102_parallel_red_skull",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0103_tenant_rls_evidence",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0104_rls_receiving",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0105_rls_inventory_monitoring",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0106_rls_stock_counts",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0107_company_bank_accounts",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0108_bank_transactions",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0109_recurring_payables",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0110_account_purpose",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0111_gateway_destination",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0112_bank_deposit_match",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0113_aggregator_acquirers",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0114_account_anchor",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0115_mature_red_wolf",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0116_wakeful_energizer",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0117_typical_diamondback",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0118_steady_vance_astro",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0119_redundant_unicorn",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0120_sparkling_carnage",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0121_imss_movimientos",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0122_aguinaldo_snapshot",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0123_rls_nomina",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0124_fc05_tenant_keys",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0125_fc05_accounts",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0126_fc05_account_guards",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0127_fc06_journals",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0128_fc06_journal_guards",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0129_fc07_review",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0130_fc08_rules",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0131_fc09_expense_payments",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0132_fc09_treasury_source",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0133_fc10_accounting_events",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0134_fc11_sales",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0135_fc_preparation_permissions",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0136_fc12_settlements",
+      "status": "BASELINED"
+    },
+    {
+      "tag": "0137_inv01a_sale_consumption_identity",
+      "status": "MISSING"
+    },
+    {
+      "tag": "0138_inv01b_recipe_reader",
+      "status": "MISSING"
+    },
+    {
+      "tag": "0139_inv01b_application_scope",
+      "status": "MISSING"
+    },
+    {
+      "tag": "0140_fc13_purchases",
+      "status": "MISSING"
+    },
+    {
+      "tag": "0141_inv01b_import_recipe_name",
+      "status": "MISSING"
+    }
+  ],
+  "security": [
+    {
+      "relname": "accounting_gateway_links",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    },
+    {
+      "relname": "accounting_purchase_facts",
+      "relrowsecurity": true,
+      "relforcerowsecurity": true
+    }
+  ],
+  "policies": [
+    {
+      "tablename": "accounting_gateway_links",
+      "policyname": "accounting_gateway_links_tenant",
+      "qual": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)",
+      "with_check": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)"
+    },
+    {
+      "tablename": "accounting_purchase_facts",
+      "policyname": "accounting_purchase_facts_tenant",
+      "qual": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)",
+      "with_check": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)"
+    }
+  ],
+  "triggers": [
+    {
+      "tgname": "accounting_capacity_validate",
+      "tgenabled": "O"
+    },
+    {
+      "tgname": "accounting_gateway_links_validate",
+      "tgenabled": "O"
+    },
+    {
+      "tgname": "accounting_purchase_capacity_validate",
+      "tgenabled": "O"
+    },
+    {
+      "tgname": "accounting_purchase_credit_freeze",
+      "tgenabled": "O"
+    },
+    {
+      "tgname": "accounting_purchase_fact_validate",
+      "tgenabled": "O"
+    },
+    {
+      "tgname": "accounting_purchase_invoice_freeze",
+      "tgenabled": "O"
+    }
+  ],
+  "constraints": [
+    {
+      "conname": "accounting_events_source_check",
+      "convalidated": true,
+      "definition": "CHECK ((((source_type = 'OPERATING_EXPENSE'::text) AND (event_type = 'EXPENSE_RECOGNIZED'::text)) OR ((source_type = 'EXPENSE_PAYMENT'::text) AND (event_type = 'EXPENSE_PAYMENT'::text)) OR ((source_type = 'DAILY_SALES_CUT'::text) AND (event_type = 'SALE_RECOGNIZED'::text)) OR ((source_type = 'SALES_REFUND'::text) AND (event_type = 'SALE_REFUNDED'::text)) OR ((source_type = 'GATEWAY_SETTLEMENT'::text) AND (event_type = 'SETTLEMENT_RECOGNIZED'::text)) OR ((source_type = 'RECEIVING_REPORT'::text) AND (event_type = 'PURCHASE_RECEIVED'::text)) OR ((source_type = 'PURCHASE_INVOICE'::text) AND (event_type = 'PURCHASE_INVOICED'::text)) OR ((source_type = 'PURCHASE_CREDIT'::text) AND (event_type = 'PURCHASE_CREDITED'::text)) OR ((source_type = 'INVOICE_PAYMENT'::text) AND (event_type = 'INVOICE_PAID'::text))))"
+    },
+    {
+      "conname": "accounting_gateway_links_account_company_fk",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (company_id, account_id) REFERENCES accounting_accounts(company_id, id)"
+    },
+    {
+      "conname": "accounting_gateway_links_account_id_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL account_id"
+    },
+    {
+      "conname": "accounting_gateway_links_company_id_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL company_id"
+    },
+    {
+      "conname": "accounting_gateway_links_created_at_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL created_at"
+    },
+    {
+      "conname": "accounting_gateway_links_created_by_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL created_by"
+    },
+    {
+      "conname": "accounting_gateway_links_created_by_users_id_fk",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (created_by) REFERENCES users(id)"
+    },
+    {
+      "conname": "accounting_gateway_links_destination_check",
+      "convalidated": true,
+      "definition": "CHECK ((sales_destination = ANY (ARRAY['CARD'::text, 'PLATFORM'::text, 'OTHER'::text])))"
+    },
+    {
+      "conname": "accounting_gateway_links_gateway_acquirer_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL gateway_acquirer"
+    },
+    {
+      "conname": "accounting_gateway_links_id_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL id"
+    },
+    {
+      "conname": "accounting_gateway_links_pkey",
+      "convalidated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "conname": "accounting_gateway_links_sales_destination_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL sales_destination"
+    },
+    {
+      "conname": "accounting_gateway_links_updated_at_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL updated_at"
+    },
+    {
+      "conname": "accounting_gateway_links_updated_by_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL updated_by"
+    },
+    {
+      "conname": "accounting_gateway_links_updated_by_users_id_fk",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (updated_by) REFERENCES users(id)"
+    },
+    {
+      "conname": "accounting_purchase_facts_company_id_companies_id_fk",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (company_id) REFERENCES companies(id)"
+    },
+    {
+      "conname": "accounting_purchase_facts_company_id_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL company_id"
+    },
+    {
+      "conname": "accounting_purchase_facts_created_at_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL created_at"
+    },
+    {
+      "conname": "accounting_purchase_facts_declared_by_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL declared_by"
+    },
+    {
+      "conname": "accounting_purchase_facts_declared_by_users_id_fk",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (declared_by) REFERENCES users(id)"
+    },
+    {
+      "conname": "accounting_purchase_facts_document_reference_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL document_reference"
+    },
+    {
+      "conname": "accounting_purchase_facts_event_id_accounting_events_id_fk",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (event_id) REFERENCES accounting_events(id)"
+    },
+    {
+      "conname": "accounting_purchase_facts_event_id_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL event_id"
+    },
+    {
+      "conname": "accounting_purchase_facts_kind_check",
+      "convalidated": true,
+      "definition": "CHECK ((kind = ANY (ARRAY['RECEIPT'::text, 'INVOICE'::text, 'CREDIT'::text, 'PAYMENT'::text])))"
+    },
+    {
+      "conname": "accounting_purchase_facts_kind_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL kind"
+    },
+    {
+      "conname": "accounting_purchase_facts_pkey",
+      "convalidated": true,
+      "definition": "PRIMARY KEY (event_id)"
+    },
+    {
+      "conname": "accounting_purchase_facts_receiving_report_id_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL receiving_report_id"
+    },
+    {
+      "conname": "accounting_purchase_facts_reference_check",
+      "convalidated": true,
+      "definition": "CHECK (((length(btrim(document_reference)) >= 1) AND (length(btrim(document_reference)) <= 200)))"
+    },
+    {
+      "conname": "accounting_purchase_facts_snapshot_check",
+      "convalidated": true,
+      "definition": "CHECK ((jsonb_typeof(snapshot) = 'object'::text))"
+    },
+    {
+      "conname": "accounting_purchase_facts_snapshot_not_null",
+      "convalidated": true,
+      "definition": "NOT NULL snapshot"
+    }
+  ],
+  "snapshotScope": "accounting_* tables from 0140_snapshot.json",
+  "missingColumns": [],
+  "missingIndexes": [],
+  "independentlyVerifiedAt": "2026-11-12T15:39:26.738Z",
+  "independentConnectionVerified": true,
+  "postVerification": {
+    "verifiedAt": "2026-11-12T15:39:39.673Z",
+    "snapshot": "0140_snapshot.json",
+    "scope": "Existencia de columnas/índices de todas las tablas; RLS/políticas/triggers de inventario del lote autorizado. No certifica comportamiento runtime ni piloto.",
+    "missingColumns": [],
+    "missingIndexes": [],
+    "inventorySecurity": [
+      {
+        "relname": "inventory_batches",
+        "relrowsecurity": true,
+        "relforcerowsecurity": false
+      },
+      {
+        "relname": "inventory_items",
+        "relrowsecurity": true,
+        "relforcerowsecurity": false
+      },
+      {
+        "relname": "inventory_movements",
+        "relrowsecurity": true,
+        "relforcerowsecurity": false
+      },
+      {
+        "relname": "recipe_items",
+        "relrowsecurity": true,
+        "relforcerowsecurity": false
+      },
+      {
+        "relname": "recipes",
+        "relrowsecurity": true,
+        "relforcerowsecurity": false
+      },
+      {
+        "relname": "sales_consumption_identities",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true
+      },
+      {
+        "relname": "sales_consumption_revisions",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true
+      },
+      {
+        "relname": "sales_entries",
+        "relrowsecurity": true,
+        "relforcerowsecurity": false
+      },
+      {
+        "relname": "unit_conversions",
+        "relrowsecurity": true,
+        "relforcerowsecurity": false
+      }
+    ],
+    "inventoryPolicies": [
+      {
+        "tablename": "inventory_batches",
+        "policyname": "sale_batch_application_tenant",
+        "qual": "((EXISTS ( SELECT 1\n   FROM (branches b\n     JOIN inventory_items i ON ((i.id = inventory_batches.item_id)))\n  WHERE ((b.id = inventory_batches.branch_id) AND (b.company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND (i.company_id = b.company_id)))) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)))",
+        "with_check": "((EXISTS ( SELECT 1\n   FROM (branches b\n     JOIN inventory_items i ON ((i.id = inventory_batches.item_id)))\n  WHERE ((b.id = inventory_batches.branch_id) AND (b.company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND (i.company_id = b.company_id)))) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)))"
+      },
+      {
+        "tablename": "inventory_items",
+        "policyname": "sale_inventory_catalog_tenant",
+        "qual": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)",
+        "with_check": null
+      },
+      {
+        "tablename": "inventory_movements",
+        "policyname": "sale_movement_application_tenant",
+        "qual": "((EXISTS ( SELECT 1\n   FROM (branches b\n     JOIN inventory_items i ON ((i.id = inventory_movements.item_id)))\n  WHERE ((b.id = inventory_movements.branch_id) AND (b.company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND (i.company_id = b.company_id)))) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)))",
+        "with_check": "((EXISTS ( SELECT 1\n   FROM (branches b\n     JOIN inventory_items i ON ((i.id = inventory_movements.item_id)))\n  WHERE ((b.id = inventory_movements.branch_id) AND (b.company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND (i.company_id = b.company_id)))) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)) AND ((batch_id IS NULL) OR (EXISTS ( SELECT 1\n   FROM inventory_batches batch\n  WHERE ((batch.id = inventory_movements.batch_id) AND (batch.item_id = inventory_movements.item_id) AND (batch.branch_id = inventory_movements.branch_id))))))"
+      },
+      {
+        "tablename": "recipe_items",
+        "policyname": "sale_recipe_line_catalog_tenant",
+        "qual": "(EXISTS ( SELECT 1\n   FROM recipes r\n  WHERE ((r.id = recipe_items.recipe_id) AND (r.company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid))))",
+        "with_check": null
+      },
+      {
+        "tablename": "recipes",
+        "policyname": "sale_recipe_catalog_tenant",
+        "qual": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)",
+        "with_check": null
+      },
+      {
+        "tablename": "sales_consumption_identities",
+        "policyname": "sale_cons_identity_tenant",
+        "qual": "((company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)))",
+        "with_check": "((company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)) AND (EXISTS ( SELECT 1\n   FROM branches b\n  WHERE ((b.id = sales_consumption_identities.branch_id) AND (b.company_id = sales_consumption_identities.company_id)))))"
+      },
+      {
+        "tablename": "sales_consumption_revisions",
+        "policyname": "sale_cons_revision_tenant",
+        "qual": "((company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)))",
+        "with_check": "((company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)) AND (EXISTS ( SELECT 1\n   FROM recipes r\n  WHERE ((r.id = sales_consumption_revisions.recipe_id) AND (r.company_id = sales_consumption_revisions.company_id)))))"
+      },
+      {
+        "tablename": "sales_entries",
+        "policyname": "sale_entry_application_tenant",
+        "qual": "((company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)))",
+        "with_check": "((company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid) AND ((NULLIF(current_setting('app.current_branch_id'::text, true), ''::text) IS NULL) OR (branch_id = (NULLIF(current_setting('app.current_branch_id'::text, true), ''::text))::uuid)) AND (EXISTS ( SELECT 1\n   FROM branches b\n  WHERE ((b.id = sales_entries.branch_id) AND (b.company_id = sales_entries.company_id)))) AND (EXISTS ( SELECT 1\n   FROM recipes r\n  WHERE ((r.id = sales_entries.recipe_id) AND (r.company_id = sales_entries.company_id)))))"
+      },
+      {
+        "tablename": "unit_conversions",
+        "policyname": "sale_conversion_catalog_tenant",
+        "qual": "(company_id = (NULLIF(current_setting('app.current_company_id'::text, true), ''::text))::uuid)",
+        "with_check": null
+      }
+    ],
+    "inventoryTriggers": [
+      {
+        "tgname": "sale_consumption_identity_immutable",
+        "tgenabled": "O"
+      },
+      {
+        "tgname": "sale_consumption_revision_immutable",
+        "tgenabled": "O"
+      }
+    ],
+    "baselineLedgerUnchanged": true,
+    "historyStates": [
+      {
+        "tag": "0000_mixed_arclight",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0001_solid_blonde_phantom",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0002_melodic_silverclaw",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0003_sudden_mister_fear",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0004_secret_vance_astro",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0005_cuddly_unus",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0006_faithful_sumo",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0007_add_manager_invite_token",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0008_simple_wolf_cub",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0009_naive_luminals",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0010_clean_leech",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0011_sour_roughhouse",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0012_sudden_madripoor",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0013_pale_robin_chapel",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0014_elite_mandrill",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0015_fine_thena",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0016_classy_post",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0017_mean_sharon_carter",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0018_sad_bloodstorm",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0019_next_ricochet",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0020_volatile_dormammu",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0021_striped_wallop",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0022_flat_wonder_man",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0023_amazing_unus",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0024_cuddly_gertrude_yorkes",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0025_new_kylun",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0026_useful_ikaris",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0027_sleepy_nocturne",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0028_melted_reavers",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0029_vengeful_scarlet_spider",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0030_pnl_snapshots",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0031_closed_vampiro",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0032_arqueo-cierre-turno",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0033_desglose-agregadores",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0034_sku-alto-valor",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0035_gaps-avanzados",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0036_tags-inventory-items",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0037_lush_malice",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0038_builder-settings-arrays",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0039_objetivos-financieros-tenant",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0040_cuentas-por-pagar",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0041_supplier-bank-accounts",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0042_nebulous_alex_wilder",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0043_workflow-review-fields",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0044_smartlink-session-optional",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0045_regular_sebastian_shaw",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0046_tricky_wendigo",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0047_same_jack_power",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0048_majestic_ozymandias",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0049_organic_puck",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0050_step-definition-freeze",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0051_merma-decimal-quantities",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0052_supuestos-flujo-efectivo",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0053_demonic_viper",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0054_produccion-cantidades-decimales",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0055_idempotencia-extractores",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0056_cfdi-nomina-timbrados",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0057_omniscient_colossus",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0058_add-waste-evidence-url",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0059_add_invoice_number_to_receiving_reports",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0060_mysterious_pride",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0061_cute_the_captain",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0062_loving_paibok",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0063_square_mister_sinister",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0064_closed_shen",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0065_blushing_ronan",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0066_sudden_stepford_cuckoos",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0068_new_ben_grimm",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0069_freezing_mathemanic",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0070_faulty_joystick",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0071_busy_felicia_hardy",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0072_nosy_bloodstrike",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0073_solid_blizzard",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0074_brief_gressill",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0075_modern_hex",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0076_magenta_tenebrous",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0077_tranquil_living_mummy",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0078_blue_peter_parker",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0079_remarkable_la_nuit",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0080_naive_siren",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0081_fat_glorian",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0082_factura-contrato-recurrente",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0083_deep_barracuda",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0084_marvelous_agent_brand",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0085_natural_wrecking_crew",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0086_plain_arclight",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0087_volatile_blue_blade",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0088_black_archangel",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0089_slim_katie_power",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0090_modern_luminals",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0091_known_namorita",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0092_remarkable_ben_urich",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0093_slippery_meggan",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0094_minor_jasper_sitwell",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0095_square_gladiator",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0096_workflow_completion_outbox",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0097_cooing_william_stryker",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0098_closed_lenny_balinger",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0099_exotic_warpath",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0100_green_excalibur",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0101_clammy_talkback",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0102_parallel_red_skull",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0103_tenant_rls_evidence",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0104_rls_receiving",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0105_rls_inventory_monitoring",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0106_rls_stock_counts",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0107_company_bank_accounts",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0108_bank_transactions",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0109_recurring_payables",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0110_account_purpose",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0111_gateway_destination",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0112_bank_deposit_match",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0113_aggregator_acquirers",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0114_account_anchor",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0115_mature_red_wolf",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0116_wakeful_energizer",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0117_typical_diamondback",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0118_steady_vance_astro",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0119_redundant_unicorn",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0120_sparkling_carnage",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0121_imss_movimientos",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0122_aguinaldo_snapshot",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0123_rls_nomina",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0124_fc05_tenant_keys",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0125_fc05_accounts",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0126_fc05_account_guards",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0127_fc06_journals",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0128_fc06_journal_guards",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0129_fc07_review",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0130_fc08_rules",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0131_fc09_expense_payments",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0132_fc09_treasury_source",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0133_fc10_accounting_events",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0134_fc11_sales",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0135_fc_preparation_permissions",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0136_fc12_settlements",
+        "status": "BASELINED"
+      },
+      {
+        "tag": "0137_inv01a_sale_consumption_identity",
+        "status": "APPLIED"
+      },
+      {
+        "tag": "0138_inv01b_recipe_reader",
+        "status": "APPLIED"
+      },
+      {
+        "tag": "0139_inv01b_application_scope",
+        "status": "APPLIED"
+      },
+      {
+        "tag": "0140_fc13_purchases",
+        "status": "APPLIED"
+      },
+      {
+        "tag": "0141_inv01b_import_recipe_name",
+        "status": "PENDING"
+      }
+    ],
+    "publicTables": 198,
+    "historyGaps": []
+  },
+  "rehearsalAt": "2026-11-12T15:27:50.655Z"
+}

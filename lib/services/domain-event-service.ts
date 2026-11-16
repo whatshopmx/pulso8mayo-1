@@ -10,6 +10,11 @@ export function withLocalDomainEvents<T>(run: () => Promise<T>): Promise<T> {
   return localOnly.run(true, run);
 }
 
+/** Indica si el contexto actual está en modo local (seeds/replays) sin envíos a Inngest. */
+export function isLocalDomainEventsOnly(): boolean {
+  return localOnly.getStore() === true;
+}
+
 /**
  * Domain event types — the immutable DB ledger (`domain_events.event_type`).
  *

@@ -1,6 +1,6 @@
 # INV-01.b3 — Writer atómico de venta, consumo e ingreso
 
-Estado: **código implementado y V2 comprobada; aceptación pendiente del checkpoint global**, sin conexión HTTP/UI todavía (b4 pendiente). HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más diff local. Dos archivos: `lib/services/sale-consumption-service.ts`, `tests/integration/sale-consumption-application-db.test.ts`. Depende de a/b1/b2 y b3a; la migración 0139 solo está en rama aislada.
+Estado vigente: **aceptado V1/V2 en checkpoint INV-B3 (2026-11-13)**, sin conexión HTTP/UI todavía (b4 pendiente). HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más diff local. Dos archivos: `lib/services/sale-consumption-service.ts`, `tests/integration/sale-consumption-application-db.test.ts`. Depende de a/b1/b2 y b3a; la migración 0139 solo está en rama aislada.
 
 `applySaleConsumption` abre una transacción serializable y usa una sola conexión para snapshot, ventas, movimientos y revisión. `applySaleConsumptionInTransaction` permite componer con otra transacción serializable, pero cada revisión dispone de un savepoint interno que se revierte incluso si el llamador captura la excepción. Se verificó la implementación de transacciones anidadas en el driver instalado de Drizzle (`neon-serverless/session.js`); no se abren conexiones globales desde reader/allocator.
 
@@ -29,3 +29,11 @@ El [config scoped archivado](tsconfig-scoped.json.txt) se copia a `.tmp/tsconfig
 **Build global final exit 1:** TypeScript encuentra literales BigInt no compatibles con ES2017 en un archivo nuevo concurrente del frente contable, `lib/services/accounting/purchase-contract.ts:13`. [Evidencia](global-build-failure.txt), [resultados actuales](results.json). No se cambia el target ni el archivo contable, y el chequeo scoped no se usa para atribuir V1 global o build pasados. b3a/b3 permanecen sin aceptar hasta resolver y repetir ese gate. La migración 0140 contable también apareció en el journal durante este checkpoint; la aplicación propia se limitó a 0139, con hash y host fijados.
 
 Límites: b4 debe sustituir los writers legacy de captura/importación y probar sus errores; c debe aceptar carreras y recuperación con evidencia; d debe aceptar API/UI y denegaciones de usuarios. SEC-05 de writers dueños sigue pendiente. Ningún flujo operativo ni la fila 11.11 quedan aceptados por implementar solo este servicio.
+
+
+## Continuación del checkpoint 2026-11-13
+
+El bloqueo histórico de FC-13/OOM fue superado por builds globales posteriores exit 0. La [revisión actualizada](../CHECKPOINT-INV-B3/README.md) encontró un defecto adicional del writer: movimientos huérfanos compensados sin revisión se adoptaban como venta nueva. El caso falló antes de corregir y pasó con una guardia que exige recuperación; 34/34 SQL con regresión, 103 unitarias focales en dos ejecuciones, tipos globales y lint final exit 0. El build del código corregido está activo en sesión 40200; sigue pendiente la aceptación conjunta b3a → b3 → b4a. Los resultados previos permanecen como historial, no como diagnóstico vigente del frente contable. No acepta el padre b, HTTP/UI, carreras, recuperación ni fila 11.11.
+
+
+Cierre vigente: [checkpoint INV-B3](../CHECKPOINT-INV-B3/README.md) aceptado tras build final exit 0 y comparación de hashes. Este hijo queda aceptado en el entorno aislado; los gates históricos pendientes descritos arriba quedan sustituidos por ese cierre. Padre b, recuperación, API/UI y 11.11 permanecen abiertos.

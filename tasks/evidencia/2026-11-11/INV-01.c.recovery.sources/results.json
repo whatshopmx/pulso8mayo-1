@@ -1,0 +1,138 @@
+{
+  "task": "INV-01.c.recovery.sources",
+  "head": "7a0f54b166cfc58f75711085ea0f9f6458cc2886",
+  "recordedAt": "2026-11-15T03:32:46.325Z",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "database": "PostgreSQL real, runtime pulso_app NOSUPERUSER/NOBYPASSRLS; 0145 y fixtures solo rollback",
+    "auth": "simulada",
+    "storage": "R2 simulado con hash de bytes real",
+    "main": "sin DDL/DML/despliegue"
+  },
+  "verification": {
+    "red": {
+      "exit": 1,
+      "reason": "Import del codec todavía inexistente"
+    },
+    "unitFocused": {
+      "exit": 0,
+      "passed": 9,
+      "files": 2
+    },
+    "sql": {
+      "exit": 0,
+      "passed": 10,
+      "own": 5,
+      "regression": 5,
+      "files": 2,
+      "log": "integration-verified.txt",
+      "terminal": "integration-exit.json",
+      "initialShellExit": 1,
+      "note": "PowerShell con redirección stderr produjo salida 1 pese a 10 casos correctos; repetición directa de Node registra exit del hijo 0"
+    },
+    "unitFull": {
+      "exit": 1,
+      "passed": 2676,
+      "failed": 1,
+      "skipped": 1,
+      "todo": 1,
+      "files": 226,
+      "log": "unit-full.txt",
+      "failure": "seed-integration.test.ts excedió timeout de 120000 ms; no se altera el límite"
+    },
+    "seedIsolated": {
+      "exit": 1,
+      "log": "seed-verified.txt",
+      "terminal": "seed-exit.json"
+    },
+    "typecheck": {
+      "exit": 0,
+      "log": "typecheck.txt"
+    },
+    "lint": {
+      "exit": 0,
+      "warnings": 0,
+      "log": "lint.txt"
+    },
+    "build": {
+      "exit": 0,
+      "log": "build-network.txt",
+      "terminal": "build-exit.txt",
+      "initialExit": 1,
+      "initialFailure": "Descarga de Geist/Geist Mono desde Google Fonts; reejecución con red autorizada"
+    },
+    "traceability": {
+      "exit": 0,
+      "rows": 239,
+      "children": 89,
+      "acceptedTasks": 15,
+      "errors": 0,
+      "log": "traceability-verified.txt"
+    },
+    "diffCheck": {
+      "exit": 0
+    }
+  },
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-source-documents.test.ts lib/services/__tests__/sale-recovery-sources.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "node .tmp/run-recovery-check.mjs integration",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd run test:unit --maxWorkers=2 --pool=threads",
+      "exit": 1
+    },
+    {
+      "command": "node .tmp/run-recovery-check.mjs seed",
+      "exit": 1
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/services/sale-recovery-source-documents.ts lib/services/sale-recovery-sources.ts lib/services/__tests__/sale-recovery-source-documents.test.ts lib/services/__tests__/sale-recovery-sources.test.ts tests/integration/sale-recovery-sources-db.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+      "exit": 0
+    },
+    {
+      "command": "node .tmp/run-recovery-check.mjs traceability",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "files": {
+    "lib/services/sale-recovery-source-documents.ts": "7d4fafd9f077a5b9abae5fe582bd315185c5657e044d8c25df4567affcfa0db1",
+    "lib/services/sale-recovery-sources.ts": "d34ec907c2305e90d99e74e393f71e86dc06c2607e9774bef59b2d3514b8287e",
+    "lib/services/__tests__/sale-recovery-source-documents.test.ts": "15c90c8a6a95092eff0a1d29b917db0d32854c9d21b09debca2cef554bf6989c",
+    "lib/services/__tests__/sale-recovery-sources.test.ts": "e7b3c6e0abaa4cceafd5e148a479d75816da7ac9b640b49994938afa03609d33",
+    "tests/integration/sale-recovery-sources-db.test.ts": "de395bc7bd30c2d57b678c74d026d494b40b16c5912d35865fdb568a5c85f1f1"
+  },
+  "review": {
+    "correctness": "Decimales exactos, nulabilidad explícita, sujeto/propósito y bytes/versiones contrastados",
+    "security": "Sesión administrativa y tenant antes de R2; SQL parametrizado; errores opacos",
+    "architecture": "Lector interno de solo lectura; sin acoplar stock ni añadir ruta pública",
+    "performance": "Una consulta con joins y un objeto acotado 2 MiB/15 s",
+    "limitations": "Declaración documental no acredita verdad automática ni prepara/autoriza una aplicación; no commit aislado sobre dependencias previas aún sin registrar"
+  },
+  "pending": [
+    "Contrastar conjuntamente SALE, receta histórica y NO_PRIOR_CONSUMPTION con estado/head/movimientos desde el servidor",
+    "Registrar expediente y decisión administrativa independiente",
+    "Aplicación auditada/idempotente y revalidación/carreras",
+    "V2 integrada con sesión/HTTP/R2 reales, AUD-02, UI y aceptación del padre/11.11",
+    "Gate global: timeout reproducido en seed-integration"
+  ]
+}

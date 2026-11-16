@@ -481,6 +481,23 @@ function esFaltaDeContextoDePeticion(err: unknown): boolean {
   return mensaje.includes("incrementalCache") || mensaje.includes("static generation store");
 }
 
+async function conCacheOEjecutarDirecto<Args extends unknown[], Result>(
+  calcular: (...args: Args) => Promise<Result>,
+  keyParts: string[],
+  options: { revalidate: number; tags: string[] },
+  ...args: Args
+): Promise<Result> {
+  try {
+    return await unstable_cache(calcular, keyParts, options)(...args).catch((err) => {
+      if (esFaltaDeContextoDePeticion(err)) return calcular(...args);
+      throw err;
+    });
+  } catch (err) {
+    if (esFaltaDeContextoDePeticion(err)) return calcular(...args);
+    throw err;
+  }
+}
+
 /**
  * Mide cada red por separado y devuelve los hallazgos etiquetados.
  *
@@ -555,7 +572,7 @@ export const CrossBranchService = {
   async getAllBranchesCompliance(
     companyId: string,
   ): Promise<BranchComplianceSnapshot[]> {
-    return unstable_cache(
+    return conCacheOEjecutarDirecto(
       async (cid: string) => {
         const branchList = await db
           .select({ id: branches.id, name: branches.name })
@@ -629,7 +646,8 @@ export const CrossBranchService = {
       },
       [cacheKey(companyId, "compliance")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "compliance"] },
-    )(companyId);
+      companyId,
+    );
   },
 
   // -----------------------------------------------------------------------
@@ -637,7 +655,7 @@ export const CrossBranchService = {
   // -----------------------------------------------------------------------
 
   async getAllBranchesMerma(companyId: string): Promise<BranchMermaSnapshot[]> {
-    return unstable_cache(
+    return conCacheOEjecutarDirecto(
       async (cid: string) => {
         const branchList = await db
           .select({ id: branches.id, name: branches.name })
@@ -700,7 +718,8 @@ export const CrossBranchService = {
       },
       [cacheKey(companyId, "merma")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "inventory"] },
-    )(companyId);
+      companyId,
+    );
   },
 
   // -----------------------------------------------------------------------
@@ -710,7 +729,7 @@ export const CrossBranchService = {
   async getAllBranchesIncidentesActivos(
     companyId: string,
   ): Promise<BranchIncidentesSnapshot[]> {
-    return unstable_cache(
+    return conCacheOEjecutarDirecto(
       async (cid: string) => {
         const branchList = await db
           .select({ id: branches.id, name: branches.name })
@@ -770,7 +789,8 @@ export const CrossBranchService = {
       },
       [cacheKey(companyId, "incidentes")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "incidents"] },
-    )(companyId);
+      companyId,
+    );
   },
 
   // -----------------------------------------------------------------------
@@ -780,7 +800,7 @@ export const CrossBranchService = {
   async getAllBranchesLaborMetrics(
     companyId: string,
   ): Promise<BranchLaborSnapshot[]> {
-    return unstable_cache(
+    return conCacheOEjecutarDirecto(
       async (cid: string) => {
         const branchList = await db
           .select({ id: branches.id, name: branches.name })
@@ -834,7 +854,8 @@ export const CrossBranchService = {
       },
       [cacheKey(companyId, "labor")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "labor"] },
-    )(companyId);
+      companyId,
+    );
   },
 
   // -----------------------------------------------------------------------
@@ -849,7 +870,7 @@ export const CrossBranchService = {
       expiredCount: number;
     }[]
   > {
-    return unstable_cache(
+    return conCacheOEjecutarDirecto(
       async (cid: string) => {
         const branchList = await db
           .select({ id: branches.id, name: branches.name })
@@ -900,7 +921,8 @@ export const CrossBranchService = {
       },
       [cacheKey(companyId, "doc-expirations")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "documents"] },
-    )(companyId);
+      companyId,
+    );
   },
 
   // -----------------------------------------------------------------------
@@ -911,7 +933,7 @@ export const CrossBranchService = {
     weeks: string[];
     byBranch: Record<string, (number | null)[]>;
   }> {
-    return unstable_cache(
+    return conCacheOEjecutarDirecto(
       async (cid: string) => {
         const branchList = await db
           .select({ id: branches.id, name: branches.name })
@@ -973,7 +995,8 @@ export const CrossBranchService = {
       },
       [cacheKey(companyId, "compliance-trend")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "compliance", "trend"] },
-    )(companyId);
+      companyId,
+    );
   },
 
   // -----------------------------------------------------------------------
@@ -981,7 +1004,7 @@ export const CrossBranchService = {
   // -----------------------------------------------------------------------
 
   async getBenchmarking(companyId: string): Promise<BenchmarkingData | null> {
-    return unstable_cache(
+    return conCacheOEjecutarDirecto(
       async (cid: string) => {
         const branchList = await db
           .select({ id: branches.id, name: branches.name })
@@ -1190,7 +1213,8 @@ export const CrossBranchService = {
       },
       [cacheKey(companyId, "benchmarking")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "benchmarking"] },
-    )(companyId);
+      companyId,
+    );
   },
 
   // -----------------------------------------------------------------------

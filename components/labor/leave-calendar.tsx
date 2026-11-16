@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   format,
   startOfMonth,
@@ -12,6 +12,8 @@ import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { fetchAllLeaveRequests, type LeaveReviewRequest } from '@/lib/labor/leave-review';
 
 interface LeaveCalendarProps {
   companyId: string;
@@ -20,8 +22,12 @@ interface LeaveCalendarProps {
 
 export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveReviewRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const dayTrigger = useRef<HTMLButtonElement | null>(null);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -31,27 +37,26 @@ export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps)
     const controller = new AbortController();
     const fetchLeaveRequests = async () => {
       setLoading(true);
+      setError(false);
+      setSelectedDay(null);
       try {
-        const startDate = format(monthStart, 'yyyy-MM-dd');
-        const endDate = format(monthEnd, 'yyyy-MM-dd');
+        const startDate = format(startOfMonth(currentDate), 'yyyy-MM-dd');
+        const endDate = format(endOfMonth(currentDate), 'yyyy-MM-dd');
 
-        const response = await fetch(
-          `/api/leave/requests?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-          { signal: controller.signal }
-        );
-        const data = await response.json();
-        setLeaveRequests(data.requests || []);
+        const requests = await fetchAllLeaveRequests({ companyId, startDate, endDate }, controller.signal);
+        if (!controller.signal.aborted) setLeaveRequests(requests);
       } catch (error) {
         if ((error as Error).name === 'AbortError') return;
         console.error('Error fetching leave requests:', error);
+        setError(true);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     fetchLeaveRequests();
     return () => controller.abort();
-  }, [companyId, currentDate, refreshKey]);
+  }, [companyId, currentDate, refreshKey, retryKey]);
 
   // Normalize to YYYY-MM-DD strings so UTC midnight timestamps don't shift by 1 day in UTC-6
   const toDateKey = (value: string | Date) => {
@@ -62,7 +67,7 @@ export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps)
   const getLeaveRequestsForDay = (day: Date) => {
     const dayKey = format(day, 'yyyy-MM-dd');
     return leaveRequests.filter((request) => {
-      if (request.status === 'REJECTED' || request.status === 'CANCELLED') {
+      if (request.status !== 'APPROVED' && request.status !== 'PENDING') {
         return false;
       }
       const startKey = toDateKey(request.startDate);
@@ -86,6 +91,34 @@ export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps)
   const daysWithLeave = days
     .map((day) => ({ day, requests: getLeaveRequestsForDay(day) }))
     .filter((item) => item.requests.length > 0);
+
+  const renderDay = (day: Date, requests: LeaveReviewRequest[], mobile = false) => (
+    <button
+      type="button"
+      key={day.toISOString()}
+      onClick={event => { dayTrigger.current = event.currentTarget; setSelectedDay(day); }}
+      aria-label={`${format(day, "d 'de' MMMM", { locale: es })}: ${requests.length} ${requests.length === 1 ? 'permiso' : 'permisos'}. Ver detalle`}
+      className={`min-w-0 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
+        mobile ? 'w-full space-y-2' : 'min-h-36'
+      } ${isToday(day) ? 'border-primary bg-accent/30' : ''}`}
+    >
+      <span className="block text-sm font-medium capitalize tabular-nums mb-2">
+        {format(day, mobile ? 'EEEE d' : 'd', { locale: es })}{isToday(day) && ' · Hoy'}
+      </span>
+      <span className="block space-y-2">
+        {requests.slice(0, 2).map(request => (
+          <span key={request.id} className="block min-w-0">
+            <span className="block truncate text-sm" title={request.userName || 'Colaborador'}>{request.userName || 'Colaborador'}</span>
+            <span className={`block text-xs ${request.status === 'PENDING' ? 'text-warning-text' : 'text-success-text'}`}>
+              {request.status === 'PENDING' ? 'Pendiente' : 'Aprobada'}
+            </span>
+          </span>
+        ))}
+        {requests.length > 2 && <span className="block text-xs font-medium underline underline-offset-4">+{requests.length - 2} más · Ver detalle</span>}
+        {requests.length === 0 && <span className="text-xs text-muted-foreground">Sin permisos</span>}
+      </span>
+    </button>
+  );
 
   return (
     <div className="space-y-4">
@@ -125,6 +158,11 @@ export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps)
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>Cargando calendario...</span>
         </div>
+      ) : error ? (
+        <div role="alert" className="rounded-lg border p-6 space-y-3">
+          <p className="text-sm">No pudimos cargar el calendario. No es posible confirmar las ausencias de este mes.</p>
+          <Button variant="outline" onClick={() => setRetryKey(key => key + 1)}>Reintentar calendario</Button>
+        </div>
       ) : (
         <>
           {/* Vista móvil: agenda de días con permisos */}
@@ -134,29 +172,7 @@ export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps)
                 Sin permisos programados para este mes.
               </p>
             ) : (
-              daysWithLeave.map(({ day, requests }) => (
-                <div
-                  key={day.toISOString()}
-                  className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${
-                    isToday(day) ? 'ring-2 ring-primary' : ''
-                  }`}
-                >
-                  <div className="text-sm font-medium capitalize shrink-0">
-                    {format(day, 'EEE d', { locale: es })}
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-1.5">
-                    {requests.map((request) => (
-                      <Badge
-                        key={request.id}
-                        variant="secondary"
-                        className="text-xs"
-                      >
-                        {request.userName?.split(' ')[0] || 'Colaborador'}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              ))
+              daysWithLeave.map(({ day, requests }) => renderDay(day, requests, true))
             )}
           </div>
 
@@ -172,39 +188,7 @@ export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps)
               <div key={`empty-start-${i}`} className="h-24" />
             ))}
 
-            {days.map((day) => {
-              const requests = getLeaveRequestsForDay(day);
-              const isTodayDay = isToday(day);
-
-              return (
-                <div
-                  key={day.toISOString()}
-                  className={`h-24 p-2 border rounded-lg ${
-                    isTodayDay ? 'ring-2 ring-primary' : ''
-                  }`}
-                >
-                  <div className="text-sm font-medium mb-1 tabular-nums">
-                    {format(day, 'd')}
-                  </div>
-                  <div className="space-y-1">
-                    {requests.slice(0, 2).map((request) => (
-                      <Badge
-                        key={request.id}
-                        variant="secondary"
-                        className="text-xs block truncate"
-                      >
-                        {request.userName?.split(' ')[0] || 'Colaborador'}
-                      </Badge>
-                    ))}
-                    {requests.length > 2 && (
-                      <div className="text-xs text-muted-foreground">
-                        +{requests.length - 2} más
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {days.map(day => renderDay(day, getLeaveRequestsForDay(day)))}
 
             {Array.from({ length: 6 - monthEnd.getDay() }).map((_, i) => (
               <div key={`empty-end-${i}`} className="h-24" />
@@ -214,18 +198,31 @@ export function LeaveCalendar({ companyId, refreshKey = 0 }: LeaveCalendarProps)
       )}
 
       {/* Leyenda */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded ring-2 ring-primary" />
-          <span>Hoy</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-xs">
-            Nombre
-          </Badge>
-          <span>Con permiso</span>
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground">Las solicitudes pendientes aún no están autorizadas. Selecciona un día para ver todas las personas y sus permisos.</p>
+      <Dialog open={selectedDay !== null} onOpenChange={open => { if (!open) setSelectedDay(null); }}>
+        <DialogContent
+          className="max-h-[85dvh] overflow-y-auto shadow-none"
+          onCloseAutoFocus={event => { event.preventDefault(); dayTrigger.current?.focus(); }}
+        >
+          <DialogHeader>
+            <DialogTitle>{selectedDay ? format(selectedDay, "d 'de' MMMM, yyyy", { locale: es }) : 'Detalle de permisos'}</DialogTitle>
+            <DialogDescription>Permisos aprobados y solicitudes pendientes de este día.</DialogDescription>
+          </DialogHeader>
+          <ul className="divide-y divide-border">
+            {selectedDay && getLeaveRequestsForDay(selectedDay).map(request => (
+              <li key={request.id} className="py-3 space-y-1 min-w-0">
+                <p className="font-medium break-words">{request.userName || 'Colaborador'}</p>
+                <Badge variant="outline" className={request.status === 'PENDING' ? 'bg-warning/15 text-warning-text' : 'bg-success/15 text-success-text'}>
+                  {request.status === 'PENDING' ? 'Pendiente' : 'Aprobada'}
+                </Badge>
+                <p className="text-sm break-words">{request.leaveTypeName || 'Permiso'} · {request.branchName || 'Sucursal sin registrar'}</p>
+                <p className="text-sm text-muted-foreground">{format(new Date(`${request.startDate.slice(0, 10)}T12:00:00`), 'd MMM yyyy', { locale: es })} — {format(new Date(`${request.endDate.slice(0, 10)}T12:00:00`), 'd MMM yyyy', { locale: es })}</p>
+              </li>
+            ))}
+          </ul>
+          {selectedDay && getLeaveRequestsForDay(selectedDay).length === 0 && <p className="text-sm text-muted-foreground">Sin permisos para este día.</p>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

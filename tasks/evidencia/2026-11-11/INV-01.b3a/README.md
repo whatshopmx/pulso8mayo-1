@@ -1,6 +1,6 @@
 # INV-01.b3a — Ingreso por revisión y mínimo runtime de aplicación
 
-Estado: **código implementado y V2 comprobada; aceptación pendiente del checkpoint global**. HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más diff local. Cinco archivos: schema raíz, migración 0139, journal, snapshot 0139 y `tests/integration/sale-consumption-application-schema-db.test.ts`.
+Estado vigente: **aceptado V1/V2 en checkpoint INV-B3 (2026-11-13)**. HEAD `ba88018d2cbd7d879549cfe6476d39e4addfd5d2` más diff local. Cinco archivos: schema raíz, migración 0139, journal, snapshot 0139 y `tests/integration/sale-consumption-application-schema-db.test.ts`.
 
 0139 añade `sales_consumption_revisions.total_revenue` integer nullable, sin DEFAULT ni backfill. NULL representa un hecho en formato anterior sin ingreso demostrado; no equivale a cero. CHECK rechaza ingreso negativo y el trigger append-only previo impide reescribirlo incluso al dueño. El writer nuevo exige centavos explícitos no negativos y acotados a integer, y rechaza heads con ingreso desconocido.
 
@@ -19,3 +19,11 @@ Comando específico: `NODE_OPTIONS=--use-system-ca`, `pnpm.cmd exec vitest run -
 Checkpoint actual: **85 unitarias focales y 33 SQL**, exit 0 (12 writer, 4 schema, 5 catálogo, 1 snapshot, 7 identidad, 4 arnés). Lint sin errores. El tsc global anterior pasó antes de los cambios concurrentes FC-13; el tipo scoped actual del writer con el target original pasó. **Build global final exit 1** por literales BigInt de `accounting/purchase-contract.ts` aparecido durante la validación, no por el SQL o writer de este hijo. [Fallo íntegro pertinente](../INV-01.b3/global-build-failure.txt), [resultados](results.json). No se marca aceptado ni se cierra el checkpoint con ese fallo; repetir controles globales cuando cambie el archivo contable. 0140 apareció en el journal después del lote; no fue aplicada aquí y el launcher aborta si se intenta ejecutar con ese tag posterior sin revisar.
 
 Los INSERT del writer enumeran columnas explícitamente: Drizzle incluye DEFAULT de otras columnas al usar `.values`, y concederlas para hacer pasar el test habría ampliado privilegios innecesariamente. No se modifican 0137/0138 aplicadas. Las pruebas no conceden DML a tablas desde fixtures.
+
+
+## Continuación del checkpoint 2026-11-13
+
+El bloqueo histórico de FC-13/OOM fue superado por builds globales posteriores exit 0. La [revisión actualizada](../CHECKPOINT-INV-B3/README.md) encontró un defecto adicional del writer: movimientos huérfanos compensados sin revisión se adoptaban como venta nueva. El caso falló antes de corregir y pasó con una guardia que exige recuperación; 34/34 SQL con regresión, 103 unitarias focales en dos ejecuciones, tipos globales y lint final exit 0. El build del código corregido está activo en sesión 40200; sigue pendiente la aceptación conjunta b3a → b3 → b4a. Los resultados previos permanecen como historial, no como diagnóstico vigente del frente contable. No acepta el padre b, HTTP/UI, carreras, recuperación ni fila 11.11.
+
+
+Cierre vigente: [checkpoint INV-B3](../CHECKPOINT-INV-B3/README.md) aceptado tras build final exit 0 y comparación de hashes. Este hijo queda aceptado en el entorno aislado; los gates históricos pendientes descritos arriba quedan sustituidos por ese cierre. Padre b, recuperación, API/UI y 11.11 permanecen abiertos.

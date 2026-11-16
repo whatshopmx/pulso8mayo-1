@@ -1,0 +1,30 @@
+{
+  "file": "drizzle/0144_inv01c_recovery_evidence_subject.sql",
+  "sha256": "ecee3df5c6e94da90a7e422441b5a4153b468d8975181f9306069f651cb0e963",
+  "host": "ep-cold-morning-bewqoz3o.c-9.us-east-2.aws.neon.tech",
+  "before": [
+    "WORKFLOW_STEP",
+    "INCIDENT",
+    "DOCUMENT",
+    "EXPENSE",
+    "SERVICE_ORDER",
+    "WASTE",
+    "RECEIVING",
+    "GENERAL"
+  ],
+  "after": [
+    "WORKFLOW_STEP",
+    "INCIDENT",
+    "DOCUMENT",
+    "EXPENSE",
+    "SERVICE_ORDER",
+    "WASTE",
+    "RECEIVING",
+    "GENERAL",
+    "SALE_RECOVERY"
+  ],
+  "appliedTo": "isolated only",
+  "drizzleJournalWritten": false,
+  "operation": "ADD VALUE IF NOT EXISTS, committed; no data rewrite or grants",
+  "recordedAt": "2026-11-14T02:28:41.464Z"
+}

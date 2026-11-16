@@ -35,7 +35,8 @@ beforeAll(async () => {
   state.db = new Proxy(real, {
     get(target, property) {
       if (property === "transaction") {
-        return (run: (tx: object) => Promise<unknown>) => real.transaction((tx) => active.run(tx, () => run(tx)));
+        return (run: (tx: object) => Promise<unknown>, config?: Parameters<typeof real.transaction>[1]) =>
+          real.transaction((tx) => active.run(tx, () => run(tx)), config);
       }
       return Reflect.get(active.getStore() ?? target, property);
     },

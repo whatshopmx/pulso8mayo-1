@@ -3,16 +3,23 @@ import { db } from "@/lib/db";
 import {
   receivingReports, receivingReportItems, invoices, invoiceLines, inventoryBatches,
   inventoryMovements, temperatureLogs, cfdiRecibidos, recurringContracts,
-  operatingExpenses, pettyCashFunds, pettyCashTransactions, cashFlowAssumptions,
-  purchaseOrders, purchaseOrderItems, suppliers, payees, inventoryItems,
+  operatingExpenses, expensePayments, pettyCashFunds, pettyCashTransactions, cashFlowAssumptions,
+  purchaseOrders, purchaseOrderItems, suppliers, payees, inventoryItems, costCenters,
 } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
-  USER_SUPER_ADMIN, USER_ADMIN, USER_GERENTE, USER_EMPLEADO_1, DEMO_BRANCHES,
+import { withCompanyContext } from "@/lib/db/tenant-context";
+import {
+  COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
+  USER_SUPER_ADMIN, USER_ADMIN, USER_GERENTE, USER_SUPERVISOR,
+  USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3, DEMO_BRANCHES,
 } from "./seed-constants";
+import { seedDate } from "./seed-scenarios";
 
 export async function main() {
   console.log("=== Phase 13: Receiving, 3-Way Match & Treasury ===");
+  await withCompanyContext({ companyId: COMPANY_ID, actorId: USER_SUPER_ADMIN }, async (tx) => {
+    await tx.delete(expensePayments).where(eq(expensePayments.companyId, COMPANY_ID));
+  });
   await db.delete(cashFlowAssumptions).where(eq(cashFlowAssumptions.companyId, COMPANY_ID));
   await db.delete(pettyCashTransactions).where(sql`1=1`);
   await db.delete(pettyCashFunds).where(eq(pettyCashFunds.companyId, COMPANY_ID));
@@ -28,6 +35,9 @@ export async function main() {
   const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.companyId, COMPANY_ID));
   const allPayees = await db.select().from(payees).where(eq(payees.companyId, COMPANY_ID));
   const allItems = await db.select().from(inventoryItems).where(eq(inventoryItems.companyId, COMPANY_ID));
+  const allCostCenters = await db.select().from(costCenters).where(eq(costCenters.companyId, COMPANY_ID));
+  const ccMap = new Map(allCostCenters.map(c => [c.code, c.id]));
+
   // Conciliación exacta y discrepancia de precio sobre documentos enlazados.
   // Cantidades/precios se derivan de la OC, nunca de posiciones de SELECT.
   const targets = [
@@ -146,78 +156,197 @@ export async function main() {
     },
   ]);
 
-  console.log("Inserting operating expenses...");
+  console.log("Inserting operating expenses & payment applications...");
+  const now = new Date();
+  const dateRentStr = seedDate(-4, now).toISOString().slice(0, 10);
+  const dateCfeStr = seedDate(-2, now).toISOString().slice(0, 10);
+  const dateTplayStr = seedDate(-9, now).toISOString().slice(0, 10);
+  const dateMantStr = seedDate(-1, now).toISOString().slice(0, 10);
+  const dueSoonStr = seedDate(5, now).toISOString().slice(0, 10);
+
   const payeeMap = new Map(allPayees.map(p => [p.name, p.id]));
-  await db.insert(operatingExpenses).values([
+  const insertedExpenses = await db.insert(operatingExpenses).values([
     {
       companyId: COMPANY_ID,
       branchId: BRANCH_ROMA,
       payeeId: payeeMap.get("Inmobiliaria y Arrendadora Roma S.A."),
+      costCenterId: ccMap.get("CC-SERV"),
       category: "RENTA",
       amount: 6500000,
-      description: "Pago de renta mensual Roma - Agosto 2026",
+      taxAmount: 896552,
+      paymentMethod: "TRANSFERENCIA",
+      businessDate: dateRentStr,
+      dueDate: dueSoonStr,
+      voucherReference: "CFDI-RENTA-ROMA-2026",
+      description: "Pago de renta mensual sucursal Roma",
       status: "APPROVED",
       requestedBy: USER_ADMIN,
       approvedBy: USER_SUPER_ADMIN,
-      createdAt: new Date(),
+      createdAt: new Date(now.getTime() - 4 * 86400000),
     },
     {
       companyId: COMPANY_ID,
       branchId: BRANCH_CONDESA,
       payeeId: payeeMap.get("Comisión Federal de Electricidad"),
+      costCenterId: ccMap.get("CC-SERV"),
       category: "SERVICIOS",
       amount: 2450000,
-      description: "Recibo de luz CFE Condesa - Bimestre Julio-Agosto",
+      taxAmount: 337931,
+      paymentMethod: "DOMICILIADO",
+      businessDate: dateCfeStr,
+      dueDate: dueSoonStr,
+      voucherReference: "CFDI-CFE-COND-2026",
+      description: "Recibo de suministro eléctrico CFE Condesa",
       status: "APPROVED",
       requestedBy: USER_ADMIN,
       approvedBy: USER_ADMIN,
-      createdAt: new Date(Date.now() - 2 * 86400000),
+      createdAt: new Date(now.getTime() - 2 * 86400000),
     },
     {
       companyId: COMPANY_ID,
       branchId: BRANCH_POLANCO,
       payeeId: payeeMap.get("Totalplay Telecomunicaciones"),
+      costCenterId: ccMap.get("CC-SERV"),
       category: "SERVICIOS",
       amount: 189900,
+      taxAmount: 26193,
+      paymentMethod: "TRANSFERENCIA",
+      businessDate: dateTplayStr,
+      dueDate: dateTplayStr,
+      voucherReference: "CFDI-TPLAY-POL-2026",
       description: "Internet simétrico empresarial y telefonía Polanco",
       status: "PAID",
       requestedBy: USER_GERENTE,
       approvedBy: USER_ADMIN,
-      paidAt: new Date(Date.now() - 9 * 86400000),
-      createdAt: new Date(Date.now() - 10 * 86400000),
+      paidBy: USER_ADMIN,
+      paidAt: new Date(now.getTime() - 9 * 86400000),
+      createdAt: new Date(now.getTime() - 10 * 86400000),
     },
-  ]);
+    {
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      costCenterId: ccMap.get("CC-MANT"),
+      category: "MANTENIMIENTO",
+      amount: 348000,
+      taxAmount: 48000,
+      paymentMethod: "TRANSFERENCIA",
+      businessDate: dateMantStr,
+      dueDate: dueSoonStr,
+      voucherReference: "CFDI-MANT-CAMPANA-2026",
+      description: "Limpieza profunda de ductos y campana de extracción cocina Condesa",
+      status: "PENDING_APPROVAL",
+      requestedBy: USER_GERENTE,
+      createdAt: new Date(now.getTime() - 1 * 86400000),
+    },
+  ]).returning();
 
-  console.log("Inserting petty cash funds & transactions...");
-  const [fundCondesa] = await db.insert(pettyCashFunds).values({
-    companyId: COMPANY_ID,
-    branchId: BRANCH_CONDESA,
-    fundAmount: 500000, // $5,000 MXN
-    currentBalance: 385000, // $3,850 MXN
-    lowThreshold: 150000,  // $1,500 MXN
-    active: true,
-  }).returning();
+  const paidExpense = insertedExpenses.find(e => e.status === "PAID");
+  if (paidExpense) {
+    await withCompanyContext({ companyId: COMPANY_ID, actorId: USER_ADMIN }, async (tx) => {
+      await tx.insert(expensePayments).values({
+        companyId: COMPANY_ID,
+        branchId: paidExpense.branchId,
+        expenseId: paidExpense.id,
+        amountCents: paidExpense.amount,
+        paidAt: dateTplayStr,
+        paymentMethod: "TRANSFERENCIA",
+        status: "CONFIRMED",
+        source: "MANUAL",
+        reference: "SPEI-TPLAY-00981",
+        createdBy: USER_ADMIN,
+        confirmedBy: USER_ADMIN,
+        confirmedAt: new Date(now.getTime() - 9 * 86400000),
+      });
+    });
+  }
+
+  console.log("Inserting petty cash funds & transactions across all 3 branches...");
+  const [fundCondesa, fundPolanco, fundRoma] = await db.insert(pettyCashFunds).values([
+    {
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      fundAmount: 500000,     // $5,000 MXN
+      currentBalance: 385000, // $3,850 MXN
+      lowThreshold: 150000,   // $1,500 MXN
+      active: true,
+    },
+    {
+      companyId: COMPANY_ID,
+      branchId: BRANCH_POLANCO,
+      fundAmount: 500000,     // $5,000 MXN
+      currentBalance: 418000, // $4,180 MXN
+      lowThreshold: 150000,
+      active: true,
+    },
+    {
+      companyId: COMPANY_ID,
+      branchId: BRANCH_ROMA,
+      fundAmount: 500000,     // $5,000 MXN
+      currentBalance: 125000, // $1,250 MXN (bajo umbral -> alerta de reposición)
+      lowThreshold: 150000,
+      active: true,
+    },
+  ]).returning();
+
+  const pcDate2Str = seedDate(-2, now).toISOString().slice(0, 10);
+  const pcDate1Str = seedDate(-1, now).toISOString().slice(0, 10);
 
   await db.insert(pettyCashTransactions).values([
     {
       fundId: fundCondesa.id,
       type: "OUT",
       amount: 45000, // $450 MXN
-      concept: "Compra urgente de hielos y garrafón de agua en OXXO",
+      taxAmount: 0,
+      businessDate: pcDate2Str,
+      voucherReference: "TICKET-OXXO-CND-001",
+      costCenterId: ccMap.get("CC-SERV"),
+      concept: "Compra urgente de bolsas de hielo y garrafón de agua",
       category: "OTROS",
       registeredBy: USER_EMPLEADO_1,
       approvedBy: USER_GERENTE,
-      createdAt: new Date(Date.now() - 2 * 86400000),
+      createdAt: new Date(now.getTime() - 2 * 86400000),
     },
     {
       fundId: fundCondesa.id,
       type: "OUT",
       amount: 70000, // $700 MXN
-      concept: "Material de plomería ferretería por fuga en tarja",
+      taxAmount: 9655,
+      businessDate: pcDate1Str,
+      voucherReference: "TICKET-FERR-CND-002",
+      costCenterId: ccMap.get("CC-MANT"),
+      concept: "Material de plomería y empaque por fuga en tarja de lavado",
       category: "MANTENIMIENTO",
       registeredBy: USER_EMPLEADO_1,
       approvedBy: USER_GERENTE,
-      createdAt: new Date(Date.now() - 1 * 86400000),
+      createdAt: new Date(now.getTime() - 1 * 86400000),
+    },
+    {
+      fundId: fundPolanco.id,
+      type: "OUT",
+      amount: 82000, // $820 MXN
+      taxAmount: 11310,
+      businessDate: pcDate1Str,
+      voucherReference: "TICKET-LIMP-POL-001",
+      costCenterId: ccMap.get("CC-LIMP"),
+      concept: "Reposición urgente de desengrasante y guantes de nitrilo",
+      category: "OTROS",
+      registeredBy: USER_EMPLEADO_2,
+      approvedBy: USER_SUPERVISOR,
+      createdAt: new Date(now.getTime() - 1 * 86400000),
+    },
+    {
+      fundId: fundRoma.id,
+      type: "OUT",
+      amount: 95000, // $950 MXN
+      taxAmount: 13103,
+      businessDate: pcDate2Str,
+      voucherReference: "TICKET-CERRAJ-ROM-001",
+      costCenterId: ccMap.get("CC-MANT"),
+      concept: "Reparación de chapa en puerta de almacén seco Roma",
+      category: "MANTENIMIENTO",
+      registeredBy: USER_EMPLEADO_3,
+      approvedBy: USER_GERENTE,
+      createdAt: new Date(now.getTime() - 2 * 86400000),
     },
   ]);
 
@@ -225,9 +354,16 @@ export async function main() {
   await db.insert(cashFlowAssumptions).values({
     companyId: COMPANY_ID,
     openingBalanceCents: 15000000, // $150,000 MXN saldo consolidado en bancos
-    asOfDate: new Date().toISOString().slice(0, 10),
+    asOfDate: now.toISOString().slice(0, 10),
     updatedBy: USER_ADMIN,
   });
 
   console.log("Phase 13 complete!");
+}
+
+if (require.main === module) {
+  main().then(() => process.exit(0)).catch((err) => {
+    console.error("Error in Phase 13:", err);
+    process.exit(1);
+  });
 }

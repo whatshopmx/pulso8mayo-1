@@ -42,6 +42,7 @@ export const evidenceEntityTypeEnum = pgEnum("evidence_entity_type", [
   "WASTE",
   "RECEIVING",
   "GENERAL",
+  "SALE_RECOVERY",
 ]);
 
 export const evidence = pgTable(

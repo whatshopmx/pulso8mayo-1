@@ -1,0 +1,103 @@
+{
+  "task": "INV-01.c.recovery.attestation.schema",
+  "head": "5a05fb992c813031cacf4209a1bc37e525e56931",
+  "recordedAt": "2026-11-14T15:24:11.005Z",
+  "continuedOn": "2026-11-14",
+  "state": "código implementado",
+  "accepted": false,
+  "environment": {
+    "project": "soft-cloud-50478212",
+    "branch": "br-round-voice-belheola",
+    "runtime": "pulso_app NOSUPERUSER/NOBYPASSRLS; contexto tenant real",
+    "auth": "simulada",
+    "storage": "R2 simulado; sin objetos reales",
+    "ddl": "0145 solo dentro de rollback; ausencia posterior de tabla/fixtures; ninguna aplicación persistente ni main",
+    "sharedJournal": "Hash observado del archivo compartido; este frente añade únicamente entrada 0145; 0146 concurrente pertenece a Nómina"
+  },
+  "verification": {
+    "unit": {
+      "exit": 0,
+      "passed": 38,
+      "files": 5,
+      "log": "unit.txt"
+    },
+    "sql": {
+      "exit": 0,
+      "passed": 18,
+      "files": 3,
+      "ownCases": 5,
+      "log": "integration.txt"
+    },
+    "typecheck": {
+      "exit": 0,
+      "log": "typecheck.txt",
+      "scope": "Modelo 0145 antes del servicio y cambio concurrente de Tesorería; no acredita estado global actual"
+    },
+    "lint": {
+      "exit": 0,
+      "log": "lint.txt",
+      "warnings": 3,
+      "scope": "Imports existentes en schema raíz"
+    },
+    "migrationDelta": {
+      "log": "migration-delta.json",
+      "onlyNewTable": "public.sale_recovery_attestations"
+    },
+    "build": {
+      "state": "not run",
+      "scope": "Global TypeScript actual falla en Tesorería; build anterior 0144/adjuntos no acredita 0145/atestaciones"
+    },
+    "traceability": {
+      "exit": 0,
+      "rows": 239,
+      "planTasks": 86,
+      "children": 86,
+      "acceptedTasks": 15,
+      "errors": 0
+    },
+    "diffCheck": {
+      "exit": 0
+    }
+  },
+  "files": {
+    "lib/db/schema.ts": "de56872faa33f9f438d0a667c363272b93fdf80297bf2ca795ea1f50b73de9de",
+    "drizzle/0145_inv01c_recovery_attestations.sql": "7c951c020f27be5d77eeb71d78164a05adae81fff393e68abadad48550dcc826",
+    "drizzle/meta/0145_snapshot.json": "78a494043af2bec4c7f2c07b00c659653e2a9591c9981d484c228e101bf7de50",
+    "drizzle/meta/_journal.json": "93404c2206b1780f4617a7ff7bc26434985d6e68d93e9b01854c8af478c1cc5b",
+    "tests/integration/sale-recovery-attestations-schema-db.test.ts": "c68e53d9529cf7fcedd89343a153acecc8b560843a65ddc590a6d04145339ea2"
+  },
+  "pending": [
+    "Gate global TypeScript/build: error concurrente de Tesorería documentado, no corregido en este frente",
+    "Sesión HTTP y objetos privados reales; pruebas actuales simulan auth/R2",
+    "Snapshot histórico demostrado y preparación/registro del expediente desde servidor",
+    "Aprobación independiente, aplicación auditada/idempotente con carreras y revalidación",
+    "AUD-02, UI y aceptación de INV-01.c/11.11 pendientes"
+  ],
+  "commands": [
+    {
+      "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-recovery-evidence.test.ts lib/services/__tests__/sale-recovery-storage.test.ts tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-recovery-attestations-schema-db.test.ts tests/integration/sale-recovery-persistence-db.test.ts tests/integration/sale-recovery-attachments-db.test.ts --maxWorkers=1 --pool=threads",
+      "exit": 0
+    },
+    {
+      "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
+      "exit": 0,
+      "scope": "Modelo antes del servicio y cambio concurrente"
+    },
+    {
+      "command": "pnpm.cmd exec eslint lib/db/schema.ts tests/integration/sale-recovery-attestations-schema-db.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ]
+}
