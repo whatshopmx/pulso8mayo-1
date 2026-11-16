@@ -42,6 +42,10 @@ Continuación 2026-11-11: [mapa ejecutable de 239 filas](mapa-implementacion-fal
 - [ ] **INV-01.b4.bulk** [I/M] Frontera bulk: permiso, identidad y cobertura de ingreso — pruebas de ruta, aceptación HTTP real pendiente. [Evidencia](evidencia/2026-11-11/INV-01.b4/README.md).
 - [ ] **INV-01.b4.smartlink** [I/M] Frontera POS del cierre: alcance y vinculación por día — pruebas de ruta, aceptación real pendiente. [Evidencia](evidencia/2026-11-11/INV-01.b4/README.md).
 - [ ] **INV-01.b4.ui** [I/M] UI de importación: corrección, repetición, cobertura y recuperación — 9 pruebas Chromium y build exit 0; aceptación integrada pendiente. [Evidencia](evidencia/2026-11-11/INV-01.b4.ui/README.md).
+- [ ] **INV-01.b4.coverage** [I/P] Propagar cobertura canónica de ingresos a consumidores financieros — dividido en COGS, ejecutivo y menú; sin nueva aceptación.
+- [ ] **INV-01.b4.coverage.cogs** [I/M] Cobertura en COGS, API y pantalla — V1 comprobada: 12 focales, 65 regresiones, 11 de trazabilidad, tipos/lint exit 0 y cuatro escenarios Chromium aislados; ver [evidencia y límites](evidencia/2026-11-16/INV-01.b4.coverage.cogs/README.md). Build interrumpido por memoria; V2 runtime y sesión real pendientes.
+- [ ] **INV-01.b4.coverage.executive** [I/M] Cobertura por sucursal y consolidado ejecutivo — pendiente.
+- [ ] **INV-01.b4.coverage.menu** [I/M] Cobertura y rentabilidad en ingeniería de menú — pendiente.
 - [ ] **INV-01.c** [I/P] Recuperar fallos y carreras — separado en concurrencia y reparación histórica auditada.
 - [ ] **INV-01.c.races** [A/M] Carreras con commits runtime y bloqueo histórico — 5 casos nuevos, 21 SQL con regresión; aceptación dependiente de INV-01.b. [Evidencia](evidencia/2026-11-11/INV-01.c.races/README.md).
 - [ ] **INV-01.c.recovery** [I/M] Implementar recuperación histórica con evidencia, aprobación e idempotencia — en curso: contrato, fuentes verificadas y preparación/registro del expediente desde servidor implementados; decisión independiente y aplicación auditada pendientes. [Contrato](evidencia/2026-11-11/INV-01.c.races/recovery-contract.md).

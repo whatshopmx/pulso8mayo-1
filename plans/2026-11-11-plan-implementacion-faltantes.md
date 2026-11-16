@@ -154,6 +154,13 @@ Descomposición de ejecución para respetar el límite de archivos, materializad
 
 [Registro y límites](../tasks/evidencia/2026-11-11/INV-01.b/README.md). El padre no se acepta hasta acreditar todos los hijos; ninguna fila se acepta por el planificador o el snapshot aislados.
 
+**INV-01.b4.coverage** (I/P, V1/V2/V3; depende de INV-01.a y b4b): propagar ingreso no reportado a lectores financieros; cierre requerido por INV-01.b4.
+
+Descomposición de cobertura (2026-11-16), sin nuevas aceptaciones. El coordinador coverage es padre independiente; INV-01.b4 depende de su cierre en el mapa para que INV-01.b no se acepte sin cobertura. La fila 11.11 y su aceptación dependen de los tres hijos ejecutables.
+- **INV-01.b4.coverage.cogs** (I/M; depende de INV-01.a y b4b; V1/V2/V3). Cinco archivos de código: `sale-revenue-coverage.ts`, `inventory-reports-service.ts`, ruta `inventory/reports/cogs`, cliente `operational-reports-client.tsx` y `cogs-revenue-coverage.test.ts`. Leer heads vigentes antes de filtrar receta; distinguir vacío, parcial y completo; subtotal reportado separado del total nullable y porcentaje sin denominador; conservar cero explícito. Ejecutar consulta y catálogos bajo contexto transaccional de empresa/sucursal, rechazar sucursal ajena y mostrar el faltante en pantalla sin semáforo verde. Casos: remapeo, varias fuentes, revisiones, proyección incoherente y empresa/sucursal/día ajenos. PGlite y HTTP/navegador sintéticos no sustituyen V2 runtime ni sesión real.
+- **INV-01.b4.coverage.executive** (I/M; depende de coverage.cogs; V1/V2/V3). Fijar archivos al abrir: entradas `executive-report-service.ts` y `executive-dashboard.tsx`; propagar cobertura por sucursal y consolidado, sin porcentajes calculados contra subtotales.
+- **INV-01.b4.coverage.menu** (I/M; depende de coverage.cogs; V1/V2/V3). Fijar archivos al abrir: ruta `inventory/menu-engineering` y `menu-engineering-matrix.tsx`; ingreso/rentabilidad por receta con cobertura explícita, sin clasificar como rentabilidad medida una cifra incompleta.
+
 #### INV-01.c — Recuperar fallos y carreras
 
 **Tipo/tamaño:** I / P. **Depende de:** INV-01.b. **Verificación:** V2.

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { hasPermission } from "@/lib/permissions";
 import { resolveBranchScope } from "@/lib/branch-scope";
-import { InventoryReportsService } from "@/lib/services/inventory-reports-service";
+import { CogsReportScopeError, InventoryReportsService } from "@/lib/services/inventory-reports-service";
 import { z } from "zod";
 
 const querySchema = z.object({
@@ -48,10 +48,13 @@ export async function GET(req: NextRequest) {
             ? new Date(validated.startDate)
             : new Date(endDate.getTime() - 30 * 86400000);
 
-        const report = await InventoryReportsService.getCogsReport(scope.branchId, startDate, endDate);
+        const report = await InventoryReportsService.getCogsReport(tenant.id, scope.branchId, startDate, endDate);
 
         return NextResponse.json({ success: true, report });
     } catch (error) {
+        if (error instanceof CogsReportScopeError) {
+            return NextResponse.json({ error: error.message }, { status: 403 });
+        }
         console.error("[CogsReport] Error:", error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Error interno del servidor" },

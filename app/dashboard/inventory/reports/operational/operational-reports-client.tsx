@@ -30,6 +30,7 @@ import {
     Tooltip,
 } from "recharts";
 import { REASON_LABELS as WASTE_REASON_LABELS } from "@/lib/inventory/waste-labels";
+import type { CogsReport } from "@/lib/services/inventory-reports-service";
 
 interface Props {
     branchId: string;
@@ -55,11 +56,6 @@ interface UsageRow {
     usageQty: number; usageCostCents: number;
 }
 interface UsageReport { rows: UsageRow[]; totalUsageCostCents: number }
-
-interface CogsReport {
-    cogsCents: number; revenueCents: number; foodCostPercent: number;
-    byRecipe: Array<{ recipeName: string; costCents: number }>;
-}
 
 interface ParRow {
     itemId: string; itemName: string; unit: string; currentStock: number;
@@ -215,14 +211,21 @@ export function OperationalReportsClient({ branchId }: Props) {
                         loading={loading}
                         cards={[
                             { label: "COGS del periodo", value: cogs ? formatMXN(cogs.cogsCents) : "—" },
-                            { label: "Ventas del periodo", value: cogs ? formatMXN(cogs.revenueCents) : "—" },
+                            { label: "Ventas del periodo", value: cogs?.revenueCents != null ? formatMXN(cogs.revenueCents) : "—" },
                             {
                                 label: "Food Cost %",
-                                value: cogs ? `${cogs.foodCostPercent}%` : "—",
-                                tone: cogs && cogs.foodCostPercent > 35 ? "alert" : cogs ? "ok" : "default",
+                                value: cogs?.foodCostPercent != null ? `${cogs.foodCostPercent}%` : "—",
+                                tone: cogs?.foodCostPercent == null ? "default" : cogs.foodCostPercent > 35 ? "alert" : "ok",
                             },
                         ]}
                     />
+                    {!loading && cogs && cogs.revenueCoverage.status !== "COMPLETE" && (
+                        <p role="status" className="text-sm text-muted-foreground">
+                            {cogs.revenueCoverage.status === "NO_DATA"
+                                ? "Sin ventas registradas en el periodo."
+                                : `Ingresos incompletos: subtotal reportado ${formatMXN(cogs.reportedRevenueCents)}. ${cogs.revenueCoverage.completeEntries} de ${cogs.revenueCoverage.totalEntries} ventas con ingreso completo. Completa los ingresos o revisa las ventas históricas para calcular el porcentaje.`}
+                        </p>
+                    )}
                     <Card>
                         <CardHeader>
                             <CardTitle>Costo por Receta</CardTitle>

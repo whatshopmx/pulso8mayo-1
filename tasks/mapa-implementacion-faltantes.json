@@ -838,7 +838,10 @@
         "INV-01.c.recovery.historical",
         "INV-01.c.recovery.provenance",
         "INV-01.c.recovery.sources",
-        "INV-01.c.recovery.proposal.service"
+        "INV-01.c.recovery.proposal.service",
+        "INV-01.b4.coverage.cogs",
+        "INV-01.b4.coverage.executive",
+        "INV-01.b4.coverage.menu"
       ]
     },
     {
@@ -1257,7 +1260,8 @@
         "INV-01.b4.manual",
         "INV-01.b4.bulk",
         "INV-01.b4.smartlink",
-        "INV-01.b4.ui"
+        "INV-01.b4.ui",
+        "INV-01.b4.coverage"
       ],
       "checks": [
         "V1",
@@ -1650,6 +1654,71 @@
         "INV-01.b",
         "SEC-00",
         "INV-01.c.recovery.decision.service"
+      ]
+    },
+    {
+      "id": "INV-01.b4.coverage",
+      "title": "Propagar cobertura canónica de ingresos a lectores financieros",
+      "type": "I",
+      "size": "P",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b4b"
+      ]
+    },
+    {
+      "id": "INV-01.b4.coverage.cogs",
+      "title": "Cobertura canónica en reporte COGS, API y pantalla operativa",
+      "parent": "INV-01.b4.coverage",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b4b"
+      ]
+    },
+    {
+      "id": "INV-01.b4.coverage.executive",
+      "title": "Cobertura de ingreso por sucursal y consolidado ejecutivo",
+      "parent": "INV-01.b4.coverage",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b4b",
+        "INV-01.b4.coverage.cogs"
+      ]
+    },
+    {
+      "id": "INV-01.b4.coverage.menu",
+      "title": "Cobertura de ingresos y rentabilidad en ingeniería de menú",
+      "parent": "INV-01.b4.coverage",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b4b",
+        "INV-01.b4.coverage.cogs"
       ]
     }
   ],
@@ -2609,7 +2678,10 @@
         "INV-01.c.recovery.historical",
         "INV-01.c.recovery.provenance",
         "INV-01.c.recovery.sources",
-        "INV-01.c.recovery.proposal.service"
+        "INV-01.c.recovery.proposal.service",
+        "INV-01.b4.coverage.cogs",
+        "INV-01.b4.coverage.executive",
+        "INV-01.b4.coverage.menu"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -5036,6 +5108,58 @@
           ]
         }
       ]
+    },
+    "INV-01.b4.coverage": {
+      "state": "en curso",
+      "evidence": []
+    },
+    "INV-01.b4.coverage.cogs": {
+      "state": "V1",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/README.md",
+          "head": "51b90d4b31a14096a3b6fa37e1f18e774e23d55f",
+          "environment": "Windows local; PGlite sintético y Chromium con API simulada; sin Neon/runtime ni sesión reales",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/cogs-revenue-coverage.test.ts tests/unit/faltantes-traceability.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node .tmp/cogs-browser-check.mjs",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-revenue-coverage.ts lib/services/inventory-reports-service.ts lib/services/__tests__/cogs-revenue-coverage.test.ts app/dashboard/inventory/reports/operational/operational-reports-client.tsx app/api/inventory/reports/cogs/route.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsx scripts/validate-faltantes.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS='--max-old-space-size=4096 --use-system-ca' pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "D"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.coverage.executive": {
+      "state": "pendiente",
+      "evidence": []
+    },
+    "INV-01.b4.coverage.menu": {
+      "state": "pendiente",
+      "evidence": []
     }
   }
 }

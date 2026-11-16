@@ -1,0 +1,20 @@
+{
+  "task": "INV-01.b4.coverage.cogs",
+  "head": "51b90d4b31a14096a3b6fa37e1f18e774e23d55f",
+  "tree": "shared local changes; no commit created",
+  "state": "V1",
+  "accepted": false,
+  "checks": {
+    "focusedTests": { "passed": 12, "exit": 0 },
+    "traceabilityTests": { "passed": 11, "exit": 0 },
+    "consumptionRegressionTests": { "passed": 65, "exit": 0, "note": "Earlier run also included 10 overlapping COGS tests; do not add them twice" },
+    "browser": { "passed": 4, "exit": 0, "widths": [1440, 320], "pageErrors": 0, "api": "synthetic" },
+    "typescript": { "exit": 0, "command": "pnpm.cmd exec tsc --noEmit", "nodeOptions": "--max-old-space-size=4096 --use-system-ca" },
+    "lint": { "exit": 0, "errors": 0, "warnings": 0 },
+    "traceability": { "exit": 0, "command": "node --experimental-strip-types scripts/validate-faltantes.ts", "rows": 239, "acceptedTasks": 24, "errors": 0, "note": "tsx launcher failed with ENOMEM on final run; identical validator passed via native Node type stripping" },
+    "build": { "status": "interrupted", "exit": 1, "reason": "Environment memory pressure; no compile result", "compiled": false }
+  },
+  "pending": ["Neon runtime RLS and privileges", "real authenticated HTTP/browser acceptance", "complete build", "coverage.executive", "coverage.menu"],
+  "migrationsApplied": false,
+  "deployed": false
+}

@@ -11,8 +11,9 @@ import {
     stockCounts,
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, gt, sql, inArray, desc } from "drizzle-orm";
-import { withBranchContext } from "@/lib/db/tenant-context";
+import { withBranchContext, withCompanyContext } from "@/lib/db/tenant-context";
 import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
+import { saleRevenueComplete } from "./sale-revenue-coverage";
 
 // ---------------------------------------------------------------------------
 // Reportes operativos de inventario (usage, COGS, par level, valuation,
@@ -48,9 +49,16 @@ export interface CogsReport {
     branchId: string;
     period: { start: string; end: string };
     cogsCents: number;
-    revenueCents: number;
-    foodCostPercent: number;
+    /** Subtotal conocido; no representa el total cuando la cobertura es parcial. */
+    reportedRevenueCents: number;
+    revenueCents: number | null;
+    foodCostPercent: number | null;
+    revenueCoverage: { status: "NO_DATA" | "PARTIAL" | "COMPLETE"; totalEntries: number; completeEntries: number };
     byRecipe: Array<{ recipeId: string; recipeName: string; costCents: number }>;
+}
+
+export class CogsReportScopeError extends Error {
+    constructor() { super("Sucursal fuera de la empresa"); this.name = "CogsReportScopeError"; }
 }
 
 export type ParStatus = "BELOW_MIN" | "BELOW_PAR" | "ABOVE_MAX" | "OK";
@@ -267,31 +275,40 @@ export class InventoryReportsService {
      * receta/insumo por venta.
      */
     static async getCogsReport(
+        companyId: string,
         branchId: string,
         startDate: Date,
         endDate: Date
     ): Promise<CogsReport> {
-        const sales = await db.select({
+        return withCompanyContext({ companyId, branchId }, async (tx) => {
+        const [branch] = await tx.select({ id: branches.id }).from(branches)
+            .where(and(eq(branches.id, branchId), eq(branches.companyId, companyId)));
+        if (!branch) throw new CogsReportScopeError();
+        const sales = await tx.select({
             recipeId: salesEntries.recipeId,
             quantitySold: salesEntries.quantitySold,
             revenue: salesEntries.totalRevenue,
+            revenueComplete: saleRevenueComplete,
         })
             .from(salesEntries)
             .where(and(
+                eq(salesEntries.companyId, companyId),
                 eq(salesEntries.branchId, branchId),
                 gte(salesEntries.saleDate, startDate),
                 lte(salesEntries.saleDate, endDate),
             ));
 
         let revenueCents = 0;
+        const completeEntries = sales.filter(sale => sale.revenueComplete === true).length;
+        const revenueComplete = sales.length > 0 && completeEntries === sales.length;
         let cogsCents = 0;
         let recipeNames = new Map<string, string>();
         const byRecipeMap = new Map<string, number>();
 
         if (sales.length > 0) {
             const [costIndex, names] = await Promise.all([
-                this.buildRecipeCostIndex(),
-                this.fetchRecipeNames(),
+                this.buildRecipeCostIndex(tx),
+                this.fetchRecipeNames(tx),
             ]);
             recipeNames = names;
 
@@ -309,8 +326,10 @@ export class InventoryReportsService {
             branchId,
             period: { start: startDate.toISOString(), end: endDate.toISOString() },
             cogsCents: Math.round(cogsCents),
-            revenueCents,
-            foodCostPercent: revenueCents > 0 ? r2((cogsCents / revenueCents) * 100) : 0,
+            reportedRevenueCents: revenueCents,
+            revenueCents: revenueComplete ? revenueCents : null,
+            foodCostPercent: revenueComplete && revenueCents > 0 ? r2((cogsCents / revenueCents) * 100) : null,
+            revenueCoverage: { status: sales.length === 0 ? "NO_DATA" : revenueComplete ? "COMPLETE" : "PARTIAL", totalEntries: sales.length, completeEntries },
             byRecipe: [...byRecipeMap.entries()]
                 .map(([recipeId, cost]) => ({
                     recipeId,
@@ -319,10 +338,12 @@ export class InventoryReportsService {
                 }))
                 .sort((a, b) => b.costCents - a.costCents),
         };
+        });
     }
 
-    private static async fetchRecipeNames(): Promise<Map<string, string>> {
-        const rows = await db.select({ id: recipes.id, name: recipes.name }).from(recipes);
+    private static async fetchRecipeNames(executor: Pick<typeof db, "select">): Promise<Map<string, string>> {
+        const rows = await executor.select({ id: recipes.id, name: recipes.name }).from(recipes)
+            .where(sql`${recipes.companyId} = current_setting('app.current_company_id')::uuid`);
         return new Map(rows.map(r => [r.id, r.name]));
     }
 
@@ -331,16 +352,18 @@ export class InventoryReportsService {
      * plana de insumos hoja una sola vez, junto con el costo unitario vigente
      * de cada insumo.
      */
-    private static async buildRecipeCostIndex(): Promise<RecipeCostIndex> {
+    private static async buildRecipeCostIndex(executor: Pick<typeof db, "select">): Promise<RecipeCostIndex> {
         const [recipeHeaders, allRecipeItems, invItems] = await Promise.all([
-            db.select({ id: recipes.id, baseYield: recipes.baseYield }).from(recipes),
-            db.select().from(recipeItems),
-            db.select({
+            executor.select({ id: recipes.id, baseYield: recipes.baseYield }).from(recipes)
+                .where(sql`${recipes.companyId} = current_setting('app.current_company_id')::uuid`),
+            executor.select().from(recipeItems).where(inArray(recipeItems.recipeId,
+                executor.select({ id: recipes.id }).from(recipes).where(sql`${recipes.companyId} = current_setting('app.current_company_id')::uuid`))),
+            executor.select({
                 id: inventoryItems.id,
                 averageCost: inventoryItems.averageCost,
                 lastCost: inventoryItems.lastCost,
                 standardCost: inventoryItems.standardCost,
-            }).from(inventoryItems),
+            }).from(inventoryItems).where(sql`${inventoryItems.companyId} = current_setting('app.current_company_id')::uuid`),
         ]);
 
         const itemsByRecipe = new Map<string, typeof allRecipeItems>();
