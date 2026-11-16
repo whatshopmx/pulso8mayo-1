@@ -10,6 +10,7 @@ import {
   equipmentAlerts,
   branches,
   dailySalesCuts,
+  exceptions,
 } from "@/lib/db/schema";
 import { and, eq, ne, inArray, or, sql } from "drizzle-orm";
 
@@ -70,6 +71,20 @@ export interface GroupException {
    * `id` es el id canónico y las acciones de lifecycle pueden operar sobre él.
    */
   lifecycle?: GroupExceptionLifecycle;
+  /**
+   * Presente en el feed legacy cuando el mismo sujeto ya fue proyectado a
+   * `exceptions`. Declara el id y el estado canónicos sin cambiar la fuente de
+   * la fila: con `EXCEPTIONS_CANONICAL_READ` apagado la lectura sigue siendo la
+   * del dominio, pero el feed deja de ocultar que ya existe proyección.
+   */
+  canonical?: GroupExceptionCanonical;
+}
+
+export interface GroupExceptionCanonical {
+  id: string;
+  status: ExceptionStatus;
+  ownerId: string | null;
+  slaDueAt: Date | null;
 }
 
 export interface GroupExceptionLifecycle {
@@ -116,6 +131,97 @@ function applyListOpenFilters(
 /** Flag de rollout del feed canónico (env). Phase 7 retira el legacy. */
 export function isCanonicalReadEnabled(): boolean {
   return process.env.EXCEPTIONS_CANONICAL_READ === "true";
+}
+
+/**
+ * `subject_type` canónico que produce cada fuente legacy del agregador.
+ *
+ * Espeja la clave de idempotencia de `lib/services/exception-adapters/*`:
+ * `(subjectType, subjectId)` identifica la proyección de una fila de dominio.
+ */
+export const LEGACY_SUBJECT_TYPES: Record<string, string> = {
+  incidents: "incident",
+  compliance_alerts: "compliance_alert",
+  equipment_alerts: "equipment_alert",
+  nom035_action_plans: "nom035_action_plan",
+  shift_approvals: "shift_approval",
+  shift_change_requests: "shift_change_request",
+  inventory_alerts: "inventory_alert",
+  daily_sales_cuts: "cash_variance",
+};
+
+/** Proyección canónica mínima que el feed legacy necesita declarar. */
+export interface CanonicalProjection {
+  id: string;
+  subjectType: string;
+  subjectId: string;
+  status: ExceptionStatus;
+  ownerId: string | null;
+  slaDueAt: Date | null;
+}
+
+/**
+ * Declara el estado canónico en las filas legacy que ya tienen proyección.
+ * Puro: recibe las proyecciones ya consultadas. Un sujeto sin proyección
+ * conserva la fila intacta (el sync todavía no lo alcanzó).
+ */
+export function attachCanonicalState(
+  results: GroupException[],
+  projections: CanonicalProjection[],
+): GroupException[] {
+  if (!projections.length) return results;
+  const key = (subjectType: string, subjectId: string) =>
+    `${subjectType}:${subjectId}`;
+  const bySubject = new Map(
+    projections.map((row) => [key(row.subjectType, row.subjectId), row]),
+  );
+  return results.map((row) => {
+    const subjectType = LEGACY_SUBJECT_TYPES[row.sourceTable];
+    const projection = subjectType
+      ? bySubject.get(key(subjectType, row.id))
+      : undefined;
+    return projection
+      ? {
+          ...row,
+          canonical: {
+            id: projection.id,
+            status: projection.status,
+            ownerId: projection.ownerId,
+            slaDueAt: projection.slaDueAt,
+          },
+        }
+      : row;
+  });
+}
+
+async function loadCanonicalProjections(
+  companyId: string,
+  results: GroupException[],
+): Promise<CanonicalProjection[]> {
+  const subjectTypes = [
+    ...new Set(
+      results
+        .map((row) => LEGACY_SUBJECT_TYPES[row.sourceTable])
+        .filter((subjectType): subjectType is string => Boolean(subjectType)),
+    ),
+  ];
+  if (!subjectTypes.length) return [];
+  return db
+    .select({
+      id: exceptions.id,
+      subjectType: exceptions.subjectType,
+      subjectId: exceptions.subjectId,
+      status: exceptions.status,
+      ownerId: exceptions.ownerId,
+      slaDueAt: exceptions.slaDueAt,
+    })
+    .from(exceptions)
+    .where(
+      and(
+        eq(exceptions.companyId, companyId),
+        inArray(exceptions.subjectType, subjectTypes),
+      ),
+    );
 }
 
 /** Enlaces por defecto cuando la fila no trae `action_meta.url`. */
@@ -652,6 +758,10 @@ export const GroupExceptionsService = {
       });
     }
 
-    return applyListOpenFilters(results, opts);
+    const projections = await loadCanonicalProjections(companyId, results);
+    return applyListOpenFilters(
+      attachCanonicalState(results, projections),
+      opts,
+    );
   },
 };
