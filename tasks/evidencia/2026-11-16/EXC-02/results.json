@@ -1,0 +1,45 @@
+{
+  "id": "EXC-02",
+  "head": "754c7ea9e662c7d03c935af264fdf4d03aa18a24",
+  "environment": "Windows local; Neon aislado ep-cold-morning-bewqoz3o; PostgreSQL real sin mocks de datos (solo sesion V3 mockeada)",
+  "checks": [
+    {
+      "name": "regresiones focales de excepciones",
+      "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/exception-raise-atomic.test.ts lib/services/__tests__/exception-service.test.ts lib/services/__tests__/exception-adapters.test.ts lib/services/__tests__/group-exceptions-canonical.test.ts",
+      "exit": 0,
+      "files": 4,
+      "passed": 33,
+      "seconds": 6.03
+    },
+    {
+      "name": "V2 + V3 del sync legacy -> canonico",
+      "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/exc02-legacy-canonical-sync-db.test.ts",
+      "nodeOptions": "--use-system-ca",
+      "exit": 0,
+      "files": 1,
+      "passed": 6,
+      "seconds": 29.31,
+      "scope": "5 casos V2 (idempotencia, anotacion, sujeto no alcanzado, paridad, bandera reversible) + 1 caso V3 (GET /api/group/exceptions)"
+    },
+    {
+      "name": "TypeScript",
+      "command": "pnpm.cmd exec tsc --noEmit (NODE_OPTIONS=--max-old-space-size=8192)",
+      "exit": 0
+    },
+    {
+      "name": "ESLint de servicio y prueba unitaria",
+      "command": "pnpm.cmd exec eslint lib/services/group-exceptions-service.ts lib/services/__tests__/group-exceptions-canonical.test.ts",
+      "exit": 0,
+      "errors": 0,
+      "warnings": 3,
+      "warningScope": "previas: domain/qsrCategory/limit desestructurados sin uso en listOpen"
+    }
+  ],
+  "checksVerified": ["V2", "V3"],
+  "limits": [
+    "No acredita navegador/UI: V3 invoca el handler con Request y sesion mockeada",
+    "No certifica el cron ni la entrega de exceptions/sync.requested; ejecuta runExceptionAdapters",
+    "No aplica migraciones: 0151/0153 del frente de facturas quedan fuera",
+    "Aceptar EXC-02 no acepta EXC-03.a ni EXC-05"
+  ]
+}
