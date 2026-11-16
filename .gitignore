@@ -62,3 +62,6 @@ next-env.d.ts
 
 # capturas y sondas de las sesiones de agente (ver eslint.config.mjs)
 /.tmp/
+
+# pnpm local cache
+/.pnpm-store/
