@@ -2,10 +2,8 @@ import { NextRequest } from "next/server";
 import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
-import { db } from "@/lib/db";
-import { dailySalesCuts } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
 import { resolveBranchScope } from "@/lib/branch-scope";
+import { readPosCutFileRecord } from "@/lib/services/pos-cut-file-service";
 import {
   POS_UPLOAD_URL_TTL_SECONDS,
   resolvePosUploadUrl,
@@ -41,34 +39,13 @@ export const GET = withRoleAuth(
       throw ApiError.badRequest("Identificador de corte inválido.");
     }
 
-    const [cut] = await db
-      .select({
-        id: dailySalesCuts.id,
-        branchId: dailySalesCuts.branchId,
-        businessDate: dailySalesCuts.businessDate,
-        rawFileUrl: dailySalesCuts.rawFileUrl,
-      })
-      .from(dailySalesCuts)
-      .where(
-        and(
-          eq(dailySalesCuts.id, id),
-          eq(dailySalesCuts.companyId, auth.tenantId)
-        )
-      )
-      .limit(1);
-
-    if (!cut) {
-      throw ApiError.notFound("Corte de ventas no encontrado");
-    }
-
-    const scope = resolveBranchScope(
-      auth.user.role,
-      auth.user.branchId,
-      cut.branchId
-    );
+    const scope = resolveBranchScope(auth.user.role, auth.user.branchId);
     if (scope.kind === "NONE") {
       throw ApiError.forbidden("Sin acceso al archivo POS de esta sucursal");
     }
+    const cut = await readPosCutFileRecord({ companyId: auth.tenantId,
+      branchId: scope.kind === "BRANCH" ? scope.branchId : null, actorId: auth.user.id }, id);
+    if (!cut) throw ApiError.notFound("Corte de ventas no encontrado");
     if (scope.kind === "BRANCH" && scope.branchId !== cut.branchId) {
       // 404, no 403: no filtrar la existencia de cortes fuera del alcance.
       throw ApiError.notFound("Corte de ventas no encontrado");

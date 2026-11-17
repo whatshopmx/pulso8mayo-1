@@ -6,7 +6,9 @@ import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { SalesIngestService } from "@/lib/services/sales-ingest-service";
 
 const { update, conditions } = vi.hoisted(() => ({ update: vi.fn(), conditions: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { update } }));
+vi.mock("@/lib/db", () => ({ db: { update,
+  transaction: async (operation: (tx: unknown) => unknown) => operation({ update, execute: vi.fn() }),
+} }));
 vi.mock("@/lib/tenant-context", () => ({ requireAuth: vi.fn(), requireTenant: vi.fn() }));
 vi.mock("@/lib/branch-scope", async () => ({ ...(await vi.importActual("@/lib/branch-scope")), assertBranchOfCompany: vi.fn() }));
 vi.mock("@/lib/services/sales-ingest-service", async () => ({ ...(await import("@/lib/services/sales-ingest-pure")),

@@ -1,7 +1,4 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { dailySalesCuts } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
@@ -16,6 +13,7 @@ import {
   storePosUpload,
 } from "@/lib/storage/pos-upload";
 import { validateSaleDay } from "@/lib/services/sale-consumption-contract";
+import { linkPosCutFileRecord } from "@/lib/services/pos-cut-file-service";
 import {
   SalesIngestService,
   guessMapping,
@@ -150,15 +148,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Link the file to matching sales cuts for that date
-      const updated = await db
-        .update(dailySalesCuts)
-        .set({
-          rawFileUrl: fileUrl,
-          validationNotes: `Archivo POS subido vía Smart Link: ${file.name}`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(dailySalesCuts.companyId, tenant.id), eq(dailySalesCuts.branchId, branchId), eq(dailySalesCuts.businessDate, businessDate)))
-        .returning();
+      const updated = await linkPosCutFileRecord({ companyId: tenant.id, branchId, businessDate, actorId: auth.user.id },
+        fileUrl, `Archivo POS subido vía Smart Link: ${file.name}`);
 
       return ApiHandler.success({
         fileUrl,
@@ -184,15 +175,8 @@ export async function POST(req: NextRequest) {
       throw ApiError.badRequest("Referencia POS inválida para esta empresa, sucursal y día. Vuelve a subir el archivo.");
     }
 
-    const updated = await db
-      .update(dailySalesCuts)
-      .set({
-        rawFileUrl: fileUrl,
-        validationNotes: "Archivo POS vinculado vía Smart Link (cierre de sucursal).",
-        updatedAt: new Date(),
-      })
-      .where(and(eq(dailySalesCuts.companyId, tenant.id), eq(dailySalesCuts.branchId, branchId), eq(dailySalesCuts.businessDate, businessDate)))
-      .returning();
+    const updated = await linkPosCutFileRecord({ companyId: tenant.id, branchId, businessDate, actorId: auth.user.id },
+      fileUrl, "Archivo POS vinculado vía Smart Link (cierre de sucursal).");
 
     return ApiHandler.success({
       fileUrl,

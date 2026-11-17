@@ -43,8 +43,8 @@ vi.mock("@/lib/api/with-auth", async () => {
   };
 });
 
-vi.mock("@/lib/db", () => ({
-  db: {
+vi.mock("@/lib/db", () => {
+  const client = {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -52,8 +52,10 @@ vi.mock("@/lib/db", () => ({
         })),
       })),
     })),
-  },
-}));
+    execute: vi.fn(),
+  };
+  return { db: { ...client, transaction: async (operation: (tx: typeof client) => unknown) => operation(client) } };
+});
 
 vi.mock("@/lib/branch-scope", () => ({
   resolveBranchScope: vi.fn(() => mocks.scope),
