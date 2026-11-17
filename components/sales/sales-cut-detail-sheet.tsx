@@ -20,6 +20,7 @@ import {
 } from "@/lib/sales/cash-variance";
 import { cutStatus, cutStatusChipClass } from "@/lib/sales/cut-status";
 import { CHANNEL_LABELS, type SalesCut } from "@/lib/sales/sales-cut-types";
+import { SalesCutPosFile } from "./sales-cut-pos-file";
 
 /**
  * Detalle de un corte de ventas.
@@ -248,6 +249,13 @@ export function SalesCutDetailSheet({
                   </section>
                 </>
               )}
+
+              <Separator />
+              <section aria-label="Archivo POS">
+                {cut.rawFileUrl ? open && <SalesCutPosFile key={`${cut.id}:${cut.rawFileUrl}`} cutId={cut.id} /> : (
+                  <p className="text-sm text-muted-foreground">Este corte no tiene archivo POS adjunto.</p>
+                )}
+              </section>
 
               {cut.cardSales !== null && cut.cardSales > 0 && (
                 <Button
