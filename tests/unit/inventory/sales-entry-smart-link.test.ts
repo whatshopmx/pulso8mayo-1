@@ -15,7 +15,8 @@ vi.mock("@/lib/services/sales-ingest-service", async () => ({ ...(await import("
 const companyId = "c1000000-0000-4000-8000-000000000001";
 const branchId = "b1000000-0000-4000-8000-000000000001";
 const otherBranch = "b2000000-0000-4000-8000-000000000002";
-const body = { branchId, fileUrl: "pos-uploads/report.csv", businessDate: "2026-11-12" };
+const key = `companies/${companyId}/branches/${branchId}/pos/2026-11-12/1_report.csv`;
+const body = { branchId, fileUrl: key, businessDate: "2026-11-12" };
 const json = (data = body) => POST(new NextRequest("http://localhost/api/workflows/smart-links/upload-pos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) }));
 function session(role = "ADMIN", branch: string | null = null) {
   vi.mocked(requireAuth).mockResolvedValue({ user: { id: "actor", companyId, branchId: branch, role } } as never);
@@ -40,6 +41,23 @@ describe("frontera de archivo POS del cierre", () => {
     expect((await json()).status).toBe(200);
     const sql = new PgDialect().sqlToQuery(conditions.mock.calls[0][0]);
     expect(sql.params).toEqual([companyId, branchId, "2026-11-12"]);
+    expect(SalesIngestService.ingest).not.toHaveBeenCalled();
+  });
+  it.each([
+    key.replace(companyId, "c2000000-0000-4000-8000-000000000002"),
+    key.replace(branchId, otherBranch),
+    key.replace("2026-11-12", "2026-11-13"),
+    key.replace("/pos/", "/evidence/"),
+    key.replace("1_report.csv", "../1_report.csv"),
+    key.replace("1_report.csv", "%2e%2e%2f1_report.csv"),
+    `${key}\n`,
+    `${key}?download=1`,
+    "pos-uploads/report.csv",
+    "https://cdn.example/report.csv",
+    `local://pos-uploads/${companyId}/${branchId}/2026-11-12-report.csv`,
+  ])("rechaza referencias no verificables antes de actualizar el corte: %s", async fileUrl => {
+    expect((await json({ ...body, fileUrl })).status).toBe(400);
+    expect(update).not.toHaveBeenCalled();
     expect(SalesIngestService.ingest).not.toHaveBeenCalled();
   });
   it("rechaza día civil imposible y discrepancia entre tenant y sesión", async () => {

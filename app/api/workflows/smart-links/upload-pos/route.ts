@@ -11,6 +11,7 @@ import { hasPermission } from "@/lib/permissions";
 import { isR2Configured } from "@/lib/storage/r2-client";
 import {
   assertPosUploadValid,
+  isPosUploadKeyForScope,
   sanitizePosFileName,
   storePosUpload,
 } from "@/lib/storage/pos-upload";
@@ -47,7 +48,7 @@ async function assertUploadScope(companyId: string, branchId: string, auth: Awai
  *   - branchId: string (required)
  *   - workflowInstanceId: string (optional)
  *   - stepId: string (optional)
- *   - fileUrl: string (URL del archivo CSV/Excel del POS; ruta JSON)
+ *   - fileUrl: string (key privada POS del mismo ámbito; ruta JSON)
  *   - businessDate: string (opcional, defaults to today)
  */
 export async function POST(req: NextRequest) {
@@ -178,6 +179,10 @@ export async function POST(req: NextRequest) {
     const { fileUrl, workflowInstanceId } = body;
     const { branchId, businessDate } = uploadScope.parse({ branchId: body.branchId, businessDate: body.businessDate ?? new Date().toISOString().slice(0, 10) });
     await assertUploadScope(tenant.id, branchId, auth);
+
+    if (!isPosUploadKeyForScope(fileUrl, { companyId: tenant.id, branchId, businessDate })) {
+      throw ApiError.badRequest("Referencia POS inválida para esta empresa, sucursal y día. Vuelve a subir el archivo.");
+    }
 
     const updated = await db
       .update(dailySalesCuts)
