@@ -10,8 +10,10 @@ import {
   shiftSessions,
   shiftApprovals,
   vacationRequests,
+  vacationAccruals,
   leaveRequests,
   leaveTypes,
+  leaveBalances,
   branches,
   users,
   payrollRuns,
@@ -294,13 +296,133 @@ export async function isPayrollPeriodFrozen(
   return Boolean(completed);
 }
 
+export type VacationBalanceStatus = "AVAILABLE" | "MISSING" | "QUERY_ERROR";
+
+export interface VacationPeriodBreakdown {
+  vacationDaysTaken: number;
+  vacationDaysEligible: number;
+  vacationDaysExceeded: number;
+  vacationBasePayCents: number;
+  vacationPrimeCents: number;
+  vacationBonusPercent: number;
+  vacationAvailableBalance: number;
+  vacationRemainingBalance: number;
+  hasVacations: boolean;
+  /**
+   * Distingue saldo conocido (AVAILABLE), dato ausente (MISSING) y consulta
+   * fallida (QUERY_ERROR). Un fallo de consulta NO se colapsa a saldo 0: son
+   * estados distintos y NOM-06 bloquea aprobación sobre MISSING/QUERY_ERROR.
+   */
+  vacationBalanceStatus: VacationBalanceStatus;
+  /** Estado de la consulta de solicitudes (un fallo no se lee como "sin vacaciones"). */
+  vacationRequestsStatus: "AVAILABLE" | "QUERY_ERROR";
+  justification:
+    | "LFT_ARTS_76_80"
+    | "SIN_VACACIONES"
+    | "EXCEEDED_VACATION_BALANCE"
+    | "VACATION_BALANCE_MISSING"
+    | "VACATION_BALANCE_QUERY_ERROR"
+    | "VACATION_REQUESTS_QUERY_ERROR";
+  approvedRequestsCount: number;
+  rejectedRequestsCount: number;
+  pendingRequestsCount: number;
+  details?: Array<{
+    requestId?: string;
+    startDate: string;
+    endDate: string;
+    days: number;
+    status: string;
+  }>;
+}
+
+export interface LeavePeriodBreakdown {
+  paidLeaveDays: number;
+  unpaidLeaveDays: number;
+  hasPaidLeave: boolean;
+  hasUnpaidLeave: boolean;
+  /** Estado de la consulta de permisos: un fallo no se lee como "sin permisos". */
+  leavesStatus: "AVAILABLE" | "QUERY_ERROR";
+  details: Array<{
+    leaveRequestId?: string;
+    leaveTypeName: string;
+    startDate: string;
+    endDate: string;
+    days: number;
+    isPaid: boolean;
+    status: string;
+  }>;
+}
+
+export interface ResolveVacationsInput {
+  userId: string;
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  dailySalaryCents: number;
+  vacationBonusPercent?: number; // default 25 (minimum 25 per LFT Art. 80)
+  timezone?: string;
+  vacationRequests?: Array<{
+    id?: string;
+    startDate: Date | string;
+    endDate: Date | string;
+    totalDays?: number | null;
+    status?: string | null;
+    rejectionReason?: string | null;
+  }>;
+  leaveRequests?: Array<{
+    id?: string;
+    leaveTypeId?: string;
+    leaveTypeName?: string;
+    startDate: Date | string;
+    endDate: Date | string;
+    totalDays?: number | null;
+    status?: string | null;
+    isPaid?: boolean | null;
+    rejectionReason?: string | null;
+  }>;
+  vacationAccruals?: Array<{
+    year: number;
+    daysBalance: number;
+    daysTaken?: number | null;
+    daysAccrued?: number | null;
+  }>;
+  leaveBalances?: Array<{
+    leaveTypeId?: string;
+    year?: number;
+    balance: number;
+  }>;
+  dbInstance?: any;
+}
+
+export interface ResolveLeavesInput {
+  userId: string;
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  timezone?: string;
+  leaveRequests?: Array<{
+    id?: string;
+    leaveTypeId?: string;
+    leaveTypeName?: string;
+    startDate: Date | string;
+    endDate: Date | string;
+    totalDays?: number | null;
+    status?: string | null;
+    isPaid?: boolean | null;
+    rejectionReason?: string | null;
+  }>;
+  dbInstance?: any;
+}
+
 export interface AttendancePeriodResolution {
   calendarDays: number;
   effectiveDaysInPeriod: number;
   approvedAttendanceDays: number;
   holidayDaysWorked: number;
   holidayDaysRested: number;
+  vacationDays: number;
   paidLeaveDays: number;
+  otherPaidLeaveDays?: number;
   unpaidAbsenceDays: number;
   payableDays: number;
   hasPendingAttendance: boolean;
@@ -634,7 +756,7 @@ export async function resolveAttendanceForPeriod(
     }
   }
 
-  const paidLeaveDates = new Set<string>();
+  const vacationDates = new Set<string>();
   for (const v of rawVacations) {
     if (v.status !== "APPROVED") continue;
     const vStart = typeof v.startDate === "string" ? v.startDate.slice(0, 10) : localCivilDate(v.startDate);
@@ -645,7 +767,7 @@ export async function resolveAttendanceForPeriod(
     if (cur <= limit) {
       let d = cur;
       while (d <= limit) {
-        paidLeaveDates.add(format(d, "yyyy-MM-dd"));
+        vacationDates.add(format(d, "yyyy-MM-dd"));
         d = addDays(d, 1);
       }
     }
@@ -676,6 +798,7 @@ export async function resolveAttendanceForPeriod(
     }
   }
 
+  const otherPaidLeaveDates = new Set<string>();
   const unpaidLeaveDates = new Set<string>();
   for (const l of rawLeaves) {
     if (l.status !== "APPROVED") continue;
@@ -691,12 +814,15 @@ export async function resolveAttendanceForPeriod(
         if (l.isPaid === false) {
           unpaidLeaveDates.add(formatted);
         } else {
-          paidLeaveDates.add(formatted);
+          otherPaidLeaveDates.add(formatted);
         }
         d = addDays(d, 1);
       }
     }
   }
+
+  // Días con goce consolidados (vacaciones + permisos con goce)
+  const paidLeaveDates = new Set([...vacationDates, ...otherPaidLeaveDates]);
 
   // 6. Cálculo de faltas y días pagaderos
   const unpaidAbsenceDates = new Set([...noShowDates, ...unpaidLeaveDates]);
@@ -709,7 +835,9 @@ export async function resolveAttendanceForPeriod(
     approvedAttendanceDays: approvedDates.size,
     holidayDaysWorked: holidayWorkedDates.size,
     holidayDaysRested: holidayRestedDates.size,
+    vacationDays: vacationDates.size,
     paidLeaveDays: paidLeaveDates.size,
+    otherPaidLeaveDays: otherPaidLeaveDates.size,
     unpaidAbsenceDays,
     payableDays,
     hasPendingAttendance,
@@ -1345,6 +1473,384 @@ export function resolveOvertimeForPeriod(
   })();
 }
 
+/**
+ * Resuelve las vacaciones de un empleado para un período de nómina determinado (LFT Arts. 76, 79, 80 & 81).
+ * Valida solicitudes aprobadas (status = 'APPROVED') dentro del rango del período.
+ * Compara contra el saldo acumulado en vacationAccruals / leaveBalances para determinar
+ * días elegibles vs días excedidos.
+ * Calcula la prima vacacional mínima del 25% (LFT Art. 80) en centavos sobre los días elegibles.
+ */
+export async function resolveVacationsForPeriod(
+  input: ResolveVacationsInput
+): Promise<VacationPeriodBreakdown> {
+  const { startDate, endDate } = validatePayrollPeriod(input.startDate, input.endDate);
+  const {
+    userId,
+    companyId,
+    dailySalaryCents,
+    vacationBonusPercent = 25,
+    timezone = "America/Mexico_City",
+    vacationRequests: preloadedVacations,
+    vacationAccruals: preloadedAccruals,
+    leaveBalances: preloadedLeaveBalances,
+    dbInstance = db,
+  } = input;
+
+  const bonusPercent = Math.max(25, vacationBonusPercent ?? 25);
+
+  const localCivilDate = (d: Date | string): string => {
+    try {
+      return diaCivilEnZona(typeof d === "string" ? new Date(d) : d, timezone);
+    } catch {
+      return typeof d === "string" ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10);
+    }
+  };
+
+  // 1. Obtener solicitudes de vacaciones
+  let vacationRequestsStatus: "AVAILABLE" | "QUERY_ERROR" = "AVAILABLE";
+  let rawRequests: Array<{
+    id?: string;
+    startDate: Date | string;
+    endDate: Date | string;
+    totalDays?: number | null;
+    status?: string | null;
+    rejectionReason?: string | null;
+  }> = [];
+
+  if (preloadedVacations !== undefined) {
+    rawRequests = preloadedVacations;
+  } else if (dbInstance) {
+    try {
+      rawRequests = await dbInstance
+        .select({
+          id: vacationRequests.id,
+          startDate: vacationRequests.startDate,
+          endDate: vacationRequests.endDate,
+          totalDays: vacationRequests.totalDays,
+          status: vacationRequests.status,
+          rejectionReason: vacationRequests.rejectionReason,
+        })
+        .from(vacationRequests)
+        .where(
+          and(
+            eq(vacationRequests.userId, userId),
+            eq(vacationRequests.companyId, companyId)
+          )
+        );
+    } catch {
+      // Un fallo de consulta NO equivale a "sin vacaciones": se marca aparte
+      // para que no se lea como 0 prima confirmado.
+      vacationRequestsStatus = "QUERY_ERROR";
+      rawRequests = [];
+    }
+  }
+
+  // 2. Conteo de solicitudes y filtrado por estado
+  let approvedRequestsCount = 0;
+  let rejectedRequestsCount = 0;
+  let pendingRequestsCount = 0;
+
+  for (const req of rawRequests) {
+    const status = (req.status || "PENDING").toUpperCase();
+    if (status === "APPROVED") {
+      approvedRequestsCount++;
+    } else if (status === "REJECTED" || status === "CANCELLED" || req.rejectionReason) {
+      rejectedRequestsCount++;
+    } else {
+      pendingRequestsCount++;
+    }
+  }
+
+  // 3. Fechas de vacaciones aprobadas en el período (deduplicadas por Set)
+  const vacationApprovedDates = new Set<string>();
+  const details: NonNullable<VacationPeriodBreakdown["details"]> = [];
+
+  for (const req of rawRequests) {
+    const status = (req.status || "").toUpperCase();
+    if (status !== "APPROVED") continue;
+
+    const vStart = typeof req.startDate === "string" ? req.startDate.slice(0, 10) : localCivilDate(req.startDate);
+    const vEnd = typeof req.endDate === "string" ? req.endDate.slice(0, 10) : localCivilDate(req.endDate);
+
+    const cur = parseISO(vStart > startDate ? vStart : startDate);
+    const limit = parseISO(vEnd < endDate ? vEnd : endDate);
+    let daysInPeriod = 0;
+
+    if (cur <= limit) {
+      let d = cur;
+      while (d <= limit) {
+        vacationApprovedDates.add(format(d, "yyyy-MM-dd"));
+        daysInPeriod++;
+        d = addDays(d, 1);
+      }
+    }
+
+    if (daysInPeriod > 0) {
+      details.push({
+        requestId: req.id,
+        startDate: vStart,
+        endDate: vEnd,
+        days: daysInPeriod,
+        status: "APPROVED",
+      });
+    }
+  }
+
+  const vacationDaysTaken = vacationApprovedDates.size;
+  const hasVacations = vacationDaysTaken > 0;
+
+  // 4. Resolver saldo disponible (vacationAccruals / leaveBalances)
+  //    Distinguir dato conocido / ausente / consulta fallida: un fallo no se
+  //    colapsa a 0 (que se leería como "sin saldo" y produciría prima 0).
+  let vacationAvailableBalance = 0;
+  let vacationBalanceStatus: VacationBalanceStatus = "MISSING";
+
+  if (preloadedAccruals !== undefined) {
+    vacationAvailableBalance = preloadedAccruals.reduce(
+      (acc, a) => acc + Math.max(0, a.daysBalance ?? 0),
+      0
+    );
+    vacationBalanceStatus = "AVAILABLE";
+  } else if (preloadedLeaveBalances !== undefined) {
+    vacationAvailableBalance = preloadedLeaveBalances.reduce(
+      (acc, b) => acc + Math.max(0, b.balance ?? 0),
+      0
+    );
+    vacationBalanceStatus = "AVAILABLE";
+  } else if (dbInstance) {
+    try {
+      const accrualRows = await dbInstance
+        .select({
+          daysBalance: vacationAccruals.daysBalance,
+        })
+        .from(vacationAccruals)
+        .where(
+          and(
+            eq(vacationAccruals.userId, userId),
+            eq(vacationAccruals.companyId, companyId)
+          )
+        );
+
+      if (accrualRows.length > 0) {
+        vacationAvailableBalance = accrualRows.reduce(
+          (acc: number, a: { daysBalance: number | null }) => acc + Math.max(0, a.daysBalance ?? 0),
+          0
+        );
+        vacationBalanceStatus = "AVAILABLE";
+      } else {
+        // Fallback secundario a leaveBalances para tipo VACATION
+        try {
+          const balanceRows = await dbInstance
+            .select({
+              balance: leaveBalances.balance,
+            })
+            .from(leaveBalances)
+            .innerJoin(leaveTypes, eq(leaveBalances.leaveTypeId, leaveTypes.id))
+            .where(
+              and(
+                eq(leaveBalances.userId, userId),
+                eq(leaveTypes.name, "VACATION")
+              )
+            );
+
+          if (balanceRows.length > 0) {
+            vacationAvailableBalance = balanceRows.reduce(
+              (acc: number, b: { balance: number | null }) => acc + Math.max(0, b.balance ?? 0),
+              0
+            );
+            vacationBalanceStatus = "AVAILABLE";
+          }
+        } catch {
+          vacationBalanceStatus = "QUERY_ERROR";
+        }
+      }
+    } catch {
+      vacationBalanceStatus = "QUERY_ERROR";
+    }
+  }
+
+  // 5. Cálculo de días elegibles vs excedidos y prima vacacional
+  let vacationDaysEligible = 0;
+  let vacationDaysExceeded = 0;
+  let justification: VacationPeriodBreakdown["justification"];
+
+  if (vacationRequestsStatus === "QUERY_ERROR") {
+    // No se pudieron leer las solicitudes: no se afirma "sin vacaciones".
+    vacationDaysEligible = 0;
+    vacationDaysExceeded = 0;
+    justification = "VACATION_REQUESTS_QUERY_ERROR";
+  } else if (!hasVacations) {
+    vacationDaysEligible = 0;
+    vacationDaysExceeded = 0;
+    justification = "SIN_VACACIONES";
+  } else if (vacationBalanceStatus === "QUERY_ERROR") {
+    // Hay vacaciones pero el saldo no se pudo leer: no es 0 confirmado.
+    vacationDaysEligible = 0;
+    vacationDaysExceeded = vacationDaysTaken;
+    justification = "VACATION_BALANCE_QUERY_ERROR";
+  } else if (vacationBalanceStatus === "MISSING") {
+    // Hay vacaciones aprobadas y no hay registro de saldo: dato ausente,
+    // no "excedido" silencioso.
+    vacationDaysEligible = 0;
+    vacationDaysExceeded = vacationDaysTaken;
+    justification = "VACATION_BALANCE_MISSING";
+  } else {
+    vacationDaysEligible = Math.min(vacationDaysTaken, Math.max(0, vacationAvailableBalance));
+    vacationDaysExceeded = vacationDaysTaken - vacationDaysEligible;
+
+    if (vacationDaysExceeded > 0 || vacationAvailableBalance === 0) {
+      justification = "EXCEEDED_VACATION_BALANCE";
+    } else {
+      justification = "LFT_ARTS_76_80";
+    }
+  }
+
+  const vacationBasePayCents = vacationDaysEligible * dailySalaryCents;
+  const vacationPrimeCents = Math.round((vacationBasePayCents * bonusPercent) / 100);
+  const vacationRemainingBalance = Math.max(0, vacationAvailableBalance - vacationDaysEligible);
+
+  return {
+    vacationDaysTaken,
+    vacationDaysEligible,
+    vacationDaysExceeded,
+    vacationBasePayCents,
+    vacationPrimeCents,
+    vacationBonusPercent: bonusPercent,
+    vacationAvailableBalance,
+    vacationRemainingBalance,
+    hasVacations,
+    vacationBalanceStatus,
+    vacationRequestsStatus,
+    justification,
+    approvedRequestsCount,
+    rejectedRequestsCount,
+    pendingRequestsCount,
+    details,
+  };
+}
+
+/**
+ * Resuelve las licencias y permisos para un período de nómina determinado.
+ * Clasifica permisos con goce (pagan 100% sueldo base, 0 prima vacacional)
+ * vs permisos sin goce (deducen sueldo base como ausencias).
+ */
+export async function resolveLeavesForPeriod(
+  input: ResolveLeavesInput
+): Promise<LeavePeriodBreakdown> {
+  const { startDate, endDate } = validatePayrollPeriod(input.startDate, input.endDate);
+  const {
+    userId,
+    companyId,
+    timezone = "America/Mexico_City",
+    leaveRequests: preloadedLeaves,
+    dbInstance = db,
+  } = input;
+
+  const localCivilDate = (d: Date | string): string => {
+    try {
+      return diaCivilEnZona(typeof d === "string" ? new Date(d) : d, timezone);
+    } catch {
+      return typeof d === "string" ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10);
+    }
+  };
+
+  let leavesStatus: "AVAILABLE" | "QUERY_ERROR" = "AVAILABLE";
+  let rawLeaves: Array<{
+    id?: string;
+    leaveTypeId?: string;
+    leaveTypeName?: string;
+    startDate: Date | string;
+    endDate: Date | string;
+    totalDays?: number | null;
+    status?: string | null;
+    isPaid?: boolean | null;
+    rejectionReason?: string | null;
+  }> = [];
+
+  if (preloadedLeaves !== undefined) {
+    rawLeaves = preloadedLeaves;
+  } else if (dbInstance) {
+    try {
+      rawLeaves = await dbInstance
+        .select({
+          id: leaveRequests.id,
+          leaveTypeId: leaveRequests.leaveTypeId,
+          leaveTypeName: leaveTypes.name,
+          startDate: leaveRequests.startDate,
+          endDate: leaveRequests.endDate,
+          totalDays: leaveRequests.totalDays,
+          status: leaveRequests.status,
+          isPaid: leaveTypes.isPaid,
+          rejectionReason: leaveRequests.rejectionReason,
+        })
+        .from(leaveRequests)
+        .leftJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+        .where(
+          and(
+            eq(leaveRequests.userId, userId),
+            eq(leaveRequests.companyId, companyId)
+          )
+        );
+    } catch {
+      // Un fallo de consulta no se lee como "sin permisos".
+      leavesStatus = "QUERY_ERROR";
+      rawLeaves = [];
+    }
+  }
+
+  const paidLeaveDates = new Set<string>();
+  const unpaidLeaveDates = new Set<string>();
+  const details: LeavePeriodBreakdown["details"] = [];
+
+  for (const l of rawLeaves) {
+    const status = (l.status || "").toUpperCase();
+    if (status !== "APPROVED") continue;
+
+    const isPaid = l.isPaid !== false;
+    const lStart = typeof l.startDate === "string" ? l.startDate.slice(0, 10) : localCivilDate(l.startDate);
+    const lEnd = typeof l.endDate === "string" ? l.endDate.slice(0, 10) : localCivilDate(l.endDate);
+
+    const cur = parseISO(lStart > startDate ? lStart : startDate);
+    const limit = parseISO(lEnd < endDate ? lEnd : endDate);
+    let daysInPeriod = 0;
+
+    if (cur <= limit) {
+      let d = cur;
+      while (d <= limit) {
+        const formatted = format(d, "yyyy-MM-dd");
+        if (isPaid) {
+          paidLeaveDates.add(formatted);
+        } else {
+          unpaidLeaveDates.add(formatted);
+        }
+        daysInPeriod++;
+        d = addDays(d, 1);
+      }
+    }
+
+    if (daysInPeriod > 0) {
+      details.push({
+        leaveRequestId: l.id,
+        leaveTypeName: l.leaveTypeName || (isPaid ? "PAID_LEAVE" : "UNPAID_LEAVE"),
+        startDate: lStart,
+        endDate: lEnd,
+        days: daysInPeriod,
+        isPaid,
+        status: "APPROVED",
+      });
+    }
+  }
+
+  return {
+    paidLeaveDays: paidLeaveDates.size,
+    unpaidLeaveDays: unpaidLeaveDates.size,
+    hasPaidLeave: paidLeaveDates.size > 0,
+    hasUnpaidLeave: unpaidLeaveDates.size > 0,
+    leavesStatus,
+    details,
+  };
+}
+
 export async function calculateEmployeePayroll(
   userId: string,
   startDate: string,
@@ -1354,6 +1860,9 @@ export async function calculateEmployeePayroll(
     branchId?: string;
     geographicZone?: MinimumWageZone;
     attendanceInput?: Partial<ResolveAttendanceInput>;
+    vacationBonusPercent?: number;
+    vacationBreakdown?: VacationPeriodBreakdown;
+    vacationsInput?: Partial<ResolveVacationsInput>;
   }
 ) {
   const dbInstance = options?.dbInstance ?? db;
@@ -1483,7 +1992,24 @@ export async function calculateEmployeePayroll(
   });
   const overtimePayCents = overtimeBreakdown.totalPayCents;
 
-  const totalPercepcionesCents = baseSalaryCents + tipsCents + holidayPayCents + overtimePayCents;
+  // Vacation resolution (LFT Arts. 76, 79, 80 & 81)
+  const vacationBreakdown = options?.vacationBreakdown ?? (await resolveVacationsForPeriod({
+    userId,
+    companyId: user.companyId,
+    startDate,
+    endDate,
+    dailySalaryCents: salarioDiarioCents,
+    vacationBonusPercent: options?.vacationBonusPercent,
+    timezone: attendance.operationalZone.timezone,
+    vacationRequests: options?.vacationsInput?.vacationRequests ?? (options?.attendanceInput?.vacations as any),
+    vacationAccruals: options?.vacationsInput?.vacationAccruals,
+    leaveBalances: options?.vacationsInput?.leaveBalances,
+    dbInstance,
+  }));
+  const vacationPrimeCents = vacationBreakdown.vacationPrimeCents;
+  const vacationDays = vacationBreakdown.vacationDaysTaken;
+
+  const totalPercepcionesCents = baseSalaryCents + tipsCents + holidayPayCents + overtimePayCents + vacationPrimeCents;
 
   // Carga Patronal Real (35% IMSS/Infonavit/ISN sobre base + festivos) (Módulo 7.3)
   const employerSocialSecurityCents = Math.round((baseSalaryCents + holidayPayCents) * 0.35);
@@ -1495,6 +2021,9 @@ export async function calculateEmployeePayroll(
     holidayPayCents,
     overtimePayCents,
     overtimeBreakdown,
+    vacationPrimeCents,
+    vacationDays,
+    vacationBreakdown,
     holidayDaysWorked,
     totalPercepcionesCents,
     totalDeduccionesCents: 0,
@@ -1520,7 +2049,9 @@ export async function calculateEmployeePayroll(
       approvedAttendanceDays: attendance.approvedAttendanceDays,
       holidayDaysWorked: attendance.holidayDaysWorked,
       holidayDaysRested: attendance.holidayDaysRested,
+      vacationDays: attendance.vacationDays,
       paidLeaveDays: attendance.paidLeaveDays,
+      otherPaidLeaveDays: attendance.otherPaidLeaveDays,
       unpaidAbsenceDays: attendance.unpaidAbsenceDays,
       payableDays: attendance.payableDays,
       hasPendingAttendance: attendance.hasPendingAttendance,
@@ -1543,6 +2074,8 @@ export function construirDesgloseNomina(payroll: {
   holidayPayCents?: number;
   overtimePayCents?: number;
   overtimeBreakdown?: OvertimeBreakdown;
+  vacationPrimeCents?: number;
+  vacationBreakdown?: VacationPeriodBreakdown;
 }): {
   desglosePercepciones: NominaPercepcion[];
   desgloseDeducciones: NominaDeduccion[];
@@ -1608,6 +2141,23 @@ export function construirDesgloseNomina(payroll: {
       earningTypeCode: "019",
       code: "019",
       concept: "Horas extra (LFT Arts. 66-68)",
+      taxedAmount,
+      exemptAmount,
+    });
+  }
+
+  // SAT Concepto "021" ("Prima vacacional") bajo LFT Art. 80 y LISR Art. 93 Frac. XIV
+  // Exención fiscal: 15 veces la UMA diaria (15 * 11,314¢ = 169,710¢ en 2026)
+  if (payroll.vacationPrimeCents && payroll.vacationPrimeCents > 0) {
+    const UMA_DIARIA_CENTS_2026 = 11314;
+    const maxExempt = 15 * UMA_DIARIA_CENTS_2026; // 169,710¢
+    const exemptAmount = Math.min(payroll.vacationPrimeCents, maxExempt);
+    const taxedAmount = payroll.vacationPrimeCents - exemptAmount;
+
+    desglosePercepciones.push({
+      earningTypeCode: "021",
+      code: "021",
+      concept: "Prima vacacional (Art. 80 LFT)",
       taxedAmount,
       exemptAmount,
     });
