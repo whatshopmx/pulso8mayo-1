@@ -19,7 +19,6 @@
  * modelo privado durable exige R2 (mismo criterio que `scoped-evidence.ts`).
  */
 import { uploadToR2, generatePresignedUrl } from "./r2-client";
-import { isR2ObjectKey } from "./scoped-evidence";
 
 /** Tamaño máximo del export del POS: 10 MiB. */
 export const POS_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
@@ -109,18 +108,31 @@ export async function storePosUpload(args: {
   return uploadToR2(args.buffer, key, args.mimeType);
 }
 
+export type PosUploadScope = {
+  companyId: string;
+  branchId: string;
+  businessDate: string;
+};
+
+/** Solo admite keys canónicas del ámbito autorizado por el servidor. */
+export function isPosUploadKeyForScope(value: unknown, scope: PosUploadScope): value is string {
+  if (typeof value !== "string" || !scope) return false;
+  const match = /^companies\/([0-9a-f-]{36})\/branches\/([0-9a-f-]{36})\/pos\/(\d{4}-\d{2}-\d{2})\/\d+_[a-zA-Z0-9._-]+$/.exec(value);
+  return !!match && match[0] === value && match[1] === scope.companyId &&
+    match[2] === scope.branchId && match[3] === scope.businessDate;
+}
+
 /**
- * Normaliza el valor persistido en `raw_file_url` a una URL consumible:
- * - KEY de R2 (modelo privado) → GET presignado con TTL corto.
- * - URL `http(s)://` o `local://` (legacy / seed / fallback) → tal cual.
- * Devuelve `null` si no hay nada que mostrar o el presignado falla.
+ * Firma únicamente una key del corte autorizado. Referencias legacy sin
+ * ámbito verificable (URL, path o local://) requieren volver a subir el archivo.
+ * Devuelve null antes de tocar R2 si la referencia no cumple el contrato.
  */
 export async function resolvePosUploadUrl(
   value: string | null | undefined,
+  scope: PosUploadScope,
   expiresIn: number = POS_UPLOAD_URL_TTL_SECONDS
 ): Promise<string | null> {
-  if (!value) return null;
-  if (!isR2ObjectKey(value)) return value;
+  if (!isPosUploadKeyForScope(value, scope)) return null;
   try {
     return await generatePresignedUrl(value, expiresIn);
   } catch (error) {

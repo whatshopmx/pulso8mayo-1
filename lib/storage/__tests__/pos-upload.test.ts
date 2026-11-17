@@ -32,6 +32,8 @@ import {
 
 const companyId = "c1000000-0000-4000-8000-000000000001";
 const branchId = "b1000000-0000-4000-8000-000000000001";
+const scope = { companyId, branchId, businessDate: "2026-11-12" };
+const key = `companies/${companyId}/branches/${branchId}/pos/2026-11-12/1_a.csv`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -114,29 +116,25 @@ describe("storePosUpload", () => {
 
 describe("resolvePosUploadUrl", () => {
   it("devuelve null sin valor", async () => {
-    await expect(resolvePosUploadUrl(null)).resolves.toBeNull();
-    await expect(resolvePosUploadUrl(undefined)).resolves.toBeNull();
-    await expect(resolvePosUploadUrl("")).resolves.toBeNull();
+    await expect(resolvePosUploadUrl(null, scope)).resolves.toBeNull();
+    await expect(resolvePosUploadUrl(undefined, scope)).resolves.toBeNull();
+    await expect(resolvePosUploadUrl("", scope)).resolves.toBeNull();
   });
 
-  it("conserva URLs legacy tal cual", async () => {
-    await expect(resolvePosUploadUrl("https://cdn.example/a.csv")).resolves.toBe(
-      "https://cdn.example/a.csv"
-    );
-    await expect(resolvePosUploadUrl("local://pos-uploads/x.csv")).resolves.toBe(
-      "local://pos-uploads/x.csv"
-    );
-    await expect(resolvePosUploadUrl("/demo/a.csv")).resolves.toBe("/demo/a.csv");
+  it("rechaza referencias legacy sin ámbito verificable", async () => {
+    for (const value of ["https://cdn.example/a.csv", "local://pos-uploads/x.csv", "/demo/a.csv"]) {
+      await expect(resolvePosUploadUrl(value, scope)).resolves.toBeNull();
+    }
     expect(r2.generatePresignedUrl).not.toHaveBeenCalled();
   });
 
   it("presigna la key de R2 con TTL corto", async () => {
     r2.generatePresignedUrl.mockResolvedValue("https://signed.example/x");
     await expect(
-      resolvePosUploadUrl("companies/c/b/pos/2026-11-12/1_a.csv")
+      resolvePosUploadUrl(key, scope)
     ).resolves.toBe("https://signed.example/x");
     expect(r2.generatePresignedUrl).toHaveBeenCalledWith(
-      "companies/c/b/pos/2026-11-12/1_a.csv",
+      key,
       600
     );
   });
@@ -144,7 +142,7 @@ describe("resolvePosUploadUrl", () => {
   it("devuelve null si el presignado falla", async () => {
     r2.generatePresignedUrl.mockRejectedValue(new Error("boom"));
     await expect(
-      resolvePosUploadUrl("companies/c/b/pos/2026-11-12/1_a.csv")
+      resolvePosUploadUrl(key, scope)
     ).resolves.toBeNull();
   });
 });

@@ -14,10 +14,10 @@ const mocks = vi.hoisted(() => ({
     branchId: null as string | null,
   },
   cut: null as
-    | { id: string; branchId: string; rawFileUrl: string | null }
+    | { id: string; branchId: string; businessDate: string; rawFileUrl: string | null }
     | null,
   scope: { kind: "ALL" } as { kind: "ALL" | "BRANCH" | "NONE"; branchId?: string },
-  resolvePosUploadUrl: vi.fn(),
+  generatePresignedUrl: vi.fn(),
 }));
 
 vi.mock("@/lib/api/with-auth", async () => {
@@ -59,9 +59,9 @@ vi.mock("@/lib/branch-scope", () => ({
   resolveBranchScope: vi.fn(() => mocks.scope),
 }));
 
-vi.mock("@/lib/storage/pos-upload", () => ({
-  resolvePosUploadUrl: mocks.resolvePosUploadUrl,
-  POS_UPLOAD_URL_TTL_SECONDS: 600,
+vi.mock("@/lib/storage/r2-client", () => ({
+  generatePresignedUrl: mocks.generatePresignedUrl,
+  uploadToR2: vi.fn(),
 }));
 
 import { GET } from "@/app/api/sales/cuts/[id]/pos-file/route";
@@ -80,15 +80,15 @@ function call(id = cutId) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.scope = { kind: "ALL" };
-  mocks.cut = { id: cutId, branchId, rawFileUrl: key };
-  mocks.resolvePosUploadUrl.mockResolvedValue("https://signed.example/x");
+  mocks.cut = { id: cutId, branchId, businessDate: "2026-11-12", rawFileUrl: key };
+  mocks.generatePresignedUrl.mockResolvedValue("https://signed.example/x");
 });
 
 describe("lectura autorizada del archivo POS", () => {
   it("rechaza id mal formado antes de tocar DB", async () => {
     const res = await call("not-a-uuid");
     expect(res.status).toBe(400);
-    expect(mocks.resolvePosUploadUrl).not.toHaveBeenCalled();
+    expect(mocks.generatePresignedUrl).not.toHaveBeenCalled();
   });
 
   it("404 si el corte no existe o no es de la empresa", async () => {
@@ -107,11 +107,11 @@ describe("lectura autorizada del archivo POS", () => {
     mocks.scope = { kind: "BRANCH", branchId: otherBranch };
     const res = await call();
     expect(res.status).toBe(404);
-    expect(mocks.resolvePosUploadUrl).not.toHaveBeenCalled();
+    expect(mocks.generatePresignedUrl).not.toHaveBeenCalled();
   });
 
   it("404 si el corte no tiene archivo", async () => {
-    mocks.cut = { id: cutId, branchId, rawFileUrl: null };
+    mocks.cut!.rawFileUrl = null;
     const res = await call();
     expect(res.status).toBe(404);
   });
@@ -124,12 +124,33 @@ describe("lectura autorizada del archivo POS", () => {
     expect(body.data.url).toBe("https://signed.example/x");
     expect(body.data.fileKey).toBe(key);
     expect(body.data.expiresInSeconds).toBe(600);
-    expect(mocks.resolvePosUploadUrl).toHaveBeenCalledWith(key);
+    expect(mocks.generatePresignedUrl).toHaveBeenCalledWith(key, 600);
   });
 
   it("404 si la key no resuelve a URL", async () => {
-    mocks.resolvePosUploadUrl.mockResolvedValue(null);
+    mocks.generatePresignedUrl.mockRejectedValue(new Error("storage unavailable"));
     const res = await call();
     expect(res.status).toBe(404);
+  });
+
+  it.each([
+    key.replace(mocks.auth.tenantId, "c2000000-0000-4000-8000-000000000002"),
+    key.replace(branchId, otherBranch),
+    key.replace("2026-11-12", "2026-11-13"),
+    key.replace("/pos/", "/evidence/"),
+    key.replace("1_a.csv", "../1_a.csv"),
+    key.replace("1_a.csv", "%2e%2e%2f1_a.csv"),
+    key.replace("1_a.csv", "1_a.csv/other"),
+    "pos-uploads/legacy.csv",
+    "https://cdn.example/legacy.csv",
+    "local://pos-uploads/legacy.csv",
+    "/demo/legacy.csv",
+    "javascript:alert(1)",
+  ])("no firma ni expone una referencia fuera del ámbito: %s", async rawFileUrl => {
+    mocks.cut!.rawFileUrl = rawFileUrl;
+    const res = await call();
+    expect(res.status).toBe(404);
+    expect(mocks.generatePresignedUrl).not.toHaveBeenCalled();
+    expect(JSON.stringify(await res.json())).not.toContain(rawFileUrl);
   });
 });

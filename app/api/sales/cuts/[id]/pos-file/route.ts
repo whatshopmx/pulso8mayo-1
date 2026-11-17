@@ -24,7 +24,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * GET /api/sales/cuts/[id]/pos-file
  *
  * Lectura autorizada del archivo POS de un corte. `raw_file_url` guarda una KEY
- * de R2 (o un valor legacy `http(s)://`/`local://`); esta ruta la convierte en
+ * de R2; esta ruta la convierte en
  * una URL firmada con TTL corto, tras comprobar:
  *  1. EMPRESA: la fila se busca por `company_id = tenantId` (sesión).
  *  2. SUCURSAL: roles clavados a sucursal (GERENTE/SUPERVISOR) solo leen su
@@ -45,6 +45,7 @@ export const GET = withRoleAuth(
       .select({
         id: dailySalesCuts.id,
         branchId: dailySalesCuts.branchId,
+        businessDate: dailySalesCuts.businessDate,
         rawFileUrl: dailySalesCuts.rawFileUrl,
       })
       .from(dailySalesCuts)
@@ -77,7 +78,11 @@ export const GET = withRoleAuth(
       throw ApiError.notFound("Este corte no tiene archivo POS.");
     }
 
-    const url = await resolvePosUploadUrl(cut.rawFileUrl);
+    const url = await resolvePosUploadUrl(cut.rawFileUrl, {
+      companyId: auth.tenantId,
+      branchId: cut.branchId,
+      businessDate: cut.businessDate,
+    });
     if (!url) {
       throw ApiError.notFound("El archivo POS no está disponible.");
     }
