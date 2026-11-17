@@ -25,6 +25,7 @@ Las pruebas de lectura usan la ruta y el resolvedor reales, con DB, autorizació
 | `pnpm.cmd test:unit tests/unit/inventory/sales-entry-smart-link.test.ts tests/unit/sales/pos-file-read.test.ts lib/storage/__tests__/pos-upload.test.ts --maxWorkers=1 --pool=threads` | 44/44, 3 archivos, exit 0 |
 | ESLint de los seis archivos de implementación/pruebas, en dos invocaciones | exit 0, sin diagnósticos |
 | `node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false` | exit 0, sin diagnósticos |
+| `NODE_OPTIONS=--use-system-ca --max-old-space-size=4096 pnpm.cmd run build --webpack` | Compilación (7,2 min), tipos, 455/455 páginas, optimización, trazas y tabla final de rutas completadas; advertencias y anomalía de salida del shell descritas abajo |
 | `git diff --check` acotado a los archivos cambiados | exit 0, avisos LF/CRLF |
 
 Casos de abuso: otra empresa, otra sucursal, otro día, otro espacio de objetos, segmentos adicionales, traversal literal/codificado, query string, salto de línea y referencias legacy. Se conserva la firma válida con TTL de 600 segundos y la ingesta multipart existente.
@@ -34,7 +35,9 @@ Casos de abuso: otra empresa, otra sucursal, otro día, otro espacio de objetos,
 - La suite unitaria general se inició y se interrumpió tras observar 4 fallos en `tests/unit/finance/payment-scheduling.test.ts` (52 casos de ese archivo). Ese archivo no importa el módulo POS modificado. No se afirma suite global verde ni se clasifican aquí los fallos como preexistentes.
 - `pnpm.cmd run build` con Turbopack se interrumpió tras una compilación prolongada, sin resultado final. La primera comprobación de tipos concurrente también se interrumpió. No acreditan build ni tipos correctos.
 - La segunda comprobación de tipos con el heap predeterminado terminó por `JavaScript heap out of memory` cerca de 2 GB. La corrida posterior con 4096 MiB pasó, como registra la tabla.
-- Una comprobación alternativa con `pnpm.cmd run build --webpack` emitió errores TLS `UNABLE_TO_VERIFY_LEAF_SIGNATURE` y fue interrumpida. Se inició otra con certificados del sistema (`NODE_OPTIONS=--use-system-ca --max-old-space-size=4096`) y acceso de red autorizado; su resultado se registra por separado al terminar.
+- Una comprobación alternativa con `pnpm.cmd run build --webpack` emitió errores TLS `UNABLE_TO_VERIFY_LEAF_SIGNATURE` y fue interrumpida. La corrida con certificados del sistema (`NODE_OPTIONS=--use-system-ca --max-old-space-size=4096`) y acceso de red autorizado completó las fases y la tabla de rutas. El log está en `.tmp/pos-isolation-webpack-system-ca-build.log` (no versionado).
+- El shell informó exit 1 para ese build. Se reprodujo un falso negativo con `node -e "process.stderr.write('stderr-only check\\n')"` redirigido con `> archivo 2>&1`: Node no establece un código de error, pero el shell devuelve 1 y genera `NativeCommandError`. La misma conversión aparece al principio del log del build. La salida completa acredita las fases terminadas; no se capturó por separado el código nativo de Next y no se presenta como un exit 0 verificado. No se repitió una compilación sin cambios solo para el wrapper.
+- Advertencias del build: deprecación de `fetchConnectionCache` y mensaje de render estático de `/dashboard/labor/documents` por uso de `headers` (`DYNAMIC_SERVER_USAGE`). El proceso continuó y generó las 455 páginas. No se modificó esa ruta.
 - No se ejecutaron nuevas pruebas con Neon/R2 reales, navegador ni runtime NOBYPASSRLS. Las verificaciones históricas del README no certifican estos cambios.
 - No se aplicaron migraciones, no se modificaron cambios locales ajenos y no se desplegó.
 
