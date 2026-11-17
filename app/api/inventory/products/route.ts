@@ -30,7 +30,7 @@ const createProductSchema = z.object({
 });
 
 /** Fase 4: límite de SKUs de alto valor por empresa (regla 80/20 en el onboarding). */
-export const MAX_HIGH_VALUE_SKUS = 30;
+const MAX_HIGH_VALUE_SKUS = 30;
 
 async function countHighValue(companyId: string): Promise<number> {
   const rows = await db

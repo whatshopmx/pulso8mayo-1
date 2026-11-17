@@ -13,12 +13,20 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+interface RevenueCoverage {
+    status: "NO_DATA" | "PARTIAL" | "COMPLETE";
+    totalEntries: number;
+    completeEntries: number;
+}
+
 interface BranchKPI {
     branchId: string;
     branchName: string;
-    foodCostPercent: number;
+    foodCostPercent: number | null;
     cogsCents: number;
-    revenueCents: number;
+    reportedRevenueCents: number;
+    revenueCents: number | null;
+    revenueCoverage: RevenueCoverage;
     inventoryTurnover: number;
     stockDays: number;
     shrinkagePercent: number;
@@ -52,6 +60,13 @@ const ROLE_VIEWS: Record<string, { title: string; description: string; kpis: str
 
 function formatCents(cents: number): string {
     return "$" + (cents / 100).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function coverageLabel(cov: RevenueCoverage | undefined): string {
+    if (!cov) return "—";
+    if (cov.status === "COMPLETE") return "Completa";
+    if (cov.status === "PARTIAL") return "Parcial";
+    return "Sin datos";
 }
 
 export function ExecutiveDashboard() {
@@ -133,10 +148,10 @@ export function ExecutiveDashboard() {
                 {show("foodCost") && (
                     <MetricCard
                         label="Food Cost"
-                        value={kpi ? `${kpi.foodCostPercent}%` : "—"}
-                        subtitle={`COGS ${kpi ? formatCents(kpi.cogsCents) : "—"} · Revenue ${kpi ? formatCents(kpi.revenueCents) : "—"}`}
+                        value={kpi && kpi.foodCostPercent !== null ? `${kpi.foodCostPercent}%` : "—"}
+                        subtitle={`COGS ${kpi ? formatCents(kpi.cogsCents) : "—"} · Cobertura ${kpi ? coverageLabel(kpi.revenueCoverage) : "—"}`}
                         icon={<TrendingDown className="h-4 w-4" />}
-                        tone={kpi && kpi.foodCostPercent > 35 ? "destructive" : kpi && kpi.foodCostPercent > 28 ? "warning" : "success"}
+                        tone={kpi && kpi.foodCostPercent === null ? "neutral" : kpi && kpi.foodCostPercent > 35 ? "destructive" : kpi && kpi.foodCostPercent > 28 ? "warning" : "success"}
                         loading={loading}
                     />
                 )}
@@ -155,10 +170,10 @@ export function ExecutiveDashboard() {
                 {show("revenue") && (
                     <MetricCard
                         label="Ingresos (Ventas)"
-                        value={kpi ? formatCents(kpi.revenueCents) : "—"}
-                        subtitle="Revenue total del período"
+                        value={kpi && kpi.revenueCents !== null ? formatCents(kpi.revenueCents) : "—"}
+                        subtitle={kpi ? `Cobertura ${coverageLabel(kpi.revenueCoverage)} · reportado ${formatCents(kpi.reportedRevenueCents)}` : "Revenue del período"}
                         icon={<TrendingUp className="h-4 w-4" />}
-                        tone="success"
+                        tone={kpi && kpi.revenueCoverage?.status === "COMPLETE" ? "success" : "warning"}
                         loading={loading}
                     />
                 )}
@@ -234,6 +249,7 @@ export function ExecutiveDashboard() {
                                         <th className="text-right py-2 px-2">Food Cost</th>
                                         <th className="text-right py-2 px-2">COGS</th>
                                         <th className="text-right py-2 px-2">Revenue</th>
+                                        <th className="text-right py-2 px-2">Cobertura</th>
                                         <th className="text-right py-2 px-2">Rotación</th>
                                         <th className="text-right py-2 px-2">Días Stock</th>
                                         <th className="text-right py-2 px-2">Merma</th>
@@ -244,11 +260,12 @@ export function ExecutiveDashboard() {
                                     {report.byBranch.map(b => (
                                         <tr key={b.branchId} className="border-b hover:bg-muted/50">
                                             <td className="py-2 px-2 font-medium">{b.branchName}</td>
-                                            <td className={`text-right py-2 px-2 font-mono ${b.foodCostPercent > 35 ? "text-red-500" : b.foodCostPercent > 28 ? "text-amber-500" : "text-green-500"}`}>
-                                                {b.foodCostPercent}%
+                                            <td className={`text-right py-2 px-2 font-mono ${b.foodCostPercent === null ? "text-muted-foreground" : b.foodCostPercent > 35 ? "text-red-500" : b.foodCostPercent > 28 ? "text-amber-500" : "text-green-500"}`}>
+                                                {b.foodCostPercent === null ? "N/D" : `${b.foodCostPercent}%`}
                                             </td>
                                             <td className="text-right py-2 px-2 font-mono">{formatCents(b.cogsCents)}</td>
-                                            <td className="text-right py-2 px-2 font-mono">{formatCents(b.revenueCents)}</td>
+                                            <td className="text-right py-2 px-2 font-mono">{b.revenueCents === null ? "Parcial" : formatCents(b.revenueCents)}</td>
+                                            <td className="text-right py-2 px-2 font-mono">{coverageLabel(b.revenueCoverage)}</td>
                                             <td className="text-right py-2 px-2 font-mono">{b.inventoryTurnover}</td>
                                             <td className="text-right py-2 px-2 font-mono">{b.stockDays}</td>
                                             <td className="text-right py-2 px-2 font-mono">{b.shrinkagePercent}%</td>

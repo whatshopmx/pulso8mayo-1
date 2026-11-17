@@ -40,7 +40,7 @@ type WasteReason = (typeof inventoryWasteReasonEnum.enumValues)[number];
  * `error.details.code` — nunca en substrings del mensaje — así que estos
  * strings son contrato entre la API y el formulario.
  */
-export const WASTE_ERROR_CODES = {
+const WASTE_ERROR_CODES = {
   /** Se intentó dar de baja más cantidad de la que queda en el lote. */
   OVER_QUANTITY: "OVER_QUANTITY",
   /** El lote no existe o no pertenece al tenant — 404 a propósito (no filtrar). */

@@ -8,6 +8,12 @@ import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { assertBranchOfCompany, resolveBranchScope } from "@/lib/branch-scope";
 import { hasPermission } from "@/lib/permissions";
+import { isR2Configured } from "@/lib/storage/r2-client";
+import {
+  assertPosUploadValid,
+  sanitizePosFileName,
+  storePosUpload,
+} from "@/lib/storage/pos-upload";
 import { validateSaleDay } from "@/lib/services/sale-consumption-contract";
 import {
   SalesIngestService,
@@ -69,8 +75,33 @@ export async function POST(req: NextRequest) {
       }
       await assertUploadScope(tenant.id, branchId, auth);
 
-      // In production, upload to R2/cloud storage. For now, store the filename as evidence.
-      const fileUrl = `pos-uploads/${tenant.id}/${branchId}/${businessDate}-${file.name}`;
+      // INV-01.b4.storage: persistir el archivo del POS de forma durable y
+      // privada. Se guarda la KEY de R2 (no una URL pública); sin R2 configurado
+      // se degrada a `local://…` y NO se afirma durabilidad.
+      const buffer = Buffer.from(await file.arrayBuffer());
+      try {
+        assertPosUploadValid({
+          byteLength: buffer.length,
+          mimeType: file.type || "application/octet-stream",
+        });
+      } catch (validationError) {
+        throw ApiError.badRequest(
+          validationError instanceof Error
+            ? validationError.message
+            : "Archivo POS inválido."
+        );
+      }
+
+      const fileUrl = isR2Configured()
+        ? await storePosUpload({
+            companyId: tenant.id,
+            branchId,
+            businessDate,
+            fileName: file.name,
+            buffer,
+            mimeType: file.type || "application/octet-stream",
+          })
+        : `local://pos-uploads/${tenant.id}/${branchId}/${businessDate}-${sanitizePosFileName(file.name)}`;
 
       // T10: intentar ingestar ventas del archivo. Cualquier fallo aquí deja
       // solo una advertencia — la evidencia del workflow se guarda siempre.
@@ -130,6 +161,7 @@ export async function POST(req: NextRequest) {
 
       return ApiHandler.success({
         fileUrl,
+        durable: isR2Configured(),
         fileName: file.name,
         matchedCount: updated.length,
         workflowInstanceId,

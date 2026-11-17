@@ -6,16 +6,78 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
+import { saleRevenueComplete } from "./sale-revenue-coverage";
 
 const STOCK_COUNT_TEMPLATE_NAME = "Conteo de Inventario";
 
+/** Cobertura canónica del ingreso de ventas en un periodo. */
+export interface RevenueCoverage {
+    status: "NO_DATA" | "PARTIAL" | "COMPLETE";
+    totalEntries: number;
+    completeEntries: number;
+}
+
+/** Fila de venta ya proyectada con su bandera de cobertura (para el cálculo puro). */
+export interface RevenueEntryInput {
+    revenue: number | null;
+    revenueComplete: boolean | null;
+}
+
+/**
+ * Cálculo puro de cobertura: distingue subtotal reportado de total firme.
+ * Un ingreso `null` no es un cero; solo cuando TODAS las entradas son completas
+ * el subtotal se promociona a total. Separado del servicio para poder probarlo
+ * sin DB.
+ */
+export function computeRevenueCoverage(entries: RevenueEntryInput[]): {
+    reportedRevenueCents: number;
+    revenueCents: number | null;
+    coverage: RevenueCoverage;
+} {
+    const totalEntries = entries.length;
+    const completeEntries = entries.filter((e) => e.revenueComplete === true).length;
+    const reportedRevenueCents = entries.reduce((s, e) => s + (e.revenue ?? 0), 0);
+    const complete = totalEntries > 0 && completeEntries === totalEntries;
+    return {
+        reportedRevenueCents,
+        revenueCents: complete ? reportedRevenueCents : null,
+        coverage: {
+            status: totalEntries === 0 ? "NO_DATA" : complete ? "COMPLETE" : "PARTIAL",
+            totalEntries,
+            completeEntries,
+        },
+    };
+}
+
+/** Consolidación de coberturas: una sola sucursal parcial contamina el total. */
+export function mergeCoverage(list: RevenueCoverage[]): RevenueCoverage {
+    const totalEntries = list.reduce((s, c) => s + c.totalEntries, 0);
+    const completeEntries = list.reduce((s, c) => s + c.completeEntries, 0);
+    return {
+        status: totalEntries === 0 ? "NO_DATA" : completeEntries === totalEntries ? "COMPLETE" : "PARTIAL",
+        totalEntries,
+        completeEntries,
+    };
+}
+
+/** Porcentaje solo sobre un total firme; nunca contra un subtotal. */
+export function foodCostPercentOf(cogsCents: number, revenueCents: number | null): number | null {
+    return revenueCents !== null && revenueCents > 0
+        ? parseFloat(((cogsCents / revenueCents) * 100).toFixed(2))
+        : null;
+}
 
 export interface BranchKPI {
     branchId: string;
     branchName: string;
-    foodCostPercent: number;
+    /** null cuando la cobertura de ingresos no es COMPLETE (no se calcula sobre subtotal). */
+    foodCostPercent: number | null;
     cogsCents: number;
-    revenueCents: number;
+    /** Subtotal conocido de ventas reportadas; no es el total si la cobertura es parcial. */
+    reportedRevenueCents: number;
+    /** Total del período; null cuando la cobertura no es COMPLETE. */
+    revenueCents: number | null;
+    revenueCoverage: RevenueCoverage;
     inventoryTurnover: number;
     stockDays: number;
     shrinkagePercent: number;
@@ -60,8 +122,8 @@ export class ExecutiveReportService {
         startDate: Date,
         endDate: Date
     ): Promise<BranchKPI> {
-        const [revenueCents, cogsData, endStockValue, wasteTotal, fillRate, countAccuracy] = await Promise.all([
-            this.calcRevenue(branch.id, startDate, endDate),
+        const [revenueData, cogsData, endStockValue, wasteTotal, fillRate, countAccuracy] = await Promise.all([
+            this.calcRevenueCoverage(branch.id, startDate, endDate),
             this.calcCOGS(branch.id, startDate, endDate),
             this.calcEndStockValue(branch.id),
             this.calcWasteTotal(branch.id, startDate, endDate),
@@ -70,7 +132,8 @@ export class ExecutiveReportService {
         ]);
 
         const cogsCents = cogsData.totalCostCents;
-        const foodCostPercent = revenueCents > 0 ? parseFloat(((cogsCents / revenueCents) * 100).toFixed(2)) : 0;
+        const { reportedRevenueCents, revenueCents, coverage } = revenueData;
+        const foodCostPercent = foodCostPercentOf(cogsCents, revenueCents);
         const daysInPeriod = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000));
         const avgDailyCogs = daysInPeriod > 0 ? cogsCents / daysInPeriod : 0;
         const stockDays = avgDailyCogs > 0 ? parseFloat((endStockValue / avgDailyCogs).toFixed(1)) : 0;
@@ -87,7 +150,9 @@ export class ExecutiveReportService {
             branchName: branch.name,
             foodCostPercent,
             cogsCents,
+            reportedRevenueCents,
             revenueCents,
+            revenueCoverage: coverage,
             inventoryTurnover,
             stockDays,
             shrinkagePercent,
@@ -96,9 +161,14 @@ export class ExecutiveReportService {
         };
     }
 
-    private static async calcRevenue(branchId: string, startDate: Date, endDate: Date): Promise<number> {
+    private static async calcRevenueCoverage(
+        branchId: string,
+        startDate: Date,
+        endDate: Date
+    ): Promise<{ reportedRevenueCents: number; revenueCents: number | null; coverage: RevenueCoverage }> {
         const rows = await db.select({
-            total: sql<number>`coalesce(sum(${salesEntries.totalRevenue}), 0)`,
+            revenue: salesEntries.totalRevenue,
+            revenueComplete: saleRevenueComplete,
         })
             .from(salesEntries)
             .where(and(
@@ -106,7 +176,7 @@ export class ExecutiveReportService {
                 gte(salesEntries.saleDate, startDate),
                 lte(salesEntries.saleDate, endDate),
             ));
-        return Number(rows[0]?.total ?? 0); // sum() SQL devuelve string
+        return computeRevenueCoverage(rows.map((r) => ({ revenue: r.revenue, revenueComplete: r.revenueComplete })));
     }
 
     private static async calcCOGS(
@@ -259,9 +329,11 @@ export class ExecutiveReportService {
         startDate: Date,
         endDate: Date
     ): BranchKPI {
-        const totalRevenue = branches.reduce((s, b) => s + b.revenueCents, 0);
+        const reportedRevenueCents = branches.reduce((s, b) => s + b.reportedRevenueCents, 0);
         const totalCogs = branches.reduce((s, b) => s + b.cogsCents, 0);
-        const weightedFoodCost = totalRevenue > 0 ? parseFloat(((totalCogs / totalRevenue) * 100).toFixed(2)) : 0;
+        const coverage = mergeCoverage(branches.map((b) => b.revenueCoverage));
+        const revenueCents = coverage.status === "COMPLETE" ? reportedRevenueCents : null;
+        const foodCostPercent = foodCostPercentOf(totalCogs, revenueCents);
         const avgTurnover = branches.length > 0 ? parseFloat((branches.reduce((s, b) => s + b.inventoryTurnover, 0) / branches.length).toFixed(2)) : 0;
         const avgStockDays = branches.length > 0 ? parseFloat((branches.reduce((s, b) => s + b.stockDays, 0) / branches.length).toFixed(1)) : 0;
         const avgShrinkage = branches.length > 0 ? parseFloat((branches.reduce((s, b) => s + b.shrinkagePercent, 0) / branches.length).toFixed(2)) : 0;
@@ -270,9 +342,11 @@ export class ExecutiveReportService {
         return {
             branchId: 'consolidated',
             branchName: 'Consolidado',
-            foodCostPercent: weightedFoodCost,
+            foodCostPercent,
             cogsCents: totalCogs,
-            revenueCents: totalRevenue,
+            reportedRevenueCents,
+            revenueCents,
+            revenueCoverage: coverage,
             inventoryTurnover: avgTurnover,
             stockDays: avgStockDays,
             shrinkagePercent: avgShrinkage,

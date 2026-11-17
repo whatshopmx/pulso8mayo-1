@@ -1,12 +1,14 @@
 "use client";
 
+import { use } from "react"
 import { useRequireRole } from "@/hooks/use-session"
 import { ShiftChangeRequestList } from "@/components/labor/shift-change-request-list"
 import { ArrowLeftRight } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
-export default function ShiftChangeRequestDetailPage({ params }: { params: { id: string } }) {
+export default function ShiftChangeRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
     const { loading } = useRequireRole(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
 
     if (loading) {
@@ -30,7 +32,7 @@ export default function ShiftChangeRequestDetailPage({ params }: { params: { id:
                 </Button>
             </div>
 
-            <ShiftChangeRequestList focusId={params.id} />
+            <ShiftChangeRequestList focusId={id} />
         </div>
     )
 }

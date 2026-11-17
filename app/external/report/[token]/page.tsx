@@ -10,11 +10,12 @@ import { es } from "date-fns/locale";
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-    params: { token: string };
+    params: Promise<{ token: string }>;
 }
 
 export default async function ExternalReportPage({ params }: PageProps) {
-    const payload = ExternalReportService.validateExternalToken(params.token);
+    const { token } = await params;
+    const payload = ExternalReportService.validateExternalToken(token);
 
     if (!payload) {
         return <InvalidTokenView />;

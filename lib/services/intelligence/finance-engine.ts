@@ -250,7 +250,7 @@ export const FinanceEngine: IntelligenceEngine<
         fillScore * 0.2,
     );
     const confidence = CLAMP(
-      Math.min(100, 30 + (cons.revenueCents > 0 ? 30 : 0) + cashDays.length * 2),
+      Math.min(100, 30 + ((cons.revenueCents ?? 0) > 0 ? 30 : 0) + cashDays.length * 2),
     );
 
     // Insights.
@@ -330,7 +330,7 @@ export const FinanceEngine: IntelligenceEngine<
         type: "shrinkage",
         severity: "MEDIUM",
         probability: 0.6,
-        impactCents: Math.round((cons.shrinkagePercent / 100) * Math.max(0, cons.revenueCents)),
+        impactCents: Math.round((cons.shrinkagePercent / 100) * Math.max(0, cons.revenueCents ?? 0)),
         mitigation: "Auditar mermas por sucursal y entradas de recepción (rechazos / daño).",
       });
     }
@@ -344,7 +344,7 @@ export const FinanceEngine: IntelligenceEngine<
       generatedAt,
       foodCostPercent: foodPct,
       laborCostPercent: laborPct,
-      revenueCents: cons.revenueCents,
+      revenueCents: cons.revenueCents ?? 0,
       cogsCents: cons.cogsCents,
       shrinkagePercent: cons.shrinkagePercent,
       fillRate: cons.fillRate,

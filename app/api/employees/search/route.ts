@@ -185,7 +185,7 @@ export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
 });
 
 // GET - Get saved searches for a user (also wrapped for auth)
-export const getSavedSearches = withTenantAuth(async (request: NextRequest, { auth }) => {
+const getSavedSearches = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const searches = await db
             .select()

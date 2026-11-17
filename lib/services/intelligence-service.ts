@@ -70,9 +70,11 @@ export class IntelligenceService {
 
       try {
         const report = await ExecutiveReportService.getReport(companyId, startDate, endDate, branchId);
-        context.push(`Food Cost %: ${report.consolidated.foodCostPercent}%`);
+        const foodCost = report.consolidated.foodCostPercent;
+        const revenue = report.consolidated.revenueCents;
+        context.push(`Food Cost %: ${foodCost === null ? "sin dato (cobertura parcial)" : `${foodCost}%`}`);
         context.push(`COGS: $${(report.consolidated.cogsCents / 100).toFixed(2)}`);
-        context.push(`Revenue: $${(report.consolidated.revenueCents / 100).toFixed(2)}`);
+        context.push(`Revenue: ${revenue === null ? "sin dato (cobertura parcial)" : `$${(revenue / 100).toFixed(2)}`}`);
         context.push(`Inventory Turnover: ${report.consolidated.inventoryTurnover}`);
         context.push(`Stock Days: ${report.consolidated.stockDays}`);
         context.push(`Shrinkage %: ${report.consolidated.shrinkagePercent}%`);
@@ -80,7 +82,7 @@ export class IntelligenceService {
 
         if (report.byBranch.length > 1) {
           const branchData = report.byBranch.map(b =>
-            `${b.branchName}: Food Cost ${b.foodCostPercent}%, COGS $${(b.cogsCents / 100).toFixed(2)}`
+            `${b.branchName}: Food Cost ${b.foodCostPercent === null ? "N/D" : `${b.foodCostPercent}%`}, COGS $${(b.cogsCents / 100).toFixed(2)}`
           ).join('; ');
           context.push(`Por sucursal: ${branchData}`);
         }
@@ -147,7 +149,8 @@ export class IntelligenceService {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 7);
         const report = await ExecutiveReportService.getReport(companyId, startDate, endDate, branchId);
-        context.push(`Resumen rápido — Food Cost: ${report.consolidated.foodCostPercent}%, Fill Rate: ${report.consolidated.fillRate}%`);
+        const foodCost = report.consolidated.foodCostPercent;
+        context.push(`Resumen rápido — Food Cost: ${foodCost === null ? "sin dato" : `${foodCost}%`}, Fill Rate: ${report.consolidated.fillRate}%`);
         sources.push('ExecutiveReportService');
       } catch (e) {
         context.push('No hay datos de inventario disponibles para responder.');

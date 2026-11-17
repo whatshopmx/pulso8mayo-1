@@ -10,21 +10,29 @@ import { RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ZAxis, Cell, LabelList } from "recharts";
 
+interface RevenueCoverage {
+    status: "NO_DATA" | "PARTIAL" | "COMPLETE";
+    totalEntries: number;
+    completeEntries: number;
+}
+
 interface MenuItem {
     recipeId: string;
     recipeName: string;
     totalSold: number;
-    revenueCents: number;
+    reportedRevenueCents: number;
+    revenueCents: number | null;
+    revenueCoverage: RevenueCoverage;
     costCents: number;
-    foodCostPercent: number;
-    marginPercent: number;
-    quadrant: "STAR" | "CASH_COW" | "QUESTION_MARK" | "DOG";
+    foodCostPercent: number | null;
+    marginPercent: number | null;
+    quadrant: "STAR" | "CASH_COW" | "QUESTION_MARK" | "DOG" | "UNCLASSIFIED";
 }
 
 interface MatrixData {
     items: MenuItem[];
     medianPopularity: number;
-    medianMargin: number;
+    medianMargin: number | null;
     period: { start: string; end: string };
 }
 
@@ -33,6 +41,7 @@ const QUAD_META: Record<string, { label: string; desc: string; color: string; bg
     CASH_COW: { label: "Vaca", desc: "Alta rentabilidad · Baja popularidad", color: "var(--info)", bg: "color-mix(in oklch, var(--info) 10%, transparent)" },
     QUESTION_MARK: { label: "Incógnita", desc: "Baja rentabilidad · Alta popularidad", color: "var(--warning-text)", bg: "color-mix(in oklch, var(--warning) 10%, transparent)" },
     DOG: { label: "Peso", desc: "Baja rentabilidad · Baja popularidad", color: "var(--destructive)", bg: "color-mix(in oklch, var(--destructive) 10%, transparent)" },
+    UNCLASSIFIED: { label: "Sin dato", desc: "Cobertura de ingreso incompleta · rentabilidad no medida", color: "var(--muted-foreground)", bg: "color-mix(in oklch, var(--muted-foreground) 10%, transparent)" },
 };
 
 function formatCents(cents: number): string {
@@ -48,10 +57,10 @@ const CustomTooltip = ({ active, payload }: any) => {
             <p className="font-bold">{d.recipeName}</p>
             <p className="text-xs text-muted-foreground">{meta.label} · {meta.desc}</p>
             <div className="pt-1 space-y-0.5">
-                <p>Food Cost: <span className="font-mono">{d.foodCostPercent}%</span></p>
-                <p>Margen: <span className="font-mono">{d.marginPercent}%</span></p>
+                <p>Food Cost: <span className="font-mono">{d.foodCostPercent === null ? "N/D" : `${d.foodCostPercent}%`}</span></p>
+                <p>Margen: <span className="font-mono">{d.marginPercent === null ? "N/D" : `${d.marginPercent}%`}</span></p>
                 <p>Vendido: <span className="font-mono">{d.totalSold} uds</span></p>
-                <p>Revenue: <span className="font-mono">{formatCents(d.revenueCents)}</span></p>
+                <p>Revenue: <span className="font-mono">{d.revenueCents === null ? "Parcial" : formatCents(d.revenueCents)}</span></p>
             </div>
         </div>
     );
@@ -82,12 +91,16 @@ export function MenuEngineeringMatrix() {
     useEffect(() => { fetchMatrix(); }, []);
 
     const items = data?.items ?? [];
-    const chartData = items.map(i => ({
-        ...i,
-        x: i.totalSold,
-        y: i.marginPercent,
-        z: Math.max(20, Math.min(80, i.totalSold)),
-    }));
+    // Solo se grafican platillos con rentabilidad medida (cobertura COMPLETE);
+    // el ingreso incompleto queda en la tabla como "Sin dato", no como punto.
+    const chartData = items
+        .filter(i => i.marginPercent !== null)
+        .map(i => ({
+            ...i,
+            x: i.totalSold,
+            y: i.marginPercent as number,
+            z: Math.max(20, Math.min(80, i.totalSold)),
+        }));
 
     const quadrants = ["STAR", "CASH_COW", "QUESTION_MARK", "DOG"] as const;
 
@@ -130,7 +143,9 @@ export function MenuEngineeringMatrix() {
                         </div>
                     ) : chartData.length === 0 ? (
                         <div className="flex items-center justify-center h-96 text-muted-foreground">
-                            No hay datos de ventas en el período seleccionado
+                            {items.length > 0
+                                ? "Sin rentabilidad medida: la cobertura de ingreso es incompleta"
+                                : "No hay datos de ventas en el período seleccionado"}
                         </div>
                     ) : (
                         <div className="h-[500px]">
@@ -154,16 +169,13 @@ export function MenuEngineeringMatrix() {
                                     />
                                     <ZAxis type="number" dataKey="z" range={[60, 400]} />
                                     <Tooltip content={<CustomTooltip />} />
-                                    {data && (
-                                        <>
-                                            {/* Median lines */}
-                                            <CartesianGrid
-                                                horizontalPoints={[data.medianMargin]}
-                                                verticalPoints={[data.medianPopularity]}
-                                                stroke="#94a3b8"
-                                                strokeDasharray="8 4"
-                                            />
-                                        </>
+                                    {data && data.medianMargin !== null && (
+                                        <CartesianGrid
+                                            horizontalPoints={[data.medianMargin]}
+                                            verticalPoints={[data.medianPopularity]}
+                                            stroke="#94a3b8"
+                                            strokeDasharray="8 4"
+                                        />
                                     )}
                                     {quadrants.map(q => (
                                         <Scatter
@@ -214,9 +226,9 @@ export function MenuEngineeringMatrix() {
                                                 </Badge>
                                             </td>
                                             <td className="text-right py-2 px-2 font-mono">{i.totalSold}</td>
-                                            <td className="text-right py-2 px-2 font-mono">{i.foodCostPercent}%</td>
-                                            <td className="text-right py-2 px-2 font-mono">{i.marginPercent}%</td>
-                                            <td className="text-right py-2 px-2 font-mono">{formatCents(i.revenueCents)}</td>
+                                            <td className="text-right py-2 px-2 font-mono">{i.foodCostPercent === null ? "N/D" : `${i.foodCostPercent}%`}</td>
+                                            <td className="text-right py-2 px-2 font-mono">{i.marginPercent === null ? "N/D" : `${i.marginPercent}%`}</td>
+                                            <td className="text-right py-2 px-2 font-mono">{i.revenueCents === null ? "Parcial" : formatCents(i.revenueCents)}</td>
                                         </tr>
                                     );
                                 })}
