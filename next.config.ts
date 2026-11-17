@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const nextConfig: NextConfig = {
+  // `ws` necesita require nativo para sus addons opcionales. Al empaquetarlo,
+  // Webpack sustituía bufferutil ausente por {}, rompiendo las conexiones Neon.
+  serverExternalPackages: ["ws"],
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',
