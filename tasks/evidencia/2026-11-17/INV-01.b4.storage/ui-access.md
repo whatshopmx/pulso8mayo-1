@@ -54,6 +54,11 @@ Esto acredita la UI en navegador aislado. No acredita aún el recorrido completo
 Next + Better Auth + DB + R2 desde esta pantalla, ni el runtime NOBYPASSRLS.
 No acepta `INV-01.b4.storage`, sus padres ni la fila 11.11.
 
+**Continuación posterior:** el recorrido Next de producción + Better Auth + DB
+aislada + R2 + descarga desde esta pantalla ya se comprobó en
+[next-runtime.md](next-runtime.md). Permanece pendiente el runtime NOBYPASSRLS;
+esta evidencia inicial se conserva como registro de la capa aislada.
+
 La política legacy de `pos-reference-isolation.md` permanece vigente. Las claves
 históricas y las subidas por `/api/sales/cuts/upload` que usan el espacio
 `sales-cuts` no se vuelven válidas por añadir este botón: la ruta privada conserva

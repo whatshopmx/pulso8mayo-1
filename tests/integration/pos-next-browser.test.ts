@@ -5,16 +5,24 @@ import { createServer } from "node:net";
 import { once } from "node:events";
 import { config, parse } from "dotenv";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { chromium, type Browser } from "@playwright/test";
+import { chromium, expect as browserExpect, type Browser, type Page } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { account, users, sessions, companies, branches, dailySalesCuts } from "@/lib/db/schema";
+import { account, users, sessions, companies, branches, dailySalesCuts, dataAccessLogs } from "@/lib/db/schema";
 
 // Opt-in: Next de producción, Better Auth, Neon aislado y R2 reales. Sin mocks.
 config({ path: ".env" });
 const enabled = process.env.RUN_POS_NEXT_BROWSER === "1";
 const companyId = randomUUID(), branchId = randomUUID(), actorId = randomUUID(), cutId = randomUUID();
+const foreignCompanyId = randomUUID(), foreignBranchId = randomUUID(), otherBranchId = randomUUID();
+const peers = [
+  { id: randomUUID(), role: "ADMIN" as const, companyId: foreignCompanyId, branchId: foreignBranchId, status: 404 },
+  { id: randomUUID(), role: "GERENTE" as const, companyId, branchId: otherBranchId, status: 404 },
+  { id: randomUUID(), role: "EMPLEADO" as const, companyId, branchId, status: 403 },
+];
+const actorIds = [actorId, ...peers.map(peer => peer.id)];
+const companyIds = [companyId, foreignCompanyId], branchIds = [branchId, otherBranchId, foreignBranchId];
 const day = "2026-11-17", password = `Synthetic-${randomUUID()}`;
 const contents = Buffer.from("Evidencia POS sintetica de integracion\n");
 let child: ChildProcess | undefined, browser: Browser | undefined, baseURL: string;
@@ -41,11 +49,18 @@ beforeAll(async () => {
   const now = new Date(), hash = await hashPassword(password);
   await db.transaction(async tx => {
     await tx.insert(companies).values({ id: companyId, name: "Synthetic POS Next company" });
+    await tx.insert(companies).values({ id: foreignCompanyId, name: "Synthetic POS foreign company" });
     await tx.insert(branches).values({ id: branchId, companyId, name: "Synthetic POS Next branch" });
+    await tx.insert(branches).values([{ id: otherBranchId, companyId, name: "Synthetic POS other branch" },
+      { id: foreignBranchId, companyId: foreignCompanyId, name: "Synthetic POS foreign branch" }]);
     await tx.insert(users).values({ id: actorId, companyId, branchId, role: "ADMIN", email: `${actorId}@example.invalid`,
       name: "Synthetic POS actor", emailVerified: true, createdAt: now, updatedAt: now });
     await tx.insert(account).values({ id: randomUUID(), userId: actorId, accountId: actorId,
       providerId: "credential", password: hash, createdAt: now, updatedAt: now });
+    await tx.insert(users).values(peers.map(peer => ({ id: peer.id, companyId: peer.companyId, branchId: peer.branchId,
+      role: peer.role, email: `${peer.id}@example.invalid`, name: "Synthetic POS peer", emailVerified: true, createdAt: now, updatedAt: now })));
+    await tx.insert(account).values(peers.map(peer => ({ id: randomUUID(), userId: peer.id, accountId: peer.id,
+      providerId: "credential", password: hash, createdAt: now, updatedAt: now })));
     await tx.insert(dailySalesCuts).values({ id: cutId, companyId, branchId, businessDate: day,
       shift: "COMPLETO", channel: "TOTAL", totalSales: 10000, source: "MANUAL_FORM", status: "VALIDATED" });
   });
@@ -85,21 +100,24 @@ afterAll(async () => {
       if (fileKey) { await r2.deleteFromR2(fileKey); expect(await r2.getFromR2(fileKey)).toBeNull(); }
     } finally { if (seeded) {
       await db.transaction(async tx => {
-        await tx.delete(sessions).where(eq(sessions.userId, actorId));
-        await tx.delete(account).where(eq(account.userId, actorId));
+        await tx.delete(dataAccessLogs).where(inArray(dataAccessLogs.companyId, companyIds));
+        await tx.delete(sessions).where(inArray(sessions.userId, actorIds));
+        await tx.delete(account).where(inArray(account.userId, actorIds));
         await tx.delete(dailySalesCuts).where(eq(dailySalesCuts.id, cutId));
-        await tx.delete(users).where(eq(users.id, actorId));
-        await tx.delete(branches).where(eq(branches.id, branchId));
-        await tx.delete(companies).where(eq(companies.id, companyId));
+        await tx.delete(users).where(inArray(users.id, actorIds));
+        await tx.delete(branches).where(inArray(branches.id, branchIds));
+        await tx.delete(companies).where(inArray(companies.id, companyIds));
       });
-      expect(await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId))).toEqual([]);
-      expect(await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, actorId))).toEqual([]);
+      expect(await db.select({ id: companies.id }).from(companies).where(inArray(companies.id, companyIds))).toEqual([]);
+      expect(await db.select({ id: sessions.id }).from(sessions).where(inArray(sessions.userId, actorIds))).toEqual([]);
+      expect(await db.select({ id: dataAccessLogs.id }).from(dataAccessLogs).where(inArray(dataAccessLogs.companyId, companyIds))).toEqual([]);
     } }
   }
 }, 60000);
 
-it.skipIf(!enabled)("sesión real: upload-pos persiste el objeto y vincula el corte aislado", async () => {
-  const context = await browser!.newContext({ baseURL });
+it.skipIf(!enabled)("Next + sesión + R2: sube POS, descarga desde el detalle y rechaza acceso tras logout", async () => {
+  const context = await browser!.newContext({ baseURL, viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
+  let page: Page | undefined;
   try {
     expect((await context.request.get(`/api/sales/cuts/${cutId}/pos-file`)).status()).toBe(401);
     const login = await context.request.post("/api/auth/sign-in/email", { headers: { origin: baseURL },
@@ -115,5 +133,77 @@ it.skipIf(!enabled)("sesión real: upload-pos persiste el objeto y vincula el co
     fileKey = body.data.fileUrl;
     expect(body.data).toMatchObject({ durable: true, matchedCount: 1 });
     expect((await r2.getFromR2(fileKey!))?.equals(contents)).toBe(true);
+
+    await context.addCookies([{ name: "pulso_selected_branch", value: branchId, url: baseURL }]);
+    page = await context.newPage();
+    const errors: string[] = [], failures: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("response", response => {
+      const url = new URL(response.url());
+      if (url.origin === baseURL && url.pathname.startsWith("/api/") && response.status() >= 400)
+        failures.push(`${response.status()} ${url.pathname}`);
+    });
+    const listed = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/sales/cuts" && url.searchParams.get("branchId") === branchId;
+    });
+    await page.goto(`/dashboard/sales?startDate=${day}&endDate=${day}`, { timeout: 60000 });
+    const listing = await (await listed).json();
+    expect(listing.data.scope).toMatchObject({ branchId, startDate: day, endDate: day });
+    expect(listing.data.items.map((cut: { id: string }) => cut.id)).toContain(cutId);
+    await browserExpect(page.getByRole("heading", { name: /Ventas y Cortes de Caja/ })).toBeVisible();
+    await page.getByRole("tab", { name: "Registro de Cortes" }).click();
+    const row = page.getByRole("row").filter({ hasText: "Synthetic POS Next branch" });
+    await browserExpect(row).toHaveCount(1, { timeout: 30000 });
+    await row.click();
+    const access = page.waitForResponse(response => new URL(response.url()).pathname === `/api/sales/cuts/${cutId}/pos-file`);
+    await page.getByRole("button", { name: "Consultar archivo POS" }).click();
+    expect((await access).status()).toBe(200);
+    const link = page.getByRole("link", { name: /Abrir archivo POS/ });
+    await browserExpect(link).toHaveAttribute("rel", "noopener noreferrer");
+    await page.screenshot({ path: ".tmp/pos-next-browser-desktop.png", fullPage: true, animations: "disabled" });
+    const downloaded = page.waitForEvent("download", { timeout: 30000 });
+    await link.click();
+    const download = await downloaded;
+    expect(await download.failure()).toBeNull();
+    expect(readFileSync((await download.path())!).equals(contents)).toBe(true);
+    expect(errors).toEqual([]); expect(failures).toEqual([]);
+
+    for (const reference of [fileKey!.replace(companyId, foreignCompanyId), fileKey!.replace(branchId, otherBranchId),
+      fileKey!.replace("/pos/", "/evidence/")]) {
+      const rejected = await context.request.post("/api/workflows/smart-links/upload-pos", {
+        data: { branchId, businessDate: day, fileUrl: reference },
+      });
+      expect(rejected.status()).toBe(400);
+      await db.update(dailySalesCuts).set({ rawFileUrl: reference }).where(eq(dailySalesCuts.id, cutId));
+      try {
+        // También protege registros legacy/corruptos que ya existen en DB.
+        expect((await context.request.get(`/api/sales/cuts/${cutId}/pos-file`)).status()).toBe(404);
+      } finally {
+        await db.update(dailySalesCuts).set({ rawFileUrl: fileKey }).where(eq(dailySalesCuts.id, cutId));
+      }
+    }
+    const [stored] = await db.select({ key: dailySalesCuts.rawFileUrl }).from(dailySalesCuts).where(eq(dailySalesCuts.id, cutId));
+    expect(stored.key).toBe(fileKey);
+
+    expect((await context.request.post("/api/auth/sign-out", { headers: { origin: baseURL }, data: {} })).status()).toBe(200);
+    expect((await context.request.get(`/api/sales/cuts/${cutId}/pos-file`)).status()).toBe(401);
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await row.click();
+    await page.getByRole("button", { name: "Consultar archivo POS" }).click();
+    await browserExpect(page.getByRole("alert")).toContainText("Tu sesión terminó");
+    await browserExpect(page.getByRole("link", { name: /Abrir archivo POS/ })).toHaveCount(0);
+    for (const peer of peers) {
+      const session = await browser!.newContext({ baseURL });
+      try {
+        const login = await session.request.post("/api/auth/sign-in/email", { headers: { origin: baseURL },
+          data: { email: `${peer.id}@example.invalid`, password } });
+        expect(login.status()).toBe(200);
+        expect((await session.request.get(`/api/sales/cuts/${cutId}/pos-file`)).status()).toBe(peer.status);
+      } finally { await session.close(); }
+    }
+  } catch (error) {
+    if (page) await page.screenshot({ path: ".tmp/pos-next-browser-failure.png", fullPage: true, animations: "disabled" }).catch(() => {});
+    throw error;
   } finally { await context.close(); }
-}, 60000);
+}, 120000);

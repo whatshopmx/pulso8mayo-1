@@ -44,6 +44,46 @@ Hubo advertencias de caché de Webpack, deprecación de Neon y render estático 
 documentos laborales; no impidieron el build. La prueba verificó limpieza de
 empresa/sesiones y borrado del objeto R2. No se repitió la suite global.
 
+## Segundo incremento — pantalla, descarga y fronteras reales
+
+Se amplió el mismo escenario de integración; no se suman sus repeticiones como
+casos adicionales. Corrida final: **1/1, exit 0**, 49,49 s (44,92 s de hooks y caso).
+ESLint de la prueba ampliada: **exit 0**. No cambió código de aplicación después
+del build anterior, por lo que no se volvió a compilar sin cambios.
+
+Recorrido comprobado sin interceptar HTTP ni simular componentes:
+
+1. Anónimo recibe 401; login Better Auth real devuelve 200.
+2. Multipart a `upload-pos` devuelve 200, guarda una key canónica y vincula el corte. GetObject independiente confirma los bytes.
+3. `/dashboard/sales` obtiene el listado real con sucursal y fechas esperadas. La prueba espera esa respuesta y su render, antes de abrir el corte; un primer intento había agotado la espera corta de fila tras el título SSR.
+4. El detalle consulta `pos-file` (200), ofrece el enlace temporal y Chromium descarga directamente el objeto R2. Los bytes descargados coinciden con el archivo subido.
+5. Referencias de otra empresa, otra sucursal u otro espacio de objetos reciben 400 al vincular. Las mismas referencias, persistidas deliberadamente en el corte sintético, reciben 404 al leer. Se restaura la key original y se verifica que no cambió el vínculo válido.
+6. Logout real devuelve 200; reconsultar sin sesión devuelve 401. Al cerrar y abrir de nuevo el detalle, la UI informa sesión terminada y no ofrece un enlace. No se afirma revocación anticipada de URLs ya emitidas: conservan su TTL.
+7. Sesiones independientes de ADMIN de otra empresa y GERENTE de otra sucursal reciben 404; EMPLEADO recibe 403 sobre el corte con archivo existente.
+
+La vista positiva no registró excepciones de página ni respuestas API con error.
+Captura del caso real con datos sintéticos: [Next + Chromium](next-browser-desktop.png).
+La parte negativa genera los 400/401/403/404 esperados.
+
+### Limpieza del escenario de UI
+
+La primera corrida que completó la UI falló en teardown: la página registra
+lecturas clasificadas en `data_access_logs`, cuya FK impedía borrar la sucursal.
+Se añadió la eliminación de esos registros exclusivamente para las empresas
+sintéticas de esta corrida antes de borrar sus fixtures. La transacción fallida
+se recuperó mediante un script guardado localmente, verificando host aislado,
+UUID concretos, nombres y correo sintéticos; se confirmó ausencia de la empresa.
+
+La corrida final verificó ausencia de las dos empresas, sesiones de los cuatro
+actores y registros de acceso. El objeto R2 se eliminó y GetObject posterior
+confirmó su ausencia. Un `NoSuchKey` de esa comprobación es esperado, no un fallo
+de descarga. No se deshabilitaron FKs, políticas ni disparadores.
+
+La subida se ejercitó por API y la lectura por la pantalla real. No se acredita
+el formulario de otros productores de archivos ni una solicitud maliciosa al
+listado de cortes con sucursal ajena; los rechazos medidos corresponden a
+`upload-pos` y `pos-file`. Tampoco se infiere RLS del aislamiento de aplicación.
+
 ## Entorno y limpieza
 
 - Se verifica que el host de `TEST_DATABASE_URL` difiera del de la base operativa y que `DATABASE_URL` del proceso de prueba apunte a la aislada antes de sembrar.
