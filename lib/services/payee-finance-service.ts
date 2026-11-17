@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { accountingJournals, accountingPurchaseFacts, branches, expensePayments, financialPeriods, invoices, operatingExpenses,
-  payees, paymentRunItems, paymentRuns, suppliers, payeeBankAccounts, supplierBankAccounts } from "@/lib/db/schema";
+  payees, paymentRunItems, paymentRuns, suppliers, payeeBankAccounts, supplierBankAccounts, type InvoiceDestination } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
 import { getAccountsPayable } from "./accounts-payable-service";
 import { AuditService } from "./audit-service";
@@ -51,33 +51,48 @@ export async function getPayeeInvoiceCandidates(companyId: string, payeeId: stri
     .orderBy(desc(invoices.createdAt)).limit(100);
 }
 
-export async function getPayeeFinance(companyId: string, payeeId: string, branchId?: string, page = 0, dates: { from?: string; to?: string } = {}) {
+export async function getPayeeFinance(companyId: string, payeeId: string, branchId?: string, page = 0,
+  filters: { from?: string; to?: string; destination?: InvoiceDestination } = {}) {
   const [payee] = await db.select().from(payees).where(and(eq(payees.companyId, companyId), eq(payees.id, payeeId)));
   if (!payee) throw ApiError.notFound("Contraparte no encontrada.");
   const expenseWhere = and(eq(operatingExpenses.companyId, companyId), eq(operatingExpenses.payeeId, payeeId),
     branchId ? eq(operatingExpenses.branchId, branchId) : undefined);
   const expenseHistoryWhere = and(expenseWhere,
-    dates.from ? sql`coalesce(${operatingExpenses.businessDate}, ${operatingExpenses.createdAt}::date) >= ${dates.from}::date` : undefined,
-    dates.to ? sql`coalesce(${operatingExpenses.businessDate}, ${operatingExpenses.createdAt}::date) <= ${dates.to}::date` : undefined);
-  const invoiceWhere = and(eq(invoices.companyId, companyId), eq(suppliers.payeeId, payeeId),
+    filters.from ? sql`coalesce(${operatingExpenses.businessDate}, ${operatingExpenses.createdAt}::date) >= ${filters.from}::date` : undefined,
+    filters.to ? sql`coalesce(${operatingExpenses.businessDate}, ${operatingExpenses.createdAt}::date) <= ${filters.to}::date` : undefined);
+  const invoiceWhere = and(eq(invoices.companyId, companyId),
+    sql`(${invoices.payeeId}=${payeeId} or (${invoices.payeeId} is null and ${suppliers.payeeId}=${payeeId}))`,
     branchId ? eq(invoices.branchId, branchId) : undefined,
-    dates.from ? sql`substring(${invoices.fecha} from 1 for 10) >= ${dates.from}` : undefined,
-    dates.to ? sql`substring(${invoices.fecha} from 1 for 10) <= ${dates.to}` : undefined);
+    filters.destination ? eq(invoices.destination, filters.destination) : undefined,
+    filters.from ? sql`substring(${invoices.fecha} from 1 for 10) >= ${filters.from}` : undefined,
+    filters.to ? sql`substring(${invoices.fecha} from 1 for 10) <= ${filters.to}` : undefined);
+  // No publicar identificadores de gastos de otras sucursales/contrapartes.
+  // Subconsultas acotadas por invoice_idx evitan multiplicar CFDI históricos.
+  const linkedExpenseScope = sql`e.company_id=${companyId} and e.invoice_id=${invoices.id}
+    and e.payee_id=${payeeId} and e.branch_id=${invoices.branchId}`;
   const [payables, expenses, documents, totals, linkedSuppliers, accounts, supplierAccounts] = await Promise.all([
     getAccountsPayable({ companyId, payeeId, branchId, itemsLimit: 1000 }),
     db.select({ id: operatingExpenses.id, description: operatingExpenses.description, amountCents: operatingExpenses.amount,
       status: operatingExpenses.status, invoiceId: operatingExpenses.invoiceId, evidenceUrl: operatingExpenses.evidenceUrl,
       businessDate: operatingExpenses.businessDate, createdAt: operatingExpenses.createdAt, dueDate: operatingExpenses.dueDate,
       paidAt: operatingExpenses.paidAt, branchId: operatingExpenses.branchId, branchName: branches.name })
-      .from(operatingExpenses).leftJoin(branches, eq(operatingExpenses.branchId, branches.id))
+      .from(operatingExpenses).leftJoin(branches, and(eq(operatingExpenses.branchId, branches.id), eq(branches.companyId, companyId)))
       .where(expenseHistoryWhere).orderBy(desc(operatingExpenses.createdAt), desc(operatingExpenses.id)).limit(51).offset(page * 50),
     db.select({ id: invoices.id, uuid: invoices.uuid, folio: invoices.folio, serie: invoices.serie,
+      destination: invoices.destination, satStatus: invoices.satStatus,
       amountCents: invoices.total, status: invoices.paymentStatus, date: invoices.fecha, dueDate: invoices.dueDate,
       branchId: invoices.branchId, branchName: branches.name, supplierName: suppliers.name,
-      expenseId: sql<string | null>`(select e.id from ${operatingExpenses} e where e.company_id = ${invoices.companyId}
-        and e.invoice_id = ${invoices.id} order by e.created_at desc limit 1)` })
-      .from(invoices).innerJoin(suppliers, eq(invoices.supplierId, suppliers.id))
-      .leftJoin(branches, eq(invoices.branchId, branches.id)).where(invoiceWhere)
+      hasPurchaseOrder: sql<boolean>`${invoices.purchaseOrderId} is not null`,
+      hasReceivingReport: sql<boolean>`${invoices.receivingReportId} is not null`,
+      hasRecurringContract: sql<boolean>`${invoices.recurringContractId} is not null`,
+      hasServiceOrder: sql<boolean>`${invoices.serviceOrderId} is not null`,
+      identityConflict: sql<boolean>`${invoices.supplierId} is not null and (${suppliers.id} is null
+        or (${invoices.payeeId} is not null and ${suppliers.payeeId} is distinct from ${invoices.payeeId}))`,
+      expenseId: sql<string | null>`(select e.id from ${operatingExpenses} e where ${linkedExpenseScope} order by e.created_at desc,e.id desc limit 1)`,
+      expenseAmountCents: sql<number | null>`(select e.amount from ${operatingExpenses} e where ${linkedExpenseScope} order by e.created_at desc,e.id desc limit 1)`,
+      expenseCount: sql<number>`(select count(*)::integer from ${operatingExpenses} e where ${linkedExpenseScope})` })
+      .from(invoices).leftJoin(suppliers, and(eq(invoices.supplierId, suppliers.id), eq(suppliers.companyId, companyId)))
+      .leftJoin(branches, and(eq(invoices.branchId, branches.id), eq(branches.companyId, companyId))).where(invoiceWhere)
       .orderBy(desc(invoices.createdAt), desc(invoices.id)).limit(51).offset(page * 50),
     db.select({ pendingCents: sql<number>`coalesce(sum(${operatingExpenses.amount}) filter
       (where ${operatingExpenses.status} in ('PENDING_APPROVAL', 'PENDING_OVERBUDGET_APPROVAL')), 0)::bigint` })
@@ -93,7 +108,13 @@ export async function getPayeeFinance(companyId: string, payeeId: string, branch
       .where(and(eq(supplierBankAccounts.companyId, companyId), eq(suppliers.companyId, companyId),
         eq(suppliers.payeeId, payeeId), eq(supplierBankAccounts.active, true))),
   ]);
-  return { payee, payables, expenses: expenses.slice(0, 50), documents: documents.slice(0, 50),
+  return { payee, payables, expenses: expenses.slice(0, 50), documents: documents.slice(0, 50).map(document => ({
+      ...document, requiresReview: Boolean(document.destination === "UNCLASSIFIED" || document.identityConflict
+        || document.expenseCount > 1 || (document.expenseId && document.expenseAmountCents !== document.amountCents)
+        || (document.destination === "INVENTORY_PURCHASE" && document.expenseId)
+        || (document.destination === "OPERATING_EXPENSE" && (!document.expenseId || document.hasPurchaseOrder
+          || document.hasReceivingReport || document.hasRecurringContract || document.hasServiceOrder))),
+    })),
     moreExpenses: expenses.length > 50, moreDocuments: documents.length > 50,
     pendingApprovalCents: Number(totals[0]?.pendingCents ?? 0), suppliers: linkedSuppliers, accounts, supplierAccounts };
 }

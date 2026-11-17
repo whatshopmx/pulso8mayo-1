@@ -33,3 +33,38 @@ Para comunicarte con la plataforma a través de tu servicio de mensajería favor
 1. Ve a **Perfil > Notificaciones**.
 2. Dale a "Activar Notificaciones de WhatsApp". 
 3. Envía el mensaje con la palabra reservada que indique la plataforma para enrolar tu número registrado.
+
+## 6. Facturas de compras y gastos operativos (Finanzas)
+
+Un mismo proveedor puede venderte insumos y cobrarte servicios. En Pulso eso se decide **por documento**, no por proveedor: la harina es una compra de inventario y la luz o el mantenimiento son gastos operativos.
+
+### 6.1 Cargar un CFDI al registrar un gasto
+
+1. Entra a **Finanzas > Gastos > Nuevo gasto** (o a la ficha de la contraparte y elige **Nuevo Gasto Operativo**).
+2. Elige **Cargar CFDI** y sube el XML.
+3. Revisa la vista previa: emisor, receptor, UUID, fecha, moneda, subtotal, impuestos y total.
+4. Completa categoría, sucursal, centro de costo (opcional) y vencimiento, y confirma.
+
+El gasto queda **por aprobar**: cargar la factura no lo autoriza ni lo paga. Al confirmar se guarda una sola vez la factura y su gasto; si el XML ya estaba registrado, la plataforma te ofrece abrir ese gasto en vez de crear otro.
+
+### 6.2 Documentar un gasto que ya registraste
+
+1. Abre **Finanzas > Gastos** o la pestaña **Movimientos** de la contraparte.
+2. Busca el gasto que dice «sin comprobante» y usa **Asociar factura**.
+3. Puedes elegir una **factura existente** compatible o **cargar el XML**.
+4. Si el importe, la sucursal, la moneda, la contraparte o el estado no coinciden, la plataforma lo dice antes de confirmar y no cambia el gasto.
+
+### 6.3 Consultar compras, gastos y pendientes
+
+En la ficha de la contraparte, la pestaña **Documentos** permite filtrar por **Todos / Compra de inventario / Gasto operativo / Por clasificar**. Cada fila indica qué es el documento y te lleva a su origen: el gasto, la compra de inventario o la revisión de la factura.
+
+- **Compra de inventario**: sigue el circuito de orden de compra y recepción.
+- **Gasto operativo**: se administra desde Finanzas; su XML se descarga desde el gasto.
+- **Por clasificar**: documento histórico sin evidencia suficiente. Se conserva visible y no se le asigna destino por suposición.
+
+### 6.4 Qué hacer si la carga se rechaza
+
+- **Inventario** solo acepta compras de inventario. Si cargas ahí una factura de servicio, te remitirá a Finanzas.
+- Un CFDI con **retenciones, IEPS, descuentos, complementos, moneda distinta de MXN o receptor que no es tu empresa** no se puede capturar todavía en el circuito de gastos; regístralo con tu contador y no lo fuerces.
+- Un **periodo cerrado** bloquea altas, asociaciones y pagos de ese mes: pide la reapertura correspondiente.
+- La **contraparte debe estar activa y tener el mismo RFC del emisor** del XML.

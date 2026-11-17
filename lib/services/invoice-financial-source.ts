@@ -2,6 +2,13 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { invoices, operatingExpenses, recurringPayables, suppliers } from "@/lib/db/schema";
 
 /**
+ * Destinos que pueden sostener una deuda de compra. `UNCLASSIFIED` conserva la
+ * elegibilidad histórica hasta la revisión de T12; `OPERATING_EXPENSE` nunca
+ * entra, porque su gasto es la fuente única de la obligación.
+ */
+export const PURCHASE_ELIGIBLE_DESTINATIONS = ["UNCLASSIFIED", "INVENTORY_PURCHASE"] as const;
+
+/**
  * La factura operativa es evidencia, incluso cuando falta su gasto: nunca es
  * deuda de compra. UNCLASSIFIED conserva el tratamiento histórico hasta T12.
  * La exclusión por vínculo también cubre asociaciones anteriores al destino.
@@ -9,7 +16,7 @@ import { invoices, operatingExpenses, recurringPayables, suppliers } from "@/lib
 export function isStandalonePurchaseInvoice() {
   return and(
     eq(invoices.paymentStatus, "PENDING"),
-    inArray(invoices.destination, ["UNCLASSIFIED", "INVENTORY_PURCHASE"]),
+    inArray(invoices.destination, [...PURCHASE_ELIGIBLE_DESTINATIONS]),
     sql`not exists (select 1 from ${operatingExpenses} e
       where e.company_id = ${invoices.companyId} and e.invoice_id = ${invoices.id})`,
   );

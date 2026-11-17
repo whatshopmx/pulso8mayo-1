@@ -1,6 +1,6 @@
 # Plan: facturas de compras y gastos operativos
 
-Fecha: 2026-11-16. Estado: T01–T09 completadas, T10 pendiente. Build de producción aprobado al cerrar T09 (ver checklist).
+Fecha: 2026-11-16. Estado: T01–T13 completadas, Control 2 y Control 3 cerrados. Build de producción aprobado al cerrar T13 (ver checklist).
 Seguimiento: [todo-facturas-gastos.md](todo-facturas-gastos.md).
 Ubicación autorizada por el usuario para conservar los planes bancarios existentes.
 
@@ -158,3 +158,136 @@ Esta es una decisión de alcance del software, no una conclusión fiscal sobre d
 - `lib/services/__tests__/cfdi-parser-characterization.test.ts`: identidad/importes, moneda sin validar, retenciones no representadas y XML incompleto. Caracteriza limitaciones; no certifica soporte fiscal.
 - Regresiones existentes: `tests/unit/finance/payee-obligations.test.ts`, `lib/services/__tests__/{recurring-payable-service,recurring-contracts,payment-run-settlement,treasury-disbursement}.test.ts`.
 - T02 debe probar la migración real con restricciones en base aislada; T04/T05 deben ejecutar integración de tesorería/contabilidad, con bandera encendida y apagada. T13 conserva el cierre integral indicado arriba. Ninguna prueba de T01 habilita cambios en base real.
+
+## F5 / T10 — Separación visible de documentos (2026-11-16)
+
+Esta etapa hace visible el destino ya existente en el modelo. No reclasifica documentos, no altera la elegibilidad financiera y no habilita nuevas capturas.
+
+### Consulta por destino e identidad
+
+- `getPayeeFinance` acepta `destination` y resuelve la contraparte por identidad directa primero (`invoices.payee_id`), con `suppliers.payee_id` solo como compatibilidad histórica. Una factura con proveedor y contraparte directa no se duplica: los `leftJoin` a proveedores y sucursales están acotados por empresa y son 1:1.
+- Los vínculos de gasto se resuelven por subconsultas acotadas a empresa, contraparte y sucursal del comprobante, y exponen conteo, importe y conflicto de identidad. Un documento con vínculos múltiples, importes distintos o identidades contradictorias se marca «Requiere revisión» sin reescribir nada.
+- El filtro de destino se aplica solo a los documentos. Saldos, obligaciones y movimientos no cambian al filtrar; los documentos `UNCLASSIFIED` conservan su elegibilidad histórica.
+
+### Filtros, destino, origen y navegación
+
+- «Documentos» ofrece Todos / Compra de inventario / Gasto operativo / Por clasificar, combinable con fechas y paginación por destino.
+- Cada fila muestra el destino, el origen vinculado (gasto, OC, recepción, contrato u orden de servicio), el estado SAT y la navegación real: gasto para CFDI operativos, compra para compras y revisión para huérfanos o ambiguos.
+- Se retira la etiqueta universal «Factura de compra»: «Pendientes» distingue compra de inventario, CFDI de gasto operativo, factura por clasificar y estimado sin factura, conservando la elegibilidad histórica de los documentos sin clasificar.
+
+### Límites
+
+- El filtro de la ficha no sustituye la separación de la captura de Inventario (T11) ni el reporte de clasificación histórica (T12).
+- La consulta directa de CFDI operativos convive con la ficha de Inventario, que todavía muestra cualquier documento; T11 acota esa entrada.
+- Verificación: PGlite descartable para consultas y API, y navegador con historial combinado y estados vacíos. No se ejecutaron migraciones ni correcciones de datos en la base operativa.
+
+## F6 / T11 — Separación de la entrada de inventario (2026-11-16)
+
+Inventario queda acotado a compras de inventario. Los CFDI de gasto operativo se capturan y documentan desde Finanzas, y el destino pasa a ser un dato explícito del documento.
+
+### Captura
+
+- `POST /api/inventory/invoices/upload` exige que el cliente declare el destino y solo admite `INVENTORY_PURCHASE`; cualquier otro valor se rechaza remitiendo a Finanzas. El CFDI se guarda con ese destino, de modo que ya no aparece como «Por clasificar» al día siguiente de cargarlo.
+- La unicidad fiscal se comprueba sin distinguir mayúsculas y en el ámbito global, como el índice de 0153. Un CFDI ya capturado como gasto operativo se rechaza indicando el circuito correcto; uno de otra empresa se rechaza sin revelar su UUID ni ningún dato ajeno.
+- La orden de compra se vincula por coincidencia inequívoca (una sola OC elegible del proveedor) o por confirmación explícita de quien captura, validada contra empresa, proveedor y estado abierto. Con varias OC abiertas no se toma ninguna: antes se asignaba la primera y la mercancía se conciliaba contra una orden que nadie había elegido. La conciliación por folio con recepción se conserva y usa la OC efectivamente elegida.
+
+### Listado
+
+- `GET /api/inventory/invoices` acepta `destination` y por omisión lista compras y documentos por clasificar. Los gastos operativos solo se incluyen bajo petición explícita, para no duplicar su lectura en el circuito que los administra.
+- La pantalla de «Historial y Conciliación» muestra el destino por documento y declara la captura como compra de inventario.
+
+### Límites
+
+- Un CFDI operativo no entra por esta vía porque la captura lo rechaza; el circuito de mercancía (líneas, OC, recepción) queda intacto para compras.
+- La comprobación global de UUID depende de la migración 0153: debe estar aplicada antes de desplegar esta captura.
+- La clasificación de los históricos ya capturados por Inventario sigue en T12; esta entrega no reclasifica nada.
+
+## F6 / T12 — Reporte y clasificación histórica controlada (2026-11-16)
+
+Entrega de gobierno de datos: un reporte de solo lectura y un backfill de metadata que nunca crea gastos, nunca mueve pagos ni pólizas y nunca adivina un destino. Nada se escribe sin que alguien revise el reporte y pida `--apply`.
+
+### Reporte de simulación
+
+- `scripts/invoice-classification-report.ts --company <uuid>` es el modo por omisión: cuenta e importa por destino actual, propuestas por destino, pendientes, conflictos con su motivo, y el impacto esperado en la elegibilidad de compra por CFDI (`standaloneBefore`, `standaloneAfter`, diferencia y documentos afectados). `--json` devuelve el mismo objeto.
+- El alcance se declara: si la lectura se cortó en `limit` documentos, `scope.truncated` lo dice, el script lo avisa y termina con código 3 para que ese reporte no se confunda con el universo completo de la empresa.
+- La elegibilidad se calcula con la misma regla de T03 (`invoice-financial-source`), no con una copia. La simulación no escribe: la prueba comprueba que ningún documento cambia de destino.
+
+### Reglas de propuesta
+
+- Sin evidencia no hay propuesta. Un CFDI sin OC, sin recepción y sin gasto sigue «Por clasificar»: la falta de orden de compra **no** se interpreta como gasto.
+- `OPERATING_EXPENSE` solo si el documento ya respalda exactamente un gasto de la misma empresa, con sucursal, importe, contraparte y moneda coherentes, MXN y sin OC/recepción. La contraparte directa se toma del documento o del gasto ya vinculado; nunca se crea ni se elige por nombre.
+- `INVENTORY_PURCHASE` solo con orden de compra o recepción.
+- Quedan en conflicto, visibles y sin tocar: varios gastos vinculados, gasto más OC/recepción, contrato recurrente u orden de servicio, moneda distinta de MXN, importe o sucursal distintos, falta de contraparte y proveedor de otra empresa o de otra contraparte. Un documento ya clasificado no se vuelve a proponer (`ALREADY_CLASSIFIED`).
+
+### Backfill idempotente y auditado
+
+- `--apply --actor <uuid> --reason "<motivo>"` escribe por lote, dentro de `withCompanyContext`, únicamente `destination`, `payee_id` (solo cuando el gasto ya lo determina), `classified_at`, `classified_by`, `classification_reason` (motivo de la corrida + razón de la propuesta) y `classification_source='BACKFILL'`, que es la metadata que audita la restricción de 0151.
+- Cada documento se bloquea y se **vuelve a leer con sus relaciones dentro de la transacción** antes de escribir. Si dejó de ser inequívoco (apareció otro gasto, cambió el importe, una OC nueva), no se escribe y se cuenta como omitido. El `UPDATE` exige además `destination='UNCLASSIFIED'` en el `WHERE`, así que una clasificación concurrente nunca se sobrescribe.
+- El actor debe pertenecer a la empresa. Una segunda corrida no encuentra propuestas y no escribe nada; no se crean, borran ni modifican gastos, pagos, pólizas, CLABEs ni documentos.
+
+### Verificación
+
+- `pnpm test:unit tests/unit/finance/invoice-classification.test.ts` → 18 casos: decisión pura por caso (compra, gasto, sin indicio, nueve conflictos, ya clasificado), reporte sin escrituras, alcance truncado, alta con metadata auditable, idempotencia, simulación y actor ajeno. La revalidación diferida se prueba simulando la aparición de un segundo gasto entre el reporte y la escritura: el documento queda «Por clasificar» y se informa como omitido.
+- `pnpm test:integration tests/integration/invoice-classification-backfill.test.ts` → 4 casos sobre PGlite descartable con las restricciones y triggers reales de 0151: se comprueba primero que las guardas están activas (gasto sin contraparte y compra que respalda gasto son rechazados), y después que el backfill clasifica gasto y compra, no sale de la empresa, no altera la elegibilidad de compra, no crea gastos, es idempotente y rechaza un actor ajeno.
+- Regresión: 125 pruebas unitarias de seis archivos de Finanzas (clasificación, ficha, candidatos, obligaciones, captura y listado de inventario) y 88 pruebas de integración (backfill, migración 0151, confirmación operativa y origen contable).
+- Calidad: ESLint de los archivos nuevos sin errores ni warnings; `node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit` aprobado; `git diff --check` focalizado limpio.
+
+### Límites
+
+- No se ejecutó `--apply` sobre ninguna base real: la corrida real exige revisar primero el reporte por empresa, como pide esta entrega. El reporte sí se ejecutó contra la base configurada en modo lectura para una empresa sin documentos.
+- PGlite reproduce las restricciones de 0151, pero no RLS bajo rol de aplicación ni concurrencia multi-conexión; la protección concurrente del backfill es el bloqueo de fila más la revalidación en transacción, no una prueba de carrera real.
+- La clasificación no reclasifica un documento con actividad financiera: esos casos quedan en conflicto para revisión explícita. La distribución de un CFDI mixto por líneas sigue fuera de alcance.
+
+## F7 / T13 — Verificación integral y documentación (2026-11-16)
+
+Cierre del plan: un recorrido de navegador para el emisor mixto y un recorrido de servicios que demuestra la obligación única. No introduce reglas nuevas; reejecuta las existentes en lugar de duplicarlas.
+
+### Escenario de aceptación (fixture sintético)
+
+Un solo emisor con cuatro documentos y tres gastos:
+
+| Documento | Destino | Origen vinculado | Comportamiento esperado |
+|---|---|---|---|
+| Harina · OC-1042 | `INVENTORY_PURCHASE` | Orden de compra | Conserva el circuito de compra. Aparece en CxP como deuda de compra. |
+| Luz de noviembre | `OPERATING_EXPENSE` | Gasto aprobado | Se administra desde Finanzas. Un solo XML, una sola obligación. |
+| Mantenimiento | `OPERATING_EXPENSE` | Gasto por aprobar | No suma a deuda firme hasta aprobarse. |
+| Factura histórica | `UNCLASSIFIED` | Orden de servicio | Sigue visible como «Por clasificar» y requiere revisión. |
+| Renta de noviembre | sin CFDI | Gasto manual | Se documenta después con **Asociar factura**, sin crear otra obligación. |
+
+### Navegador
+
+- `tests/e2e/facturas-gastos-cierre.spec.ts` (3 casos, UI y CSS reales con Next, sesión y API simulados):
+  - cada documento aparece una sola vez, con su destino, su origen y la navegación correcta; los CFDI operativos no ofrecen ningún enlace a Inventario y sí su XML; la compra ofrece «Ver compra» y ningún XML de gasto;
+  - el filtro por destino devuelve 1 compra / 2 gastos / 1 por clasificar / 4 en «Todos» sin mover las cinco obligaciones de «Pendientes»;
+  - la renta sin comprobante se asocia con una sola confirmación, la fila pasa a «Factura asociada · pago único», el XML se descarga y la deuda no cambia.
+- Capturas a 1440 y 320 px en `tasks/evidencia/2026-11-16/FACTURAS-GASTOS-T13/`, sin desbordamiento horizontal.
+
+### Servicios (Control 2)
+
+`tests/integration/facturas-gastos-cierre.test.ts` sobre PGlite con las migraciones reales 0151/0153 y los servicios reales de captura, CxP, aprobación y pagos:
+
+1. La luz se confirma desde Finanzas **sin proveedor de insumos** y sin OC/recepción; la factura queda `OPERATING_EXPENSE` y el gasto `PENDING_APPROVAL`. La CxP solo tiene la harina.
+2. Al aprobar, la CxP pasa a dos obligaciones: `INVOICE` de harina (58,000) y `OPERATING_EXPENSE` de luz (116,001). La factura operativa no aparece también como compra.
+3. Un abono por el total salda el gasto y espeja el CFDI a `PAID`; un segundo abono se rechaza por saldo, queda un solo abono y la deuda vuelve a 58,000 centavos.
+4. El XML se conserva después del pago, el gasto mantiene su `invoiceId`, no se creó proveedor de inventario y no se emitió póliza.
+
+### Evidencia agregada
+
+- 304 pruebas unitarias de 21 archivos de Finanzas.
+- 95 pruebas de integración de 6 archivos (cierre, backfill histórico, migración de destino, índice fiscal, confirmación operativa y origen contable).
+- 3 pruebas de concurrencia multiconexión (mismo CFDI, dos CFDI para un gasto, UUID global entre empresas).
+- 20 recorridos de navegador (17 regresiones de T08–T11 + 3 de T13).
+- `tsc --noEmit` y `pnpm run build` (455/455 páginas) aprobados.
+
+### Límites y pendientes
+
+- El navegador usa una API simulada: la atomicidad, la CxP, la contabilidad y el pago se sostienen en las pruebas de integración.
+- Fuera de alcance: distribución de un CFDI mixto por líneas, deducibilidad fiscal, recuperación masiva de CFDI del SAT y rediseño de tesorería.
+- No se aplicaron migraciones, no se ejecutó el backfill sobre datos reales y no se enviaron mensajes externos.
+
+### Activación y retroceso
+
+1. Aplicar en orden las migraciones aditivas revisadas: 0151 (destino e identidad), la secuencia de 0152 de la otra línea y 0153 (índice fiscal por `upper(uuid)`).
+2. Desplegar el código. Los históricos `UNCLASSIFIED` conservan su elegibilidad: desplegar no cambia saldos.
+3. Opcional y por empresa: revisar el reporte de solo lectura y decidir el backfill (`--apply --actor --reason`), idempotente y auditable.
+4. Retroceso: desplegar la versión anterior conservando columnas e índice. No se borran documentos, relaciones, pagos ni pólizas.

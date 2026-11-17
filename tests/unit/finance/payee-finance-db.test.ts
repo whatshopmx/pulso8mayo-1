@@ -55,6 +55,77 @@ beforeEach(async () => {
     amount: 450000, status: "APPROVED", description: "Luz noviembre", businessDate: "2026-11-01", createdAt: new Date() } as never);
 });
 
+describe("T10: documentos por destino", () => {
+  async function mixed() {
+    await connection.insert(schema.invoices).values([
+      { id: id(20), companyId, branchId, payeeId, supplierId: null, destination: "OPERATING_EXPENSE", currency: "MXN",
+        uuid: "OPERATING-20", fecha: "2026-11-02", total: 450000, paymentStatus: "PAID", createdAt: new Date("2026-11-02") },
+      { id: id(21), companyId, branchId, supplierId, destination: "INVENTORY_PURCHASE", currency: "MXN",
+        uuid: "PURCHASE-21", fecha: "2026-11-03", total: 200000, paymentStatus: "PENDING", purchaseOrderId: id(22), createdAt: new Date("2026-11-03") },
+    ] as never);
+    await pg.exec(`update operating_expenses set invoice_id='${id(20)}',status='PAID'`);
+  }
+  it("incluye comprobantes directos sin proveedor y no duplica la identidad histórica", async () => {
+    await mixed();
+    let result = await getPayeeFinance(companyId, payeeId, branchId);
+    expect(result.documents).toHaveLength(3);
+    expect(result.documents.find(row => row.id === id(20))).toMatchObject({ destination: "OPERATING_EXPENSE", expenseId, expenseCount: 1, requiresReview: false });
+    expect(result.documents.find(row => row.id === id(21))).toMatchObject({ destination: "INVENTORY_PURCHASE", hasPurchaseOrder: true });
+    await pg.exec(`update invoices set supplier_id='${supplierId}' where id='${id(20)}'`);
+    result = await getPayeeFinance(companyId, payeeId, branchId);
+    expect(new Set(result.documents.map(row => row.id)).size).toBe(3);
+  });
+  it.each(["OPERATING_EXPENSE", "INVENTORY_PURCHASE", "UNCLASSIFIED"] as const)("filtra %s sin cambiar saldos ni movimientos", async destination => {
+    await mixed();
+    const all = await getPayeeFinance(companyId, payeeId, branchId);
+    const result = await getPayeeFinance(companyId, payeeId, branchId, 0, { destination });
+    expect(result.documents).toHaveLength(1);
+    expect(result.documents[0].destination).toBe(destination);
+    expect(result.payables.confirmedCents).toBe(all.payables.confirmedCents);
+    expect(result.expenses).toEqual(all.expenses);
+    expect(result.pendingApprovalCents).toBe(all.pendingApprovalCents);
+  });
+  it("conserva fechas inclusivas y paginación del destino filtrado", async () => {
+    await mixed();
+    await connection.insert(schema.invoices).values(Array.from({ length: 51 }, (_, n) => ({
+      id: id(200 + n), companyId, branchId, payeeId, destination: "OPERATING_EXPENSE", currency: "MXN", uuid: `PAGE-${n}`,
+      fecha: "2026-11-10", total: 100, paymentStatus: "PENDING", createdAt: new Date("2026-11-10"),
+    })) as never);
+    const filters = { destination: "OPERATING_EXPENSE" as const, from: "2026-11-10", to: "2026-11-10" };
+    const first = await getPayeeFinance(companyId, payeeId, branchId, 0, filters);
+    const second = await getPayeeFinance(companyId, payeeId, branchId, 1, filters);
+    expect(first.documents).toHaveLength(50); expect(first.moreDocuments).toBe(true);
+    expect(second.documents).toHaveLength(1); expect(second.moreDocuments).toBe(false);
+    expect(new Set([...first.documents, ...second.documents].map(row => row.id)).size).toBe(51);
+    expect(first.documents.every(row => row.date === "2026-11-10")).toBe(true);
+  });
+  it("no publica el id de un gasto de otra sucursal o contraparte", async () => {
+    await mixed();
+    await pg.exec(`update operating_expenses set branch_id='${id(90)}'`);
+    let document = (await getPayeeFinance(companyId, payeeId, branchId)).documents.find(row => row.id === id(20));
+    expect(document).toMatchObject({ expenseId: null, expenseCount: 0, requiresReview: true });
+    await pg.exec(`update operating_expenses set branch_id='${branchId}',payee_id='${id(91)}'`);
+    document = (await getPayeeFinance(companyId, payeeId, branchId)).documents.find(row => row.id === id(20));
+    expect(document?.expenseId).toBeNull();
+  });
+  it("la identidad directa prevalece y oculta nombres de proveedor/sucursal ajenos", async () => {
+    await mixed();
+    await pg.exec(`update invoices set payee_id='${id(90)}' where id='${invoiceId}'`);
+    expect((await getPayeeFinance(companyId, payeeId)).documents.map(row => row.id)).not.toContain(invoiceId);
+    await pg.exec(`update invoices set supplier_id='${supplierId}' where id='${id(20)}'; update suppliers set company_id='${id(90)}',name='Nombre privado'; update branches set company_id='${id(90)}',name='Sucursal privada'`);
+    const document = (await getPayeeFinance(companyId, payeeId)).documents.find(row => row.id === id(20));
+    expect(document).toMatchObject({ supplierName: null, branchName: null, requiresReview: true });
+    await expect(getPayeeFinance(id(90), payeeId)).rejects.toThrow(/no encontrada/);
+  });
+  it("señala vínculos múltiples/incompatibles sin reclasificar ni cambiar importes", async () => {
+    await mixed();
+    await connection.insert(schema.operatingExpenses).values({ id: id(30), companyId, branchId, payeeId, invoiceId: id(20), amount: 440000, status: "APPROVED", createdAt: new Date() } as never);
+    const document = (await getPayeeFinance(companyId, payeeId)).documents.find(row => row.id === id(20));
+    expect(document).toMatchObject({ expenseCount: 2, requiresReview: true, amountCents: 450000, destination: "OPERATING_EXPENSE" });
+    expect((await connection.select().from(schema.invoices)).find(row => row.id === invoiceId)?.destination).toBe("UNCLASSIFIED");
+  });
+});
+
 describe("T09: candidatos de comprobantes", () => {
   const candidates = () => getPayeeInvoiceCandidates(companyId, payeeId, expenseId, branchId);
   it("encuentra identidad directa sin proveedor y conserva la identidad histórica", async () => {

@@ -6,7 +6,8 @@ import { resolveBranchScope } from "@/lib/branch-scope";
 import { associatePayeeInvoice, getPayeeFinance, getPayeeInvoiceCandidates } from "@/lib/services/payee-finance-service";
 
 const roles = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
-const querySchema = z.object({ branchId: z.uuid().optional(), expenseId: z.uuid().optional(), from: z.iso.date().optional(), to: z.iso.date().optional(), page: z.coerce.number().int().min(0).max(10000).default(0) });
+const querySchema = z.object({ branchId: z.uuid().optional(), expenseId: z.uuid().optional(), from: z.iso.date().optional(), to: z.iso.date().optional(),
+  destination: z.enum(["UNCLASSIFIED", "INVENTORY_PURCHASE", "OPERATING_EXPENSE"]).optional(), page: z.coerce.number().int().min(0).max(10000).default(0) });
 
 export const GET = withRoleAuth([...roles], async (req, { params, auth }) => {
   try {
@@ -18,7 +19,8 @@ export const GET = withRoleAuth([...roles], async (req, { params, auth }) => {
     if (scope.kind === "NONE") throw ApiError.forbidden("Tu usuario necesita una sucursal asignada para consultar movimientos.");
     if (query.expenseId) return ApiHandler.success({ candidates: await getPayeeInvoiceCandidates(auth.tenantId, id,
       query.expenseId, scope.kind === "BRANCH" ? scope.branchId : undefined) });
-    return ApiHandler.success(await getPayeeFinance(auth.tenantId, id, scope.kind === "BRANCH" ? scope.branchId : undefined, query.page, { from: query.from, to: query.to }));
+    return ApiHandler.success(await getPayeeFinance(auth.tenantId, id, scope.kind === "BRANCH" ? scope.branchId : undefined, query.page,
+      { from: query.from, to: query.to, destination: query.destination }));
   } catch (error) { return ApiHandler.error(error); }
 });
 

@@ -29,7 +29,7 @@ describe("permisos de la ficha financiera", () => {
   it("fija la sucursal del gerente aunque pida otra", async () => {
     authState.session!.user.role = "GERENTE";
     expect((await GET(new Request(`${url}?branchId=00000000-0000-4000-8000-000000000090`), params)).status).toBe(200);
-    expect(getPayeeFinance).toHaveBeenCalledWith("company", payeeId, branchId, 0, { from: undefined, to: undefined });
+    expect(getPayeeFinance).toHaveBeenCalledWith("company", payeeId, branchId, 0, { from: undefined, to: undefined, destination: undefined });
   });
   it("falla cerrado cuando el gerente no tiene sucursal", async () => {
     authState.session!.user = { ...authState.session!.user, role: "GERENTE", branchId: null };
@@ -48,5 +48,15 @@ describe("permisos de la ficha financiera", () => {
       body: JSON.stringify({ expenseId: payeeId, invoiceId: branchId }) }), params)).status).toBe(200);
     expect(associatePayeeInvoice).toHaveBeenCalledWith({ companyId: "company", actorId: "admin", payeeId,
       branchId, expenseId: payeeId, invoiceId: branchId });
+  });
+  it.each(["UNCLASSIFIED", "OPERATING_EXPENSE", "INVENTORY_PURCHASE"])("T10 transmite destino %s con fecha/página y alcance de sesión", async destination => {
+    authState.session!.user.role = "GERENTE";
+    const response = await GET(new Request(`${url}?destination=${destination}&page=1&from=2026-11-01&to=2026-11-30&branchId=00000000-0000-4000-8000-000000000090`), params);
+    expect(response.status).toBe(200);
+    expect(getPayeeFinance).toHaveBeenCalledWith("company", payeeId, branchId, 1, { from: "2026-11-01", to: "2026-11-30", destination });
+  });
+  it.each(["INVALID", "ALL", "OPERATING_EXPENSE,UNCLASSIFIED"])("T10 rechaza filtro inválido %s antes de consultar", async destination => {
+    expect((await GET(new Request(`${url}?destination=${destination}`), params)).status).toBe(400);
+    expect(getPayeeFinance).not.toHaveBeenCalled();
   });
 });

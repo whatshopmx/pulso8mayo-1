@@ -9,6 +9,14 @@ import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines, rece
 import { eq, and, or, ilike, sql, inArray } from "drizzle-orm";
 import { resolveContract } from "@/lib/services/recurring-contract-variance";
 
+/**
+ * Esta entrada es exclusivamente de compras de inventario. Los CFDI de gasto
+ * operativo se capturan y documentan desde Finanzas: exigir el destino evita
+ * que un servicio entre al circuito de mercancía por el solo hecho de que el
+ * mismo emisor también venda insumos.
+ */
+const INVENTORY_CAPTURE_DESTINATION = "INVENTORY_PURCHASE";
+
 export async function POST(req: NextRequest) {
     try {
         const session = await getSession();
@@ -35,6 +43,16 @@ export async function POST(req: NextRequest) {
             (formData.get("branchId") as string | null) ?? null
         );
 
+        // El destino lo declara el cliente de forma explícita y este endpoint
+        // solo admite compras de inventario.
+        const destination = (formData.get("destination") as string | null) ?? null;
+        if (destination !== INVENTORY_CAPTURE_DESTINATION) {
+            return NextResponse.json(
+                { error: "Esta captura registra compras de inventario. Los CFDI de gasto operativo se cargan y documentan desde Finanzas." },
+                { status: 400 }
+            );
+        }
+
         const xmlText = await file.text();
         const parsedCFDI = CFDIParserService.parse(xmlText);
 
@@ -45,18 +63,31 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Validate UUID uniqueness
-        const existingInvoice = await db.select()
+        // Unicidad fiscal: el índice global es insensible a mayúsculas, así que
+        // la comprobación también lo es. Un CFDI de otra empresa se rechaza
+        // sin revelar su UUID ni sus datos.
+        const [existingInvoice] = await db.select({
+            id: invoices.id,
+            companyId: invoices.companyId,
+            destination: invoices.destination,
+        })
             .from(invoices)
-            .where(
-                and(
-                    eq(invoices.companyId, session.user.companyId),
-                    eq(invoices.uuid, parsedCFDI.uuid)
-                )
-            )
+            .where(sql`upper(${invoices.uuid}) = upper(${parsedCFDI.uuid})`)
             .limit(1);
 
-        if (existingInvoice.length > 0) {
+        if (existingInvoice) {
+            if (existingInvoice.companyId !== session.user.companyId) {
+                return NextResponse.json(
+                    { error: "Este CFDI ya fue registrado en otra empresa." },
+                    { status: 400 }
+                );
+            }
+            if (existingInvoice.destination === "OPERATING_EXPENSE") {
+                return NextResponse.json(
+                    { error: "Este CFDI ya está registrado como gasto operativo. Documenta el gasto desde Finanzas." },
+                    { status: 400 }
+                );
+            }
             return NextResponse.json(
                 { error: `Esta factura ya fue registrada anteriormente (UUID: ${parsedCFDI.uuid})` },
                 { status: 400 }
@@ -100,6 +131,7 @@ export async function POST(req: NextRequest) {
                 .from(purchaseOrders)
                 .where(
                     and(
+                        eq(purchaseOrders.companyId, session.user.companyId),
                         eq(purchaseOrders.supplierId, matchedSupplier.id),
                         or(
                             eq(purchaseOrders.status, 'APPROVED'),
@@ -114,6 +146,30 @@ export async function POST(req: NextRequest) {
                 status: po.status,
                 total: po.totalAmount,
             }));
+        }
+
+        // 2.1 Vinculación de la OC: solo por coincidencia inequívoca o por
+        // confirmación explícita. Tomar la primera OC abierta del proveedor
+        // asignaba mercancía a una orden que el usuario nunca eligió.
+        const requestedPOId = (formData.get("purchaseOrderId") as string | null) ?? null;
+        let linkedPOId: string | null = null;
+        let purchaseOrderMatch: "NONE" | "UNIQUE" | "AMBIGUOUS" | "CONFIRMED" = "NONE";
+        if (matchingPOs.length === 1) {
+            linkedPOId = matchingPOs[0].id;
+            purchaseOrderMatch = "UNIQUE";
+        } else if (matchingPOs.length > 1) {
+            purchaseOrderMatch = "AMBIGUOUS";
+        }
+        if (requestedPOId) {
+            const confirmed = matchingPOs.find(po => po.id === requestedPOId);
+            if (!confirmed) {
+                return NextResponse.json(
+                    { error: "La orden de compra indicada no está disponible para este proveedor." },
+                    { status: 400 }
+                );
+            }
+            linkedPOId = confirmed.id;
+            purchaseOrderMatch = "CONFIRMED";
         }
 
         // 3. Item Matching for each Concepto
@@ -239,9 +295,10 @@ export async function POST(req: NextRequest) {
                 companyId: session.user.companyId || "",
                 branchId: branchId ?? null,
                 supplierId: matchedSupplier ? matchedSupplier.id : null,
-                purchaseOrderId: (matchingPOs.length > 0) ? matchingPOs[0].id : null,
+                purchaseOrderId: linkedPOId,
                 serviceOrderId: matchedServiceOrderId,
                 recurringContractId,
+                destination: INVENTORY_CAPTURE_DESTINATION,
                 uuid: parsedCFDI.uuid!,
                 folio: parsedCFDI.folio || null,
                 serie: parsedCFDI.serie || null,
@@ -337,6 +394,9 @@ export async function POST(req: NextRequest) {
                 taxId: matchedSupplier.taxId,
             } : null,
             purchaseOrders: matchingPOs,
+            purchaseOrderMatch,
+            purchaseOrderId: linkedPOId,
+            destination: INVENTORY_CAPTURE_DESTINATION,
             serviceOrderId: matchedServiceOrderId,
             items: matchedItems,
             autoMatch,

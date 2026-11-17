@@ -15,6 +15,13 @@ import { FileText, Upload, Check, AlertTriangle, ArrowRight, Loader2, RefreshCw,
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+/** Destinos visibles en Inventario; el gasto operativo se documenta en Finanzas. */
+const INVENTORY_DESTINATION_LABELS: Record<string, string> = {
+    INVENTORY_PURCHASE: "Compra de inventario",
+    OPERATING_EXPENSE: "Gasto operativo",
+    UNCLASSIFIED: "Por clasificar",
+};
+
 interface InvoiceConcepto {
     claveProdServ: string;
     noIdentificacion?: string;
@@ -73,6 +80,7 @@ export default function InvoiceUploadPage() {
         invoice: ParsedInvoice;
         supplier: Supplier | null;
         purchaseOrders: Array<{ id: string; poNumber: string; status: string; total: number }>;
+        purchaseOrderMatch?: "NONE" | "UNIQUE" | "AMBIGUOUS" | "CONFIRMED";
         items: MatchedItem[];
     } | null>(null);
 
@@ -83,6 +91,7 @@ export default function InvoiceUploadPage() {
     // History State
     const [invoicesList, setInvoicesList] = useState<any[]>([]);
     const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+    const [destinationFilter, setDestinationFilter] = useState<string>("DEFAULT");
     const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState<any | null>(null);
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -103,10 +112,11 @@ export default function InvoiceUploadPage() {
             .catch(err => console.error("Error loading products:", err));
     }, []);
 
-    const fetchInvoices = async () => {
+    const fetchInvoices = async (destination = destinationFilter) => {
         setIsLoadingInvoices(true);
         try {
-            const res = await fetch("/api/inventory/invoices");
+            const query = destination && destination !== "DEFAULT" ? `?destination=${destination}` : "";
+            const res = await fetch(`/api/inventory/invoices${query}`);
             const data = await res.json();
             if (res.ok && data.success) {
                 setInvoicesList(data.invoices);
@@ -138,12 +148,12 @@ export default function InvoiceUploadPage() {
 
     useEffect(() => {
         if (activeTab === "history") {
-            fetchInvoices();
+            fetchInvoices(destinationFilter);
         }
         if (activeTab === "credit-notes") {
             fetchCreditNotes();
         }
-    }, [activeTab]);
+    }, [activeTab, destinationFilter]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -162,6 +172,8 @@ export default function InvoiceUploadPage() {
         setIsParsing(true);
         const formData = new FormData();
         formData.append("file", file);
+        // Esta entrada es de compra de inventario; los CFDI de gasto se capturan en Finanzas.
+        formData.append("destination", "INVENTORY_PURCHASE");
 
         try {
             const res = await fetch("/api/inventory/invoices/upload", {
@@ -184,8 +196,13 @@ export default function InvoiceUploadPage() {
             setMappedItems(initialMapping);
 
             if (result.purchaseOrders && result.purchaseOrders.length > 0) {
-                setSelectedPOId(result.purchaseOrders[0].id);
-                toast.success("Factura cargada. Orden de compra encontrada automáticamente.");
+                // Con varias OC abiertas no se elige ninguna sola: la selección
+                // la confirma quien captura.
+                const unambiguous = result.purchaseOrderMatch === "UNIQUE" || result.purchaseOrderMatch === "CONFIRMED";
+                setSelectedPOId(unambiguous ? result.purchaseOrders[0].id : "none");
+                toast.success(unambiguous
+                    ? "Factura cargada. Orden de compra única del proveedor."
+                    : "Factura cargada. Hay varias órdenes de compra abiertas: elige cuál cerrar.");
             } else {
                 setSelectedPOId("none");
                 toast.success("Factura cargada correctamente.");
@@ -395,6 +412,7 @@ export default function InvoiceUploadPage() {
                                 <CardTitle>Subir Archivo XML</CardTitle>
                                 <CardDescription>
                                     Selecciona el archivo XML oficial de la factura mexicana (CFDI 4.0 o 3.3). El sistema extraerá de forma precisa el emisor, los precios, cantidades e items.
+                                    Esta entrada registra <span className="font-medium text-foreground">compras de inventario</span>; los CFDI de gasto operativo se cargan y documentan desde Finanzas.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -503,9 +521,9 @@ export default function InvoiceUploadPage() {
                                             Elige la PO a cerrar con esta factura
                                         </CardDescription>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="space-y-2">
                                         <Select value={selectedPOId} onValueChange={setSelectedPOId}>
-                                            <SelectTrigger>
+                                            <SelectTrigger aria-label="Orden de compra a cerrar">
                                                 <SelectValue placeholder="Seleccionar orden..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -517,6 +535,12 @@ export default function InvoiceUploadPage() {
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                        {parsedData.purchaseOrderMatch === "AMBIGUOUS" && (
+                                            <p className="text-xs text-muted-foreground">
+                                                Este proveedor tiene varias órdenes abiertas. No se vinculó ninguna automáticamente:
+                                                elige la correcta o registra entrada directa.
+                                            </p>
+                                        )}
                                     </CardContent>
                                 </Card>
 
@@ -640,6 +664,21 @@ export default function InvoiceUploadPage() {
                             <CardDescription>
                                 Consulta la lista de CFDIs cargados en el sistema y verifica sus discrepancias de costo y cantidad.
                             </CardDescription>
+                            <div className="flex flex-wrap items-center gap-2 pt-2">
+                                <Label htmlFor="invoice-destination" className="text-sm">Destino</Label>
+                                <Select value={destinationFilter} onValueChange={setDestinationFilter}>
+                                    <SelectTrigger id="invoice-destination" className="w-full sm:w-[19rem]">
+                                        <SelectValue placeholder="Compras y por clasificar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="DEFAULT">Compras y por clasificar</SelectItem>
+                                        <SelectItem value="INVENTORY_PURCHASE">Compra de inventario</SelectItem>
+                                        <SelectItem value="UNCLASSIFIED">Por clasificar</SelectItem>
+                                        <SelectItem value="OPERATING_EXPENSE">Gasto operativo (documentado en Finanzas)</SelectItem>
+                                        <SelectItem value="ALL">Todos los destinos</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             {isLoadingInvoices ? (
@@ -660,6 +699,7 @@ export default function InvoiceUploadPage() {
                                                 <TableHead>Folio / Serie</TableHead>
                                                 <TableHead>Fecha</TableHead>
                                                 <TableHead>Emisor / Proveedor</TableHead>
+                                                <TableHead>Destino</TableHead>
                                                 <TableHead>PO Asociada</TableHead>
                                                 <TableHead className="text-right">Monto Total</TableHead>
                                                 <TableHead>Estatus Match</TableHead>
@@ -679,6 +719,9 @@ export default function InvoiceUploadPage() {
                                                     <TableCell>
                                                         <div className="font-semibold text-foreground">{invoice.supplierName || 'Desconocido'}</div>
                                                         <div className="text-xs text-muted-foreground">Emisor: {invoice.nombreEmisor || 'N/A'}</div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline">{INVENTORY_DESTINATION_LABELS[invoice.destination] || INVENTORY_DESTINATION_LABELS.UNCLASSIFIED}</Badge>
                                                     </TableCell>
                                                     <TableCell className="font-mono text-xs">
                                                         {invoice.poNumber || 'Entrada Directa'}

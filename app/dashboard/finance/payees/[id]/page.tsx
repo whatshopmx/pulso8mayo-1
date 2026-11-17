@@ -4,18 +4,19 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText, Landmark } from "lucide-react";
+import { ArrowLeft, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExpenseForm } from "@/components/finance/expense-form";
 import { PayeeInvoiceAssociation } from "@/components/finance/payee-invoice-association";
-import { PayeeFinanceTables } from "@/components/finance/payee-finance-tables";
+import { PayeeFinanceTables, INVOICE_DESTINATION_LABELS } from "@/components/finance/payee-finance-tables";
 import { useBranches } from "@/hooks/queries/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { mensajeDeError } from "@/lib/api/client-error";
 import type { getPayeeFinance } from "@/lib/services/payee-finance-service";
+import type { InvoiceDestination } from "@/lib/db/schema";
 
 type PayeeFinanceData = Awaited<ReturnType<typeof getPayeeFinance>>;
 const money = (cents: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(cents / 100);
@@ -31,14 +32,18 @@ function PayeeFinanceContent({ id, selectedBranchId }: { id: string; selectedBra
   const [page, setPage] = useState(0);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [destination, setDestination] = useState<InvoiceDestination | "ALL">("ALL");
+  const invalidDates = Boolean(from && to && from > to);
   const [tab, setTab] = useState("pending");
   const [association, setAssociation] = useState<PayeeFinanceData["expenses"][number] | null>(null);
   const { data, error, isFetching: loading, refetch } = useQuery<PayeeFinanceData>({
-    queryKey: ["payee-finance", id, selectedBranchId, page, from, to], retry: false,
+    queryKey: ["payee-finance", id, selectedBranchId, page, from, to, destination], retry: false,
+    enabled: !invalidDates, placeholderData: previous => previous,
     queryFn: async ({ signal }) => {
       const query = new URLSearchParams({ page: String(page) });
       if (from) query.set("from", from);
       if (to) query.set("to", to);
+      if (destination !== "ALL") query.set("destination", destination);
       if (selectedBranchId && selectedBranchId !== "ALL") query.set("branchId", selectedBranchId);
       const res = await fetch(`/api/finance/payees/${id}/finance?${query}`, { signal });
       const body = await res.json();
@@ -51,9 +56,9 @@ function PayeeFinanceContent({ id, selectedBranchId }: { id: string; selectedBra
   const payablesUrl = `/dashboard/finance/payables?payeeId=${id}`;
   return <div className="container mx-auto space-y-6 py-6">
     <Button variant="ghost" asChild><Link href="/dashboard/finance/payees"><ArrowLeft className="mr-2 h-4 w-4" />Contrapartes</Link></Button>
-    {loading && <div role="status" aria-label="Cargando ficha financiera" className="space-y-4"><div className="h-10 w-64 animate-pulse rounded bg-muted" /><div className="h-64 animate-pulse rounded-md bg-muted" /></div>}
+    {loading && !data && <div role="status" aria-label="Cargando ficha financiera" className="space-y-4"><div className="h-10 w-64 animate-pulse rounded bg-muted" /><div className="h-64 animate-pulse rounded-md bg-muted" /></div>}
     {error && <div role="alert" className="space-y-3 rounded-md border p-6"><p>{error.message}</p><Button variant="outline" onClick={refresh}>Reintentar</Button></div>}
-    {data && !loading && !error && <>
+    {data && !error && <>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1 min-w-0"><h1 className="text-2xl font-bold tracking-tight break-words">{data.payee.name}</h1>
           <p className="text-sm text-muted-foreground">{data.payee.taxId || "Sin RFC registrado"} · {data.payee.active ? "Contraparte activa" : "Dada de baja · historial conservado"}</p>
@@ -71,39 +76,44 @@ function PayeeFinanceContent({ id, selectedBranchId }: { id: string; selectedBra
       <Tabs value={tab} onValueChange={value => { setTab(value); setPage(0); }} className="min-w-0">
         <TabsList className="flex h-auto flex-wrap justify-start"><TabsTrigger value="pending">Pendientes</TabsTrigger><TabsTrigger value="movements">Movimientos</TabsTrigger><TabsTrigger value="documents">Documentos</TabsTrigger><TabsTrigger value="details">Datos y cuentas</TabsTrigger></TabsList>
         {(tab === "movements" || tab === "documents") && <div className="flex flex-wrap items-end gap-3 py-3">
+          {tab === "documents" && <div className="w-full space-y-1 sm:w-auto"><Label htmlFor="document-destination">Destino de documentos</Label>
+            <select id="document-destination" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm sm:w-auto" value={destination}
+              onChange={event => { setDestination(event.target.value as InvoiceDestination | "ALL"); setPage(0); }}>
+              <option value="ALL">Todos</option>{Object.entries(INVOICE_DESTINATION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select></div>}
           <div className="space-y-1"><Label htmlFor="history-from">Desde</Label><Input id="history-from" type="date" value={from} max={to || undefined} onChange={e => { setFrom(e.target.value); setPage(0); }} /></div>
           <div className="space-y-1"><Label htmlFor="history-to">Hasta</Label><Input id="history-to" type="date" value={to} min={from || undefined} onChange={e => { setTo(e.target.value); setPage(0); }} /></div>
           {(from || to) && <Button variant="ghost" onClick={() => { setFrom(""); setTo(""); setPage(0); }}>Limpiar fechas</Button>}
           <p className="text-xs text-muted-foreground">Las fechas filtran el historial; los saldos muestran lo pendiente actual.</p>
+          {invalidDates && <p role="alert" className="w-full text-sm text-destructive">La fecha inicial debe ser anterior o igual a la final.</p>}
         </div>}
         <TabsContent value="pending" className="space-y-3 pt-3">
-          <p className="text-sm text-muted-foreground">Facturas de compras, gastos autorizados y estimados. La factura de un servicio respalda el gasto; se paga una sola obligación.</p>
+          <p className="text-sm text-muted-foreground">Compras, gastos autorizados, facturas por clasificar y estimados. El CFDI de un gasto respalda la misma obligación.</p>
           <PayeeFinanceTables data={data} view="pending" onAssociate={setAssociation} />
           {data.payables.itemsTotal > data.payables.items.length && <p className="text-sm">Se muestran las {data.payables.items.length} partidas más urgentes; los saldos incluyen todas. <Link className="text-primary underline" href={payablesUrl}>Consultar cuentas por pagar</Link></p>}
         </TabsContent>
         <TabsContent value="movements" className="space-y-3 pt-3">
           <p className="text-sm text-muted-foreground">Gastos registrados y su estado de aprobación y pago. La factura vinculada respalda el mismo gasto.</p>
-          <PayeeFinanceTables data={data} view="movements" onAssociate={setAssociation} />
-          <Pagination page={page} more={data.moreExpenses} onChange={setPage} />
+          {loading ? <p role="status">Actualizando movimientos…</p> : !invalidDates && <PayeeFinanceTables data={data} view="movements" onAssociate={setAssociation} />}
+          {!loading && !invalidDates && <Pagination page={page} more={data.moreExpenses} onChange={setPage} />}
         </TabsContent>
         <TabsContent value="documents" className="space-y-3 pt-3">
-          <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Facturas de proveedores vinculados, incluidas las pagadas y canceladas.</p>
-            <Button variant="outline" asChild><Link href="/dashboard/inventory/invoices"><FileText className="mr-2 h-4 w-4" />Ir a facturas</Link></Button></div>
-          <PayeeFinanceTables data={data} view="documents" onAssociate={setAssociation} />
-          <Pagination page={page} more={data.moreDocuments} onChange={setPage} />
+          <p className="text-sm text-muted-foreground">CFDI de esta contraparte, incluidas facturas pagadas y canceladas. El destino distingue compras, gastos y documentos pendientes de clasificar.</p>
+          {loading ? <p role="status">Actualizando documentos…</p> : !invalidDates && <PayeeFinanceTables data={data} view="documents" onAssociate={setAssociation} />}
+          {!loading && !invalidDates && <Pagination page={page} more={data.moreDocuments} onChange={setPage} />}
         </TabsContent>
         <TabsContent value="details" className="space-y-6 pt-4">
           <section className="space-y-2"><h2 className="text-lg font-semibold">Contacto</h2><p className="text-sm">{[data.payee.contactName, data.payee.email, data.payee.phone].filter(Boolean).join(" · ") || "Sin datos de contacto."}</p>
             <Button variant="outline" asChild><Link href={`/dashboard/finance/payees?edit=${id}`}>Editar datos de contacto</Link></Button></section>
           <section className="space-y-2"><h2 className="text-lg font-semibold">Proveedores vinculados</h2>
-            {data.suppliers.length ? <ul className="divide-y">{data.suppliers.map(s => <li key={s.id} className="py-2 text-sm">{s.name} · {s.taxId || "Sin RFC"}</li>)}</ul> : <p className="text-sm text-muted-foreground">No hay proveedores vinculados. Sus facturas aparecerán aquí al vincularlos con esta contraparte.</p>}
+            {data.suppliers.length ? <ul className="divide-y">{data.suppliers.map(s => <li key={s.id} className="py-2 text-sm">{s.name} · {s.taxId || "Sin RFC"}</li>)}</ul> : <p className="text-sm text-muted-foreground">No hay proveedores de inventario vinculados. Los CFDI de gastos se relacionan directamente con esta contraparte.</p>}
             <Button variant="outline" asChild><Link href="/dashboard/inventory/suppliers">Administrar proveedores</Link></Button></section>
           <section className="space-y-3"><h2 className="text-lg font-semibold">Cuentas para pagar gastos</h2>
             {data.accounts.map(a => <p key={a.id} className="text-sm">{a.bankName} · termina en {a.last4} · {a.status === "VERIFIED" ? "Verificada" : "Pendiente de verificación"}</p>)}
             {!data.accounts.length && <p className="text-sm text-muted-foreground">Sin cuenta bancaria registrada para gastos.</p>}
             <Button variant="outline" asChild><Link href={`/dashboard/finance/payee-bank-accounts?payeeId=${id}`}><Landmark className="mr-2 h-4 w-4" />Administrar cuenta de gastos</Link></Button></section>
-          <section className="space-y-3"><h2 className="text-lg font-semibold">Cuentas para pagar facturas</h2>
-            <p className="text-sm text-muted-foreground">Las facturas se pagan a la cuenta verificada de su proveedor.</p>
+          <section className="space-y-3"><h2 className="text-lg font-semibold">Cuentas para pagar compras</h2>
+            <p className="text-sm text-muted-foreground">Las compras de inventario se pagan a la cuenta verificada de su proveedor. Los CFDI de gastos siguen la cuenta del gasto.</p>
             {data.supplierAccounts.map(a => <p key={a.id} className="text-sm">{a.supplierName} · {a.bankName} · termina en {a.last4} · {a.status === "VERIFIED" ? "Verificada" : "Pendiente de verificación"}</p>)}
             <Button variant="outline" asChild><Link href="/dashboard/finance/supplier-bank-accounts">Administrar cuentas de proveedores</Link></Button></section>
         </TabsContent>
