@@ -27,6 +27,12 @@ No se toca el cálculo fiscal (concepto 021, tope 15 UMA) ni la fórmula de prim
 
 Casos nuevos: saldo 0 explícito precargado → `AVAILABLE` + `EXCEEDED`; sin registro → `MISSING` + `VACATION_BALANCE_MISSING` (no `EXCEEDED`); fallo de saldo → `QUERY_ERROR` + `VACATION_BALANCE_QUERY_ERROR`; fallo de solicitudes → `VACATION_REQUESTS_QUERY_ERROR` (no `SIN_VACACIONES`); vacío real → `SIN_VACACIONES`; fallo de permisos → `leavesStatus: QUERY_ERROR`; permisos precargados → `AVAILABLE`.
 
+## V2 regresión (nómina real)
+
+`NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts`: **14/14, exit 0**, 50.5 s, contra el Neon aislado `.env.test` (`ep-cold-morning-bewqoz3o`) con `pulso_app` NOBYPASSRLS. Incluye 4 casos NOM-02.c1 V2 (vacaciones 25% LFT, saldo parcial/excedido, permiso con/sin goce y aislamiento multi-empresa). Confirma que el cambio de estado de saldo no rompe el flujo de nómina en Postgres real.
+
+**Límite:** la regresión V2 ejercita `AVAILABLE` (saldo real); las etiquetas `MISSING`/`QUERY_ERROR` se prueban a nivel V1 con `dbInstance` simulado. Un test V2 dedicado a esas dos etiquetas (revocación de SELECT bajo `pulso_app`) sigue pendiente.
+
 ## Límites
 
 - **V1 únicamente**: `dbInstance` simulado (vacío/que falla); no hay Postgres real ni sesión.
