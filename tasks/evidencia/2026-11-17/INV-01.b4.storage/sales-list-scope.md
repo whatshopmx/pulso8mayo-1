@@ -47,3 +47,9 @@ con `pulso_app` están separadas en `rls-candidate.md`.
 No se aplican migraciones ni se acepta `INV-01.b4.storage` o sus padres.
 La ruta de upload directo de cortes, que usa el namespace legacy
 `sales-cuts`, continúa como un productor pendiente de adaptar al contrato POS.
+
+Actualización 2026-11-18: ese productor ya escribe la key canónica con el día
+efectivo del corte, con alcance/roles/tamaño/MIME y V1/V2/V3 HTTP reales. Ver
+[legacy-producer.md](legacy-producer.md). Su V3 de navegador (pantalla real,
+subida por el formulario, key en base y en R2, lectura autorizada del corte
+recién creado) está en [next-browser-v3.md](next-browser-v3.md).

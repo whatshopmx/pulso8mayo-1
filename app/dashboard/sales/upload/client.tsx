@@ -127,7 +127,10 @@ export function SalesCutUploadPageClient({ branches }: Props) {
             : "El corte manual ha sido registrado exitosamente.",
         });
 
-        router.push("/dashboard/sales/cuts");
+        // `/dashboard/sales/cuts` no existe como ruta: el registro de cortes es
+        // la pestaña "Registro de Cortes" de `/dashboard/sales`. Antes de este
+        // arreglo, un corte capturado con éxito terminaba en el 404 de Next.
+        router.push("/dashboard/sales");
       } else {
         if (!file) {
           toast({ title: "Error", description: "Selecciona un archivo (.xlsx o .csv)", variant: "destructive" });
@@ -156,7 +159,9 @@ export function SalesCutUploadPageClient({ branches }: Props) {
             : `Corte procesado con éxito. Canales ingestados: ${data.data.cuts?.map((c: { channel: string }) => c.channel).join(", ")}`,
         });
 
-        router.push("/dashboard/sales/cuts");
+        // Mismo destino que la carga de archivo: el registro vive en
+        // `/dashboard/sales` (pestaña "Registro de Cortes").
+        router.push("/dashboard/sales");
       }
     } catch (err: unknown) {
       console.error(err);

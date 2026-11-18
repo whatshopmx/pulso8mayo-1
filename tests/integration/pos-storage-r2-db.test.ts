@@ -71,13 +71,14 @@ vi.mock("next/headers", () => ({
 // Import dinámico a propósito: `lib/storage/r2-client` evalúa R2_* en tiempo de
 // import, así que `.env` tiene que estar cargado antes de que se evalúe.
 const { NextRequest } = await import("next/server");
-const { eq } = await import("drizzle-orm");
+const { and, eq } = await import("drizzle-orm");
 const { db } = await import("@/lib/db");
 const { account, users, sessions, branches, companies, dailySalesCuts } =
   await import("@/lib/db/schema");
 const { auth } = await import("@/lib/auth");
 const { hashPassword } = await import("better-auth/crypto");
 const { POST } = await import("@/app/api/workflows/smart-links/upload-pos/route");
+const { POST: postCutUpload } = await import("@/app/api/sales/cuts/upload/route");
 const { GET } = await import("@/app/api/sales/cuts/[id]/pos-file/route");
 const { isR2Configured, getFromR2, deleteFromR2 } = await import(
   "@/lib/storage/r2-client"
@@ -121,6 +122,10 @@ const server = createServer(async (req, res) => {
       req.method === "POST"
     ) {
       response = await POST(
+        new NextRequest(url, { method: "POST", headers, body: await collect(req) })
+      );
+    } else if (url.pathname === "/api/sales/cuts/upload" && req.method === "POST") {
+      response = await postCutUpload(
         new NextRequest(url, { method: "POST", headers, body: await collect(req) })
       );
     } else {
@@ -375,6 +380,70 @@ const CLOSURE_FILE: MultipartFile = {
   body: "reporte sintético del punto de venta\n",
 };
 
+/**
+ * CSV de resumen de formas de pago reconocido por `buildSalesCut` (mismo
+ * formato que `scripts/verify-sales-ingestion.ts`). No incluye fecha: la aporta
+ * el formulario, que es el respaldo documentado del contrato.
+ */
+const DIRECT_CUT_FILE: MultipartFile = {
+  name: "reporte caja.csv",
+  type: "text/csv",
+  body: [
+    "Forma de Pago,Importe,Tickets",
+    'Efectivo,"$6,000.00",45',
+    'Tarjeta,"$2,500.00",25',
+    'Rappi,"$1,500.00",10',
+    'Total,"$10,000.00",80',
+  ].join("\r\n"),
+};
+
+/** Día pasado en hora de México: el servicio rechaza fechas futuras. */
+const DIRECT_CUT_DAY = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA", {
+  timeZone: "America/Mexico_City",
+});
+
+async function uploadCut(
+  branchId: string,
+  file: MultipartFile,
+  businessDate: string,
+  shift: "MATUTINO" | "VESPERTINO" | "COMPLETO" = "MATUTINO"
+): Promise<Response> {
+  const form = new FormData();
+  form.set("branchId", branchId);
+  form.set("businessDate", businessDate);
+  form.set("shift", shift);
+  form.set("file", new File([file.body], file.name, { type: file.type }));
+  const encoded = new Response(form);
+  const headers = new Headers();
+  const cookie = fixture.headers.get("cookie");
+  if (cookie) headers.set("cookie", cookie);
+  headers.set("content-type", encoded.headers.get("content-type")!);
+  return fetch(`${baseURL}/api/sales/cuts/upload`, {
+    method: "POST",
+    headers,
+    body: Buffer.from(await encoded.arrayBuffer()),
+  });
+}
+
+async function directCutRows(companyId: string, branchId: string, businessDate: string) {
+  return db
+    .select({
+      id: dailySalesCuts.id,
+      rawFileUrl: dailySalesCuts.rawFileUrl,
+      source: dailySalesCuts.source,
+      totalSales: dailySalesCuts.totalSales,
+      shift: dailySalesCuts.shift,
+    })
+    .from(dailySalesCuts)
+    .where(
+      and(
+        eq(dailySalesCuts.companyId, companyId),
+        eq(dailySalesCuts.branchId, branchId),
+        eq(dailySalesCuts.businessDate, businessDate)
+      )
+    );
+}
+
 it("V2/V3 R2 real: la subida persiste bytes privados y la lectura firmada los devuelve", async () => {
   await probe(async ctx => {
     expect((await upload(ctx.branchA1, CLOSURE_FILE)).status).toBe(401);
@@ -485,5 +554,61 @@ it("V3 escritura: sucursal/empresa se validan antes de tocar R2 y el archivo inv
       (await upload(ctx.branchA1, { ...CLOSURE_FILE, type: PDF_MIME })).status
     ).toBe(400);
     expect(await storedFileUrl(ctx.cutA1)).toBeNull();
+  });
+});
+
+it("V2/V3 productor directo: el corte cargado usa la key POS canónica y se lee con la ruta autorizada", async () => {
+  await probe(async ctx => {
+    // El rol operativo no captura cortes ni produce evidencia financiera.
+    await ctx.login("empleadoA");
+    expect((await uploadCut(ctx.branchA1, DIRECT_CUT_FILE, DIRECT_CUT_DAY)).status).toBe(403);
+    expect(await directCutRows(ctx.companyA, ctx.branchA1, DIRECT_CUT_DAY)).toHaveLength(0);
+
+    // Gerente de otra sucursal: rechazo de alcance antes de escribir bytes.
+    await ctx.login("gerenteA2");
+    expect((await uploadCut(ctx.branchA1, DIRECT_CUT_FILE, DIRECT_CUT_DAY)).status).toBe(403);
+    expect(await directCutRows(ctx.companyA, ctx.branchA1, DIRECT_CUT_DAY)).toHaveLength(0);
+
+    await ctx.login("gerenteA1");
+    const response = await uploadCut(ctx.branchA1, DIRECT_CUT_FILE, DIRECT_CUT_DAY);
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as { success: boolean; data: { rows: unknown[] } };
+    expect(payload.success).toBe(true);
+    // El archivo declara total y 1,500 de Rappi: el servicio separa SALON y
+    // DELIVERY en la misma inserción, como cualquier otro consumo del writer.
+    expect(payload.data.rows).toHaveLength(2);
+
+    const rows = await directCutRows(ctx.companyA, ctx.branchA1, DIRECT_CUT_DAY);
+    expect(rows).toHaveLength(2);
+    expect(rows.map(row => row.source)).toEqual(["UPLOAD", "UPLOAD"]);
+    expect(rows.map(row => row.shift)).toEqual(["MATUTINO", "MATUTINO"]);
+    expect(rows.reduce((sum, row) => sum + row.totalSales, 0)).toBe(1_000_000);
+
+    const key = rows[0].rawFileUrl;
+    expect(key).toBeTruthy();
+    expect(rows[1].rawFileUrl).toBe(key);
+    uploadedKeys.push(key!);
+    expect(key).toMatch(
+      new RegExp(
+        `^companies/${ctx.companyA}/branches/${ctx.branchA1}/pos/${DIRECT_CUT_DAY}/\\d+_reporte_caja\\.csv$`
+      )
+    );
+    expect(key!.startsWith("http")).toBe(false);
+
+    // Los bytes del corte están en el bucket, no sólo la referencia.
+    const stored = await getFromR2(key!);
+    expect(stored).not.toBeNull();
+    expect(stored!.equals(Buffer.from(DIRECT_CUT_FILE.body))).toBe(true);
+
+    // La ruta de lectura existente abre el corte recién creado sin adaptación.
+    const read = await readPosFile(rows[0].id);
+    expect(read.status).toBe(200);
+    const readPayload = (await read.json()) as { data: { url: string; fileKey: string } };
+    expect(readPayload.data.fileKey).toBe(key);
+    const download = await fetch(readPayload.data.url);
+    expect(download.status).toBe(200);
+    expect(Buffer.from(await download.arrayBuffer()).equals(Buffer.from(DIRECT_CUT_FILE.body))).toBe(
+      true
+    );
   });
 });

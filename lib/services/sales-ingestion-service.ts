@@ -922,9 +922,21 @@ export async function ingestSalesCut(params: {
   businessDate?: string;
   receivedBy?: string;
   rawFileUrl?: string;
+  /**
+   * Resultado ya construido por `previewSalesCut`.
+   *
+   * La ruta de carga POS necesita conocer el día efectivo del corte ANTES de
+   * escribir los bytes: la key durable del archivo lleva `businessDate` y debe
+   * coincidir con la fila persistida. Pasar aquí ese mismo `BuildResult` evita
+   * parsear el archivo dos veces sin cambiar ninguna validación.
+   */
+  precomputed?: BuildResult;
 }): Promise<IngestResult> {
-  const parsed = await parseSalesFile(params.buffer, params.fileName);
-  const built = buildSalesCut(parsed, { businessDate: params.businessDate });
+  const built =
+    params.precomputed ??
+    buildSalesCut(await parseSalesFile(params.buffer, params.fileName), {
+      businessDate: params.businessDate,
+    });
 
   if (built.errors.length > 0) {
     throw new SalesIngestionError("VALIDATION_FAILED", built.errors.join(" "));

@@ -1,6 +1,6 @@
 # INV-01.b4.storage — Almacenamiento POS privado durable y lectura autorizada
 
-Continuación 2026-11-17 sobre HEAD `0dfd139d75a5870d7af3baad5423d218f54a093f` más cambios locales. **V1, V2 y V3 HTTP comprobadas con R2 real y sesión Better Auth real (HEAD `81ec4dd`); sin aceptación: falta V3 navegador y el runtime NOBYPASSRLS de V2.**
+Continuación 2026-11-17 sobre HEAD `0dfd139d75a5870d7af3baad5423d218f54a093f` más cambios locales. **V1, V2, V3 HTTP y V3 navegador comprobadas con R2 real y sesión Better Auth real; sin aceptación: falta el runtime NOBYPASSRLS de V2.** Abajo se conservan, en orden, las continuaciones del 17 y del 18.
 
 ## Brecha cerrada
 
@@ -91,3 +91,13 @@ La primera corrida dio 2/3: `RequestContentLengthMismatchError` al subir un arch
 - El nombre del archivo se normaliza (`cierre POS!.csv` → `cierre_POS_.csv`); es comportamiento documentado por la unitaria, no una pérdida silenciosa.
 
 No se acepta `INV-01.b4.storage`, el padre `INV-01.b4`, `INV-01.b` ni la fila 11.11. Para aceptar `b4.storage` falta la V3 navegador; el cierre del padre sigue pendiente además de `b4.coverage` (cogs/executive/menu) y la dependencia `b4b`.
+
+## Continuación 2026-11-18 — productor directo adaptado al contrato POS
+
+`app/api/sales/cuts/upload` (pantalla `/dashboard/sales/upload` y diálogo «Registrar Corte de Ventas») ya no escribe el namespace legacy `sales-cuts`: resuelve el día efectivo del corte, persiste la key canónica `companies/{companyId}/branches/{branchId}/pos/{businessDate}/…`, valida alcance de sucursal, roles, tamaño y MIME, y reutiliza el build para ingestar sin parsear dos veces. Los cortes que antes quedaban sin archivo legible se abren con la ruta de lectura existente.
+
+Verificación: 10/10 unitarias de la ruta, 2/2 del servicio precomputado, 80/80 focales con regresión, 4/4 integración con R2 real + Neon aislado + sesión Better Auth real, `tsc`, ESLint y build completo (455/455 páginas) exit 0. [Detalle y límites](legacy-producer.md). No hay aceptación nueva; runtime NOBYPASSRLS sigue pendiente.
+
+## Continuación 2026-11-18 - V3 navegador del productor directo
+
+`tests/integration/pos-next-browser.test.ts` incorpora un tercer caso que recorre la pantalla real `/dashboard/sales/upload` contra un Next de producción (build aparte en `.tmp/next-pos-browser` para no competir con `next dev`), Better Auth real, Neon aislado y R2 real: sube el CSV por el `<input type="file">`, espera el 200 de `POST /api/sales/cuts/upload`, comprueba las dos filas `SALON`/`DELIVERY` con la key canónica, los bytes en el bucket y la lectura autorizada del corte recién creado. 3/3 casos, exit 0. El recorrido encontró que la pantalla navegaba a `/dashboard/sales/cuts`, una ruta sin página: corregido a `/dashboard/sales`. También queda registrado que ningún layout monta `<Toaster />`, así que los avisos `toast` no se pintan (brecha global, no corregida aquí). [Detalle y límites](next-browser-v3.md). Se mantienen 24 registros aceptados.

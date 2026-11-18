@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
     distDir: '.tmp/next-report-browser',
     typescript: { tsconfigPath: '.tmp/report-browser-tsconfig.json' },
   } : {}),
+  // Recorridos de navegador contra un Next de producción sin pisar `.next`, que
+  // el `next dev` del desarrollador tiene abierto. Mismo patrón que el anterior.
+  ...(process.env.PULSO_POS_BROWSER_TEST === '1' ? {
+    distDir: '.tmp/next-pos-browser',
+  } : {}),
   // `ws` necesita require nativo para sus addons opcionales. Al empaquetarlo,
   // Webpack sustituía bufferutil ausente por {}, rompiendo las conexiones Neon.
   serverExternalPackages: ["ws"],
