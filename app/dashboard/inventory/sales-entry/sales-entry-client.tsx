@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileUp, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { FileUp, CheckCircle2, AlertTriangle, Loader2, ShieldCheck } from "lucide-react";
 import {
   buildRows,
   detectDelimiter,
@@ -25,6 +25,7 @@ import {
   splitCsv,
   type SalesColumnMapping,
 } from "@/lib/services/sales-ingest-pure";
+import { RecoveryDialog } from "./recovery-dialog";
 
 interface BranchOption {
   id: string;
@@ -73,6 +74,21 @@ export function SalesEntryClient({
   const [reading, setReading] = useState(false);
   const fileRead = useRef(0);
   const [result, setResult] = useState<BulkResponse | null>(null);
+  const [recoveryDialogOpen, setRecoveryDialogOpen] = useState(false);
+  const [recoveryProposalId, setRecoveryProposalId] = useState<string | null>(null);
+
+  const hasPendingRecovery = useMemo(() => {
+    if (!result) return false;
+    if (typeof result.error === "string" && result.error.includes("PENDING_RECOVERY")) {
+      return true;
+    }
+    if (Array.isArray(result.errors)) {
+      return result.errors.some(
+        (e) => e.message?.includes("PENDING_RECOVERY") || e.message?.includes("recuperación")
+      );
+    }
+    return false;
+  }, [result]);
 
   const mappingKey =
     typeof window !== "undefined"
@@ -176,12 +192,28 @@ export function SalesEntryClient({
     <div className="space-y-6">
       <fieldset disabled={submitting} className="min-w-0 space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>Archivo del POS</CardTitle>
-          <CardDescription>
-            CSV genérico con columnas de producto, cantidad y fecha. El
-            delimitador (coma, punto y coma o tabulador) se detecta solo.
-          </CardDescription>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div>
+            <CardTitle>Archivo del POS</CardTitle>
+            <CardDescription>
+              CSV genérico con columnas de producto, cantidad y fecha. El
+              delimitador (coma, punto y coma o tabulador) se detecta solo.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setRecoveryProposalId(null);
+              setRecoveryDialogOpen(true);
+            }}
+            disabled={!branchId}
+            className="shrink-0 text-xs self-start"
+          >
+            <ShieldCheck className="mr-1.5 h-4 w-4" />
+            Recuperación Histórica
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2">
@@ -446,9 +478,50 @@ export function SalesEntryClient({
                 <RowErrors errors={result.errors!} limit={20} />
               </div>
             )}
+            {hasPendingRecovery && (
+              <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <h4 className="font-semibold text-xs text-amber-800 dark:text-amber-300">
+                      Ventas bloqueadas por recuperación pendiente (PENDING_RECOVERY)
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Se detectaron ventas históricas sin consumo demostrado. Debes completar o
+                      revisar el expediente de recuperación auditada (AUD-02) para desbloquear la
+                      sucursal.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setRecoveryProposalId(null);
+                    setRecoveryDialogOpen(true);
+                  }}
+                  className="text-xs"
+                >
+                  <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                  Abrir Expediente de Recuperación
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
+
+      <RecoveryDialog
+        key={branchId}
+        open={recoveryDialogOpen}
+        onOpenChange={setRecoveryDialogOpen}
+        branchId={branchId}
+        initialProposalId={recoveryProposalId}
+        onSuccess={() => {
+          // Si se aplicó exitosamente la recuperación, el estado histórico queda liberado
+        }}
+      />
     </div>
   );
 }

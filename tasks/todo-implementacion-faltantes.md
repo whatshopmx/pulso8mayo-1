@@ -8,6 +8,8 @@ Ninguna casilla se marca por código localizado o por las 157 unitarias de base.
 
 Continuación 2026-11-11: [mapa ejecutable de 239 filas](mapa-implementacion-faltantes.json), [matriz actualizada](../docs/matriz-cumplimiento-sistema-2026-11-11.csv) y [proyecto Neon nuevo solicitado por el propietario](evidencia/2026-11-11/NEON-NEW/README.md). Los hijos heredan los criterios del padre; fijar archivos/casos antes de abrirlos y subdividir si exceden el límite. Validar con `pnpm.cmd exec tsx scripts/validate-faltantes.ts`.
 
+Actualización 2026-11-18: [investigación contrastada](../docs/2026-11-17-investigacion-estado-faltantes.md) y [creación visible de expedientes recovery](evidencia/2026-11-18/INV-01.c.recovery.create/README.md). POS ya tiene aislamiento de referencias, lectura desde UI, evidencia Next/R2 y candidata RLS 0155; los detalles de runtime y migración constan en `INV-01.b4.storage/rls-candidate.md`. La nueva captura crea y abre el expediente para revisión independiente; no acepta dependencias ni cierra el recorrido integrado. Se mantienen 24 registros aceptados.
+
 ## 0. Base, trazabilidad y aislamiento
 
 - [x] **P0-01** [R/S] Fijar la base de ejecución

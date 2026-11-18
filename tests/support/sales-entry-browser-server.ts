@@ -25,7 +25,7 @@ export async function startSalesEntryBrowserServer(fixtureResponse?: Record<stri
   const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", `sales-entry-vite-${process.pid}`),
     esbuild: { jsx: "automatic" }, css: { postcss: { plugins: [] } },
     resolve: { dedupe: ["react", "react-dom"], alias: [{ find: "@", replacement: root }] },
-    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"] },
+    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"] },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },
     plugins: [{ name: "sales-entry-browser", enforce: "pre",
       resolveId(id: string) { if (Object.hasOwn(virtual, id)) return id;
