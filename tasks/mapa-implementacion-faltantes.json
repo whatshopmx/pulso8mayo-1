@@ -1741,8 +1741,26 @@
       "dependsOn": [
         "INV-01.a",
         "INV-01.b4b",
-        "INV-01.b4.coverage.cogs"
+        "INV-01.b4.coverage.cogs",
+        "INV-01.b4.coverage.executive.catalog.rls",
+        "INV-01.b4.coverage.executive.sources.rls"
       ]
+    },
+    {
+      "id": "INV-01.b4.coverage.executive.catalog.rls",
+      "title": "Lectura mínima de mínimo/activo del catálogo para reporte ejecutivo",
+      "type": "I",
+      "size": "M",
+      "checks": ["V2"],
+      "dependsOn": ["INV-01.b2a", "INV-01.b4.coverage.cogs"]
+    },
+    {
+      "id": "INV-01.b4.coverage.executive.sources.rls",
+      "title": "RLS y lectura mínima de conteos de inventario y merma para reporte ejecutivo",
+      "type": "I",
+      "size": "M",
+      "checks": ["V2"],
+      "dependsOn": ["SEC-00", "INV-01.b4.coverage.executive.catalog.rls"]
     },
     {
       "id": "INV-01.b4.coverage.menu",
@@ -1758,8 +1776,17 @@
       "dependsOn": [
         "INV-01.a",
         "INV-01.b4b",
-        "INV-01.b4.coverage.cogs"
+        "INV-01.b4.coverage.cogs",
+        "INV-01.b4.coverage.menu.rls"
       ]
+    },
+    {
+      "id": "INV-01.b4.coverage.menu.rls",
+      "title": "Lectura mínima del costo de receta bajo RLS para menú",
+      "type": "I",
+      "size": "M",
+      "checks": ["V2"],
+      "dependsOn": ["INV-01.b2a", "INV-01.b4b.rls"]
     },
     {
       "id": "EXC-01.rls",
@@ -5497,6 +5524,51 @@
       "state": "código implementado",
       "evidence": [
         {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/session-http.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "HTTP loopback, Better Auth y Postgres reales, rol dueño y fixtures rollback; almacén Next suministrado, sin navegador",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/cogs-session-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V3"]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/runtime.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "Neon aislado, SQL real bajo SET LOCAL ROLE pulso_app NOBYPASSRLS; 0157/0158 y fixtures solo en rollback",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/executive-revenue-coverage-db.test.ts tests/integration/menu-revenue-coverage-db.test.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            { "command": "pnpm.cmd exec tsc --noEmit", "exit": 0 }
+          ],
+          "checks": ["V2"]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/README.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "Windows local; frontera HTTP con sesión/catálogo/reporte simulados; V2 del servicio pendiente",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/executive-report-route.test.ts tests/unit/inventory/menu-engineering-coverage.test.ts lib/services/__tests__/executive-report-coverage.test.ts lib/services/__tests__/cogs-revenue-coverage.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint app/api/inventory/reports/executive/route.ts tests/unit/inventory/executive-report-route.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1"]
+        },
+        {
           "file": "tasks/evidencia/2026-11-17/INV-01.b4.coverage.executive/README.md",
           "head": "0dfd139d75a5870d7af3baad5423d218f54a093f",
           "environment": "Windows local; helpers puros y consolidación con KPIs sintéticos; sin Postgres real, sin sesión",
@@ -5520,9 +5592,67 @@
         }
       ]
     },
+    "INV-01.b4.coverage.executive.catalog.rls": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/runtime.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "Neon aislado; candidata 0157 solo en rollback; sin despliegue",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/executive-revenue-coverage-db.test.ts tests/integration/menu-revenue-coverage-db.test.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2"]
+        }
+      ]
+    },
+    "INV-01.b4.coverage.executive.sources.rls": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/runtime.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "Neon aislado; candidata 0158 solo en rollback; sin despliegue ni aceptación de escritores runtime",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/executive-revenue-coverage-db.test.ts tests/integration/menu-revenue-coverage-db.test.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2"]
+        }
+      ]
+    },
     "INV-01.b4.coverage.menu": {
       "state": "código implementado",
       "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/session-http.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "HTTP loopback, Better Auth y Postgres reales, rol dueño y fixtures rollback; almacén Next suministrado, sin navegador",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/cogs-session-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V3"]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.menu/README.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "Neon aislado .env.test; SET LOCAL ROLE pulso_app NOBYPASSRLS, SQL real y rollback; sesión simulada",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/menu-revenue-coverage-db.test.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2"]
+        },
         {
           "file": "tasks/evidencia/2026-11-17/INV-01.b4.coverage.menu/README.md",
           "head": "0dfd139d75a5870d7af3baad5423d218f54a093f",
@@ -5544,6 +5674,23 @@
           "checks": [
             "V1"
           ]
+        }
+      ]
+    },
+    "INV-01.b4.coverage.menu.rls": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.menu/README.md",
+          "head": "7ad1ef6f9817a8f034fc1ef325bceb86ac15d750",
+          "environment": "Neon aislado; 0156 solo en rollback, pulso_app NOBYPASSRLS; sin despliegue",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/menu-revenue-coverage-db.test.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2"]
         }
       ]
     },

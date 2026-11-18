@@ -1,4 +1,5 @@
-import { db } from "@/lib/db";
+import type { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import {
     salesEntries, recipes, recipeItems, inventoryItems,
     inventoryBatches, inventoryWaste,
@@ -7,6 +8,9 @@ import {
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 import { saleRevenueComplete } from "./sale-revenue-coverage";
+import { ApiError } from "@/lib/api/error";
+
+type ReportTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const STOCK_COUNT_TEMPLATE_NAME = "Conteo de Inventario";
 
@@ -98,37 +102,38 @@ export class ExecutiveReportService {
         endDate: Date,
         branchId?: string
     ): Promise<ExecutiveReport> {
-        const branchList = branchId
-            ? await db.select().from(branches).where(and(eq(branches.companyId, companyId), eq(branches.id, branchId)))
-            : await db.select().from(branches).where(eq(branches.companyId, companyId));
+        return withCompanyContext({ companyId, branchId }, async tx => {
+            const branchList = await tx.select({ id: branches.id, name: branches.name }).from(branches)
+                .where(and(eq(branches.companyId, companyId), branchId ? eq(branches.id, branchId) : undefined));
+            if (branchId && branchList.length === 0) throw ApiError.forbidden('Sucursal fuera de la empresa');
 
-        const kpiPromises = branchList.map(b =>
-            this.calculateBranchKPI(companyId, b, startDate, endDate)
-        );
-        const byBranch = await Promise.all(kpiPromises);
+            const byBranch = await Promise.all(branchList.map(b =>
+                this.calculateBranchKPI(tx, b, startDate, endDate)
+            ));
 
-        const consolidated = this.consolidateKPIs(byBranch, startDate, endDate);
+            const consolidated = this.consolidateKPIs(byBranch, startDate, endDate);
 
-        return {
-            consolidated,
-            byBranch,
-            period: { start: startDate.toISOString(), end: endDate.toISOString() },
-        };
+            return {
+                consolidated,
+                byBranch,
+                period: { start: startDate.toISOString(), end: endDate.toISOString() },
+            };
+        });
     }
 
     private static async calculateBranchKPI(
-        companyId: string,
-        branch: typeof branches.$inferSelect,
+        tx: ReportTransaction,
+        branch: Pick<typeof branches.$inferSelect, 'id' | 'name'>,
         startDate: Date,
         endDate: Date
     ): Promise<BranchKPI> {
         const [revenueData, cogsData, endStockValue, wasteTotal, fillRate, countAccuracy] = await Promise.all([
-            this.calcRevenueCoverage(branch.id, startDate, endDate),
-            this.calcCOGS(branch.id, startDate, endDate),
-            this.calcEndStockValue(branch.id),
-            this.calcWasteTotal(branch.id, startDate, endDate),
-            this.calcFillRate(branch.id),
-            this.calcCountAccuracy(branch.id),
+            this.calcRevenueCoverage(tx, branch.id, startDate, endDate),
+            this.calcCOGS(tx, branch.id, startDate, endDate),
+            this.calcEndStockValue(tx, branch.id),
+            this.calcWasteTotal(tx, branch.id, startDate, endDate),
+            this.calcFillRate(tx, branch.id),
+            this.calcCountAccuracy(tx, branch.id),
         ]);
 
         const cogsCents = cogsData.totalCostCents;
@@ -162,11 +167,12 @@ export class ExecutiveReportService {
     }
 
     private static async calcRevenueCoverage(
+        tx: ReportTransaction,
         branchId: string,
         startDate: Date,
         endDate: Date
     ): Promise<{ reportedRevenueCents: number; revenueCents: number | null; coverage: RevenueCoverage }> {
-        const rows = await db.select({
+        const rows = await tx.select({
             revenue: salesEntries.totalRevenue,
             revenueComplete: saleRevenueComplete,
         })
@@ -180,11 +186,12 @@ export class ExecutiveReportService {
     }
 
     private static async calcCOGS(
+        tx: ReportTransaction,
         branchId: string,
         startDate: Date,
         endDate: Date
     ): Promise<{ totalCostCents: number }> {
-        const sales = await db.select()
+        const sales = await tx.select({ recipeId: salesEntries.recipeId, quantitySold: salesEntries.quantitySold })
             .from(salesEntries)
             .where(and(
                 eq(salesEntries.branchId, branchId),
@@ -195,19 +202,19 @@ export class ExecutiveReportService {
         let totalCostCents = 0;
         for (const sale of sales) {
             const qtySold = parseFloat(sale.quantitySold);
-            const cost = await this.getRecipeCost(sale.recipeId, qtySold);
+            const cost = await this.getRecipeCost(tx, sale.recipeId, qtySold);
             totalCostCents += cost;
         }
 
         return { totalCostCents };
     }
 
-    private static async getRecipeCost(recipeId: string, quantitySold: number): Promise<number> {
-        const items = await db.select()
+    private static async getRecipeCost(tx: ReportTransaction, recipeId: string, quantitySold: number): Promise<number> {
+        const items = await tx.select({ itemId: recipeItems.itemId, quantity: recipeItems.quantity, isSubRecipe: recipeItems.isSubRecipe })
             .from(recipeItems)
             .where(eq(recipeItems.recipeId, recipeId));
 
-        const [recipe] = await db.select()
+        const [recipe] = await tx.select({ baseYield: recipes.baseYield })
             .from(recipes)
             .where(eq(recipes.id, recipeId));
 
@@ -219,9 +226,9 @@ export class ExecutiveReportService {
             const qty = parseFloat(item.quantity) * quantitySold / baseYield;
 
             if (item.isSubRecipe) {
-                totalCost += await this.getRecipeCost(item.itemId, qty);
+                totalCost += await this.getRecipeCost(tx, item.itemId, qty);
             } else {
-                const [invItem] = await db.select()
+                const [invItem] = await tx.select({ averageCost: inventoryItems.averageCost, lastCost: inventoryItems.lastCost })
                     .from(inventoryItems)
                     .where(eq(inventoryItems.id, item.itemId));
                 if (!invItem) continue;
@@ -232,8 +239,8 @@ export class ExecutiveReportService {
         return totalCost;
     }
 
-    private static async calcEndStockValue(branchId: string): Promise<number> {
-        const rows = await db.select({
+    private static async calcEndStockValue(tx: ReportTransaction, branchId: string): Promise<number> {
+        const rows = await tx.select({
             value: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity} * ${inventoryBatches.unitCost}), 0)`,
         })
             .from(inventoryBatches)
@@ -245,8 +252,8 @@ export class ExecutiveReportService {
         return Number(rows[0]?.value ?? 0); // sum() SQL devuelve string
     }
 
-    private static async calcWasteTotal(branchId: string, startDate: Date, endDate: Date): Promise<number> {
-        const rows = await db.select({
+    private static async calcWasteTotal(tx: ReportTransaction, branchId: string, startDate: Date, endDate: Date): Promise<number> {
+        const rows = await tx.select({
             total: sql<number>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
         })
             .from(inventoryWaste)
@@ -262,12 +269,12 @@ export class ExecutiveReportService {
         return Number(rows[0]?.total ?? 0); // sum() SQL devuelve string
     }
 
-    private static async calcFillRate(branchId: string): Promise<number> {
+    private static async calcFillRate(tx: ReportTransaction, branchId: string): Promise<number> {
         // El stock disponible por artículo se agrega en una subconsulta y sólo
         // después se cuenta. Hacerlo en un único nivel
         // (`count(... case when sum(...) ...)`) es un agregado anidado y Postgres
         // lo rechaza con "aggregate function calls cannot be nested".
-        const perItem = db
+        const perItem = tx
             .select({
                 itemId: inventoryItems.id,
                 minLevel: sql<number>`${inventoryItems.minLevel}`.as("min_level"),
@@ -283,7 +290,7 @@ export class ExecutiveReportService {
             .groupBy(inventoryItems.id, inventoryItems.minLevel)
             .as("per_item");
 
-        const rows = await db
+        const rows = await tx
             .select({
                 totalItems: sql<number>`cast(count(*) as integer)`,
                 filledItems: sql<number>`cast(count(*) filter (where ${perItem.available} >= ${perItem.minLevel}) as integer)`,
@@ -296,8 +303,8 @@ export class ExecutiveReportService {
         return total > 0 ? parseFloat(((filled / total) * 100).toFixed(1)) : 100;
     }
 
-    private static async calcCountAccuracy(branchId: string): Promise<number | null> {
-        const results = await db.select({
+    private static async calcCountAccuracy(tx: ReportTransaction, branchId: string): Promise<number | null> {
+        const results = await tx.select({
             data: sql<any>`${workflowInstances.data}`,
         })
             .from(workflowInstances)

@@ -96,7 +96,16 @@ export const workflowInstances = pgTable("workflow_instances", {
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [pgPolicy("executive_count_instance_reader", {
+    for: "select", to: "public",
+    using: sql`EXISTS (SELECT 1 FROM public.branches b
+        WHERE b.id = ${table.branchId}
+        AND b.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid)
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+            OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)
+        AND EXISTS (SELECT 1 FROM public.workflow_templates t
+            WHERE t.id = ${table.workflowTemplateId} AND t.name = 'Conteo de Inventario')`,
+})]).enableRLS();
 
 export const workflowInstanceSteps = pgTable("workflow_instance_steps", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -197,7 +206,18 @@ export const workflowTemplates = pgTable("workflow_templates", {
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [pgPolicy("executive_template_catalog_reader", {
+    for: "select", to: "public",
+    using: sql`nullif(current_setting('app.current_company_id', true), '') IS NOT NULL
+        AND (${table.companyId} IS NULL
+            OR ${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid)
+        AND (${table.branchId} IS NULL OR EXISTS (SELECT 1 FROM public.branches b
+            WHERE b.id = ${table.branchId}
+            AND b.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid))
+        AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+            OR ${table.branchId} IS NULL
+            OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`,
+})]).enableRLS();
 
 export const workflowSchedules = pgTable("workflow_schedules", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -1550,7 +1570,14 @@ export const inventoryWaste = pgTable("inventory_waste", {
     inventoryWasteProductionResultUnique: uniqueIndex("inventory_waste_production_result_unique")
         .on(table.productionResultId)
         .where(sql`${table.productionResultId} IS NOT NULL`),
-}));
+    executiveWasteReader: pgPolicy("executive_waste_reader", {
+        for: "select", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND EXISTS (SELECT 1 FROM public.branches b WHERE b.id = ${table.branchId} AND b.company_id = ${table.companyId})
+            AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+                OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)`,
+    }),
+})).enableRLS();
 
 /**
  * Estado de notificación de caducidad por (lote, ventana) — Task 2 del plan

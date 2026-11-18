@@ -33,6 +33,8 @@ import { db } from '@/lib/db';
 import { account, users, sessions, branches, companies, recipes, salesEntries } from '@/lib/db/schema';
 import { auth } from '@/lib/auth';
 import { GET } from '@/app/api/inventory/reports/cogs/route';
+import { GET as getExecutive } from '@/app/api/inventory/reports/executive/route';
+import { GET as getMenu } from '@/app/api/inventory/menu-engineering/route';
 
 // Actual loopback HTTP transport, using production auth and report handlers.
 // Next request-local headers/cookies are supplied above; no Next server or UI.
@@ -50,7 +52,9 @@ const server = createServer(async (req, res) => {
       for await (const chunk of req) body += chunk.toString();
       response = await auth.handler(new Request(url, { method: req.method, headers, body: body || undefined }));
     } else {
-      response = await GET(new NextRequest(url, { headers }));
+      const handler = req.url?.startsWith('/api/inventory/reports/executive') ? getExecutive
+        : req.url?.startsWith('/api/inventory/menu-engineering') ? getMenu : GET;
+      response = await handler(new NextRequest(url, { headers }));
     }
     res.statusCode = response.status;
     response.headers.forEach((value, name) => { if (name !== 'set-cookie') res.setHeader(name, value); });
@@ -146,3 +150,48 @@ it('COGS with real sign-in: manager stays in assigned branch and missing assignm
     expect((await request(f.branch[0])).status).toBe(403);
   });
 });
+
+for (const endpoint of ['reports/executive', 'menu-engineering']) {
+  const read = (branchId?: string) => fetch(`${baseURL}/api/inventory/${endpoint}?startDate=2026-11-16&endDate=2026-11-16${branchId ? `&branchId=${branchId}` : ''}`,
+    { headers: fixture.headers });
+  const partial = async (response: Response) => {
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    if (endpoint === 'reports/executive') {
+      expect(body.consolidated).toMatchObject({ reportedRevenueCents: 1200, revenueCents: null,
+        foodCostPercent: null, revenueCoverage: { status: 'PARTIAL', totalEntries: 1 } });
+      return body.byBranch;
+    }
+    expect(body.items).toMatchObject([{ reportedRevenueCents: 1200, revenueCents: null,
+      foodCostPercent: null, marginPercent: null, quadrant: 'UNCLASSIFIED', revenueCoverage: { status: 'PARTIAL', totalEntries: 1 } }]);
+    return body.items;
+  };
+
+  it(`${endpoint} real sign-in: partial revenue, company isolation, session expiry and invalid input`, async () => {
+    await probe(async f => {
+      expect((await read(f.branch[0])).status).toBe(401);
+      await f.login(0);
+      await partial(await read(f.branch[0]));
+      await partial(await read());
+      expect((await read(f.branch[2])).status).toBe(endpoint === 'reports/executive' ? 400 : 403);
+      fixture.headers.set('x-pulso-tenant-id', f.company[1]);
+      expect((await read(f.branch[2])).status).toBe(403);
+      fixture.headers.delete('x-pulso-tenant-id');
+      expect((await read('invalid')).status).toBe(400);
+      fixture.headers.set('cookie', fixture.headers.get('cookie')!.replace(/session_token=[^;]+/, 'session_token=invalid'));
+      expect((await read(f.branch[0])).status).toBe(401);
+    });
+  });
+
+  it(`${endpoint} real sign-in: manager cannot redirect or consolidate and missing assignment is denied`, async () => {
+    await probe(async f => {
+      await f.login(1);
+      const result = await partial(await read(f.branch[2]));
+      expect(result).toHaveLength(1);
+      if (endpoint === 'reports/executive') expect(result[0].branchId).toBe(f.branch[0]);
+      await partial(await read());
+      await f.login(2);
+      expect((await read()).status).toBe(403);
+    });
+  });
+}

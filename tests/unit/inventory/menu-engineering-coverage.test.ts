@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const fixture = vi.hoisted(() => ({
+  role: 'ADMIN',
+  branchId: null as string | null,
+  context: vi.fn(),
+  query: vi.fn(),
   recipes: [] as Array<{ id: string; name: string; calculatedCost: number | null }>,
   sales: [] as Array<{ recipeId: string; quantitySold: string; revenue: number | null; revenueComplete: boolean }>,
 }));
@@ -12,16 +16,21 @@ vi.mock("@/lib/db", async () => {
     db: {
       select: () => ({
         from: (table: unknown) => ({
-          where: async () => (table === schema.recipes ? fixture.recipes : fixture.sales),
+          where: async () => {
+            fixture.query();
+            return table === schema.branches ? [{ id: fixture.branchId }] : table === schema.recipes ? fixture.recipes : fixture.sales;
+          },
         }),
       }),
     },
   };
 });
 
+vi.mock('@/lib/db/tenant-context', () => ({ withCompanyContext: fixture.context }));
+
 vi.mock("@/lib/tenant-context", () => ({
   requireTenant: async () => ({ id: "c1000000-0000-4000-8000-000000000001" }),
-  requireAuth: async () => ({ user: { role: "ADMIN" } }),
+  requireAuth: async () => ({ user: { role: fixture.role, branchId: fixture.branchId } }),
 }));
 
 vi.mock("@/lib/permissions", () => ({
@@ -34,6 +43,14 @@ const url = "http://localhost/api/inventory/menu-engineering?startDate=2026-11-0
 const call = () => GET(new NextRequest(url));
 
 beforeEach(() => {
+  fixture.role = 'ADMIN';
+  fixture.branchId = null;
+  fixture.query.mockClear();
+  fixture.context.mockReset();
+  fixture.context.mockImplementation(async (_scope, fn) => {
+    const { db } = await import('@/lib/db');
+    return fn(db);
+  });
   fixture.recipes = [
     { id: "r-complete", name: "Completo", calculatedCost: 100 },
     { id: "r-partial", name: "Parcial", calculatedCost: 100 },
@@ -42,6 +59,26 @@ beforeEach(() => {
 });
 
 describe("menu-engineering — cobertura de ingreso", () => {
+  it('rechaza un gerente sin sucursal antes de consultar', async () => {
+    fixture.role = 'GERENTE';
+    expect((await call()).status).toBe(403);
+    expect(fixture.query).not.toHaveBeenCalled();
+  });
+
+  it('usa la sucursal asignada aunque el gerente solicite otra', async () => {
+    fixture.role = 'GERENTE';
+    fixture.branchId = 'b1000000-0000-4000-8000-000000000001';
+    const res = await GET(new NextRequest(`${url}&branchId=b2000000-0000-4000-8000-000000000002`));
+    expect(res.status).toBe(200);
+    expect(fixture.context).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'c1000000-0000-4000-8000-000000000001', branchId: fixture.branchId,
+    }), expect.any(Function));
+  });
+
+  it.each(['branchId=invalid', 'startDate=invalid', 'startDate=2026-12-01&endDate=2026-11-01'])('rechaza parámetros inválidos: %s', async query => {
+    expect((await GET(new NextRequest(`http://localhost/api/inventory/menu-engineering?${query}`))).status).toBe(400);
+    expect(fixture.query).not.toHaveBeenCalled();
+  });
   it("no clasifica como rentabilidad medida un ingreso incompleto", async () => {
     fixture.sales = [
       { recipeId: "r-complete", quantitySold: "3", revenue: 1200, revenueComplete: true },

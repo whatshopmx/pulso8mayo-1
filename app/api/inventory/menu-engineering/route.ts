@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { recipes, salesEntries } from "@/lib/db/schema";
+import { branches, recipes, salesEntries } from "@/lib/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { hasPermission } from "@/lib/permissions";
 import { saleRevenueComplete } from "@/lib/services/sale-revenue-coverage";
+import { withCompanyContext } from "@/lib/db/tenant-context";
+import { resolveBranchScope } from "@/lib/branch-scope";
+import { ApiError, isApiError } from "@/lib/api/error";
+import { z } from "zod";
+
+const dateInput = z.union([z.iso.date(), z.iso.datetime({ offset: true })]);
+const querySchema = z.object({
+    branchId: z.uuid().optional(),
+    startDate: dateInput.optional(),
+    endDate: dateInput.optional(),
+});
 
 type Quadrant = "STAR" | "CASH_COW" | "QUESTION_MARK" | "DOG" | "UNCLASSIFIED";
 
@@ -44,37 +54,54 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const branchId = searchParams.get("branchId");
-        const startParam = searchParams.get("startDate");
-        const endParam = searchParams.get("endDate");
+        const { branchId: requestedBranch, startDate: startParam, endDate: endParam } = querySchema.parse({
+            branchId: searchParams.get('branchId') ?? undefined,
+            startDate: searchParams.get('startDate') ?? undefined,
+            endDate: searchParams.get('endDate') ?? undefined,
+        });
+        const scope = resolveBranchScope(user.role, user.branchId, requestedBranch);
+        if (scope.kind === 'NONE') {
+            return NextResponse.json({ error: 'No tienes una sucursal autorizada' }, { status: 403 });
+        }
+        const branchId = scope.kind === 'BRANCH' ? scope.branchId : undefined;
 
         const endDate = endParam ? new Date(endParam) : new Date();
         const startDate = startParam
             ? new Date(startParam)
             : new Date(endDate.getTime() - 30 * 86400000);
 
-        const recipeList = await db.select()
-            .from(recipes)
-            .where(eq(recipes.companyId, tenant.id));
+        if (startDate > endDate) {
+            return NextResponse.json({ error: 'La fecha de inicio debe ser anterior o igual a la fecha de fin' }, { status: 400 });
+        }
 
-        const conditions = [
-            eq(salesEntries.companyId, tenant.id),
-            gte(salesEntries.saleDate, startDate),
-            lte(salesEntries.saleDate, endDate),
-        ];
-        if (branchId) conditions.push(eq(salesEntries.branchId, branchId));
+        const { recipeList, sales } = await withCompanyContext({ companyId: tenant.id, branchId }, async tx => {
+            if (branchId) {
+                const [branch] = await tx.select({ id: branches.id }).from(branches)
+                    .where(and(eq(branches.companyId, tenant.id), eq(branches.id, branchId)));
+                if (!branch) throw ApiError.forbidden('Sucursal fuera de la empresa');
+            }
+            const recipeList = await tx.select({ id: recipes.id, name: recipes.name, calculatedCost: recipes.calculatedCost })
+                .from(recipes)
+                .where(eq(recipes.companyId, tenant.id));
 
-        // Ingreso por receta con cobertura canónica. Se leen filas (no un GROUP BY)
-        // para poder evaluar `saleRevenueComplete` por entrada: su subconsulta
-        // correlacionada no cabe dentro de `count(*) filter (where …)` agrupado.
-        const sales = await db.select({
-            recipeId: salesEntries.recipeId,
-            quantitySold: salesEntries.quantitySold,
-            revenue: salesEntries.totalRevenue,
-            revenueComplete: saleRevenueComplete,
-        })
-            .from(salesEntries)
-            .where(and(...conditions));
+            const conditions = [
+                eq(salesEntries.companyId, tenant.id),
+                gte(salesEntries.saleDate, startDate),
+                lte(salesEntries.saleDate, endDate),
+            ];
+            if (branchId) conditions.push(eq(salesEntries.branchId, branchId));
+
+            // Cobertura canónica por entrada antes de agregar por receta.
+            const sales = await tx.select({
+                recipeId: salesEntries.recipeId,
+                quantitySold: salesEntries.quantitySold,
+                revenue: salesEntries.totalRevenue,
+                revenueComplete: saleRevenueComplete,
+            })
+                .from(salesEntries)
+                .where(and(...conditions));
+            return { recipeList, sales };
+        });
 
         interface Agg {
             totalSold: number;
@@ -178,6 +205,12 @@ export async function GET(req: NextRequest) {
             period: { start: startDate.toISOString(), end: endDate.toISOString() },
         });
     } catch (error) {
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: 'Parámetros del reporte inválidos' }, { status: 400 });
+        }
         console.error("[MenuEngineering] Error:", error);
         return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
     }
