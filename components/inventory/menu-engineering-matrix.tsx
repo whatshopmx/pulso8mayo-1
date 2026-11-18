@@ -69,6 +69,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 export function MenuEngineeringMatrix() {
     const [data, setData] = useState<MatrixData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [startDate, setStartDate] = useState(() => {
         const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0];
     });
@@ -76,12 +77,19 @@ export function MenuEngineeringMatrix() {
 
     const fetchMatrix = async () => {
         setLoading(true);
+        setLoadError(null);
+        setData(null);
         try {
             const res = await fetch(`/api/inventory/menu-engineering?startDate=${startDate}&endDate=${endDate}`);
             const json = await res.json();
             if (res.ok) setData(json);
-            else toast.error(json.error || "Error al cargar matriz");
+            else {
+                const message = typeof json.error === 'string' ? json.error : 'Inténtalo de nuevo';
+                setLoadError(message);
+                toast.error(message);
+            }
         } catch {
+            setLoadError('Error de red. Inténtalo de nuevo.');
             toast.error("Error de red");
         } finally {
             setLoading(false);
@@ -110,16 +118,22 @@ export function MenuEngineeringMatrix() {
                 title="Matriz de Ingeniería de Menú"
                 description="Estrella · Vaca · Incógnita · Peso — Rentabilidad vs Popularidad"
                 actions={
-                    <div className="flex items-center gap-2">
-                        <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-36" />
+                    <div className="flex max-w-full flex-wrap items-center gap-2">
+                        <Input aria-label="Fecha de inicio" type="date" disabled={loading} value={startDate} onChange={e => setStartDate(e.target.value)} className="w-36" />
                         <span className="text-muted-foreground text-sm">→</span>
-                        <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-36" />
-                        <Button variant="outline" size="icon" onClick={fetchMatrix} disabled={loading}>
+                        <Input aria-label="Fecha de fin" type="date" disabled={loading} value={endDate} onChange={e => setEndDate(e.target.value)} className="w-36" />
+                        <Button aria-label="Actualizar matriz" variant="outline" size="icon" onClick={fetchMatrix} disabled={loading}>
                             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                         </Button>
                     </div>
                 }
             />
+
+            {loadError && (
+                <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                    No se pudo cargar la matriz. {loadError} Corrige el problema y pulsa Actualizar matriz.
+                </div>
+            )}
 
             {/* Quadrant legend */}
             <div className="flex flex-wrap gap-3">
@@ -135,7 +149,7 @@ export function MenuEngineeringMatrix() {
             </div>
 
             {/* Matrix chart */}
-            <Card>
+            {!loadError && <Card>
                 <CardContent className="pt-6">
                     {loading ? (
                         <div className="flex items-center justify-center h-96">
@@ -194,10 +208,10 @@ export function MenuEngineeringMatrix() {
                         </div>
                     )}
                 </CardContent>
-            </Card>
+            </Card>}
 
             {/* Table */}
-            <Card>
+            {data && <Card>
                 <CardHeader>
                     <CardTitle className="text-lg">Desglose por Platillo</CardTitle>
                 </CardHeader>
@@ -236,7 +250,7 @@ export function MenuEngineeringMatrix() {
                         </table>
                     </div>
                 </CardContent>
-            </Card>
+            </Card>}
         </div>
     );
 }

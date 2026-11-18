@@ -57,6 +57,25 @@ export class ApiHandler {
       );
     }
 
+    // Drizzle envuelve el error real de Postgres como "Failed query: <SQL> params: …"
+    // y deja el motivo en `cause`. Mostrar ese texto al usuario filtra el SQL (y
+    // los ids de los params) y esconde lo único útil: el motivo. Devolvemos el
+    // motivo y el código de Postgres; el SQL completo queda en el log de arriba.
+    const dbCause = getDbCause(error);
+    if (dbCause) {
+      console.error("API DB cause:", dbCause.code ?? "", dbCause.message);
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            message: `Error de base de datos: ${dbCause.message}`,
+            code: dbCause.code,
+          },
+        } as ApiResponse<null>,
+        { status: overrideStatus || 500 }
+      );
+    }
+
     const message = error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json(
       {
@@ -68,6 +87,15 @@ export class ApiHandler {
       { status: overrideStatus || 500 }
     );
   }
+}
+
+function getDbCause(error: unknown): { message: string; code?: string } | null {
+  if (!(error instanceof Error) || !error.message.startsWith("Failed query:")) return null;
+  const cause = (error as Error & { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    return { message: cause.message, code: (cause as Error & { code?: string }).code };
+  }
+  return { message: "la consulta falló sin detalle del servidor" };
 }
 
 /**

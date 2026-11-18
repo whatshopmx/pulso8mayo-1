@@ -93,12 +93,12 @@ function FiltroDeFecha({
           <Button
             variant="outline"
             size="sm"
-            className="h-9 gap-2"
+            className="h-9 gap-1 px-2 sm:gap-2 sm:px-3"
             aria-label={`Fecha: ${displayDate}`}
           >
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="hidden md:inline">Fecha: {displayDate}</span>
-            <span className="md:hidden">{displayDate}</span>
+            <span className="hidden max-w-36 truncate md:inline">Fecha: {displayDate}</span>
+            <span className="hidden max-w-28 truncate sm:inline md:hidden">{displayDate}</span>
             <ChevronDown className="h-4 w-4 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
@@ -272,12 +272,12 @@ export function BranchScopeControl() {
     return (
       <div className="flex items-center gap-2">
         <span
-          className="flex h-9 items-center gap-2 rounded-md px-3 text-sm text-muted-foreground"
+          className="flex h-9 max-w-24 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground sm:max-w-none sm:px-3"
           title={motivo}
         >
           <Building2 className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">{etiqueta}</span>
-          <span className="sm:hidden">{userBranchId ? (propia?.name ?? "Tu sucursal") : "Sin sucursal"}</span>
+          <span className="truncate sm:hidden">{userBranchId ? (propia?.name ?? "Tu sucursal") : "Sin sucursal"}</span>
           <span className="sr-only">{motivo}</span>
         </span>
         <FiltroDeFecha
@@ -303,12 +303,12 @@ export function BranchScopeControl() {
           <Button
             variant="outline"
             size="sm"
-            className="h-9 gap-2"
+            className="h-9 max-w-24 gap-1 px-2 sm:max-w-none sm:gap-2 sm:px-3"
             aria-label={`Sucursal: ${displayBranch}`}
           >
             <Building2 className="h-4 w-4 text-muted-foreground" />
             <span className="hidden sm:inline">Sucursal: {displayBranch}</span>
-            <span className="sm:hidden">{displayBranch}</span>
+            <span className="truncate sm:hidden">{displayBranch}</span>
             <ChevronDown className="h-4 w-4 opacity-50" />
           </Button>
         </DropdownMenuTrigger>

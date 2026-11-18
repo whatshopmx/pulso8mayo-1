@@ -1,0 +1,447 @@
+{
+ "contrast": [
+  {
+   "label": "hero kicker",
+   "text": "Operación y finanzas para cadenas ",
+   "fs": 13,
+   "fw": "500",
+   "ratio": 1.41
+  },
+  {
+   "label": "hero lead",
+   "text": "Pulso conecta la ejecución diaria ",
+   "fs": 18.7,
+   "fw": "400",
+   "ratio": 1.41
+  },
+  {
+   "label": "hero small note",
+   "text": "Configura tu empresa y tu primera ",
+   "fs": 13,
+   "fw": "400",
+   "ratio": 1.35
+  },
+  {
+   "label": "h1",
+   "text": "Tu operación ya cuenta qué pasó. A",
+   "fs": 73.6,
+   "fw": "600",
+   "ratio": 1.5
+  },
+  {
+   "label": "body copy (problema)",
+   "text": "El mantenimiento llegó, la cámara ",
+   "fs": 15,
+   "fw": "400",
+   "ratio": 1.41
+  },
+  {
+   "label": "bullet list item",
+   "text": "Excepciones con ciclo de vida: asi",
+   "fs": 15,
+   "fw": "400",
+   "ratio": 1.41
+  },
+  {
+   "label": "footer link",
+   "text": "Operaciones",
+   "fs": 14,
+   "fw": "400",
+   "ratio": 1.41
+  },
+  {
+   "label": "footer note",
+   "text": "Operación, costo y evidencia en un",
+   "fs": 15,
+   "fw": "400",
+   "ratio": 1.41
+  },
+  {
+   "label": "chip",
+   "text": "Demostración",
+   "fs": 12,
+   "fw": "400",
+   "ratio": 1.41
+  },
+  {
+   "label": "deep-body note",
+   "text": "También cierra el circuito fiscal:",
+   "fs": 13,
+   "fw": "400",
+   "ratio": 1.22
+  },
+  {
+   "label": "deep bullet",
+   "text": "Gasto operativo con evidencia, pre",
+   "fs": 15,
+   "fw": "400",
+   "ratio": 1.33
+  },
+  {
+   "label": "wa deep small",
+   "text": "Alcance actual: WhatsApp ejecuta t",
+   "fs": 13,
+   "fw": "400",
+   "ratio": 1.22
+  },
+  {
+   "label": "pricing faint",
+   "text": "Hasta 5 sucursales",
+   "fs": 13,
+   "fw": "400",
+   "ratio": 1.35
+  },
+  {
+   "label": "nav link",
+   "text": "El problema",
+   "fs": 13,
+   "fw": "500",
+   "ratio": 1.41
+  },
+  {
+   "label": "faq q",
+   "text": "¿Necesito conectar mi punto de ven",
+   "fs": 16,
+   "fw": "400",
+   "ratio": 1.5
+  },
+  {
+   "label": "deep cta legal",
+   "text": "Las cifras, sucursales y nombres d",
+   "fs": 12,
+   "fw": "400",
+   "ratio": 1.19
+  }
+ ],
+ "geometry": {
+  "heroCols": [
+   276,
+   566,
+   484,
+   566,
+   566
+  ],
+  "h1Lines": 5,
+  "h1LineHeight": 72.128,
+  "h1LetterSpacing": "-2.576px",
+  "signalSpanColor": "lab(42.6062 53.7334 32.9016)",
+  "containerWidth": 1216,
+  "signupLinkCount": 8,
+  "signupLabels": [
+   "Crear cuenta",
+   "Crear mi cuenta",
+   "Empezar"
+  ],
+  "sectionHeights": [
+   810,
+   652,
+   753,
+   672,
+   745,
+   834,
+   648,
+   552,
+   599,
+   695,
+   821,
+   729,
+   896,
+   648,
+   570
+  ],
+  "panels": [
+   {
+    "h": 369,
+    "rows": 0
+   },
+   {
+    "h": 283,
+    "rows": 0
+   },
+   {
+    "h": 298,
+    "rows": 0
+   },
+   {
+    "h": 312,
+    "rows": 0
+   },
+   {
+    "h": 299,
+    "rows": 0
+   },
+   {
+    "h": 306,
+    "rows": 0
+   },
+   {
+    "h": 378,
+    "rows": 0
+   }
+  ],
+  "pricing": [
+   {
+    "h": 175,
+    "text": "Planes por tamaño de operación. Cobramos por sucursales incluidas, no por usuario. Cada plan acumula las capacidades del"
+   },
+   {
+    "h": 405,
+    "text": "Foundation Hasta 5 sucursales Para grupos que están ordenando la operación diaria. Workflows, plantillas y evidencia Exc"
+   },
+   {
+    "h": 405,
+    "text": "Growth Más común Hasta 15 sucursales Para cadenas que ya comparan sucursales y necesitan margen. Todo lo de Foundation B"
+   },
+   {
+    "h": 405,
+    "text": "Executive Hasta 50 sucursales Para grupos con red propia, franquicias o expansión activa. Todo lo de Growth Consolidado "
+   }
+  ],
+  "heroNote": [
+   "Operación y finanzas para cadenas HORECA",
+   "Pulso conecta la ejecución diaria de tus sucursales con el gasto, el presupuesto",
+   "Configura tu empresa y tu primera sucursal. Sin instalar nada.",
+   "Hoy · 3 sucursales",
+   "Condesa",
+   "Apertura sin registrar",
+   "Polanco",
+   "Cámara 2 · 6.4 °C",
+   "Roma",
+   "Cierre verificado",
+   "Incidencia vinculada a costo",
+   "Mantenimiento · Cámara 2",
+   "Servicios Fríos del Valle · OC-2026-0412",
+   "$1,160.00",
+   "Datos demostrativos. No corresponden a un cliente real."
+  ],
+  "totalLinks": 37,
+  "externalLinks": 0,
+  "headingsCount": 30,
+  "h1Count": 1,
+  "firstViewportBottom": "SECTION.l-section scroll-mt-24 border-t border-[var(--l-li"
+ },
+ "firstViewport": {
+  "vh": 900,
+  "count": 23,
+  "items": [
+   {
+    "t": "Saltar al contenido",
+    "top": -1,
+    "bottom": 0
+   },
+   {
+    "t": "PulsoHORECA",
+    "top": 15,
+    "bottom": 49
+   },
+   {
+    "t": "El problema",
+    "top": 24,
+    "bottom": 41
+   },
+   {
+    "t": "Operaciones",
+    "top": 24,
+    "bottom": 41
+   },
+   {
+    "t": "Finanzas",
+    "top": 24,
+    "bottom": 41
+   },
+   {
+    "t": "Workflows",
+    "top": 24,
+    "bottom": 41
+   },
+   {
+    "t": "Precios",
+    "top": 24,
+    "bottom": 41
+   },
+   {
+    "t": "Preguntas",
+    "top": 24,
+    "bottom": 41
+   },
+   {
+    "t": "Iniciar sesión",
+    "top": 14,
+    "bottom": 50
+   },
+   {
+    "t": "Crear cuenta",
+    "top": 14,
+    "bottom": 50
+   },
+   {
+    "t": "El problema",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Operaciones",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Finanzas",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Workflows",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Precios",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Preguntas",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Crear cuenta",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Iniciar sesión",
+    "top": 0,
+    "bottom": 0
+   },
+   {
+    "t": "Tu operación ya cuenta qué pas",
+    "top": 193,
+    "bottom": 554
+   },
+   {
+    "t": "Pulso conecta la ejecución dia",
+    "top": 578,
+    "bottom": 668
+   },
+   {
+    "t": "Crear mi cuenta",
+    "top": 700,
+    "bottom": 744
+   },
+   {
+    "t": "Ver el recorrido",
+    "top": 700,
+    "bottom": 744
+   },
+   {
+    "t": "Hoy · 3 sucursalesDemostración",
+    "top": 157,
+    "bottom": 526
+   }
+  ]
+ },
+ "faq": {
+  "open": true,
+  "h": 162,
+  "anim": "all"
+ },
+ "overlayConsole": [
+  "%c[impeccable] 10 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+ ],
+ "tablet": {
+  "overflow": 0,
+  "navHidden": "none",
+  "docHeight": 12682,
+  "h1fs": "50.874px",
+  "heroGridCols": "none"
+ },
+ "mobile2": {
+  "words": 1876,
+  "docHeight": 17067,
+  "sections": [
+   {
+    "id": null,
+    "h": 1131
+   },
+   {
+    "id": "problema",
+    "h": 938
+   },
+   {
+    "id": "producto",
+    "h": 1228
+   },
+   {
+    "id": "operaciones",
+    "h": 1004
+   },
+   {
+    "id": "finanzas",
+    "h": 1097
+   },
+   {
+    "id": "workflows",
+    "h": 1355
+   },
+   {
+    "id": "compras",
+    "h": 1039
+   },
+   {
+    "id": "personal",
+    "h": 1002
+   },
+   {
+    "id": "inteligencia",
+    "h": 978
+   },
+   {
+    "id": "whatsapp",
+    "h": 1189
+   },
+   {
+    "id": "industrias",
+    "h": 1155
+   },
+   {
+    "id": "implementacion",
+    "h": 990
+   },
+   {
+    "id": "precios",
+    "h": 1744
+   },
+   {
+    "id": "faq",
+    "h": 808
+   },
+   {
+    "id": null,
+    "h": 587
+   }
+  ],
+  "heroCtas": [
+   {
+    "t": "Crear mi cuenta",
+    "w": 350,
+    "h": 44
+   },
+   {
+    "t": "Ver el recorrido",
+    "w": 350,
+    "h": 44
+   },
+   {
+    "t": "OperaciónQué sucedeWorkflows, evidencia, excepciones y cumplimiento en cada sucursal. Lo que requiere atención hoy, con responsable y seguimiento.Workflows · Evidencia · Excepciones · NOM-251/035Ver",
+    "w": 348,
+    "h": 302
+   },
+   {
+    "t": "CostoCuánto cuestaGastos, presupuesto, compras, proveedores y resultado por sucursal. El costo aparece cuando se origina, no a fin de mes.Gastos · Presupuesto · Compras · P&LVer",
+    "w": 348,
+    "h": 277
+   }
+  ]
+ }
+}

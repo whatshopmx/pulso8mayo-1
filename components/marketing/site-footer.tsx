@@ -1,16 +1,16 @@
 import Link from "next/link"
 import { Logo } from "./logo"
+import { diagnosisHref } from "./diagnosis"
 
 const PRODUCT_LINKS = [
   { label: "Operaciones", href: "#operaciones" },
   { label: "Control financiero", href: "#finanzas" },
-  { label: "Workflows", href: "#workflows" },
-  { label: "Compras y turno", href: "#compras" },
-  { label: "Inteligencia", href: "#inteligencia" },
+  { label: "Equipo y WhatsApp", href: "#whatsapp" },
+  { label: "Cómo funciona", href: "#workflows" },
 ]
 
 const ACCESS_LINKS = [
-  { label: "Crear cuenta", href: "/sign-up" },
+  { label: "Solicitar diagnóstico", href: diagnosisHref() },
   { label: "Iniciar sesión", href: "/sign-in" },
   { label: "Recuperar contraseña", href: "/forgot-password" },
 ]

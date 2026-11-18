@@ -1,0 +1,173 @@
+[
+ {
+  "label": "hero kicker",
+  "text": "Operación y finanzas para cadenas ",
+  "fs": 13,
+  "fw": "500",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "hero lead",
+  "text": "Pulso conecta la ejecución diaria ",
+  "fs": 18.7,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "hero small note",
+  "text": "Configura tu empresa y tu primera ",
+  "fs": 13,
+  "fw": "400",
+  "fg": "117,113,109",
+  "bg": "252,251,249",
+  "ratio": 4.68
+ },
+ {
+  "label": "h1",
+  "text": "Tu operación ya cuenta qué pasó. A",
+  "fs": 73.6,
+  "fw": "600",
+  "fg": "20,14,12",
+  "bg": "252,251,249",
+  "ratio": 18.5
+ },
+ {
+  "label": "body copy (problema)",
+  "text": "El mantenimiento llegó, la cámara ",
+  "fs": 15,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "bullet item",
+  "text": "Excepciones con ciclo de vida: asi",
+  "fs": 15,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "footer link",
+  "text": "Operaciones",
+  "fs": 14,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "footer note",
+  "text": "Operación, costo y evidencia en un",
+  "fs": 15,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "chip (light)",
+  "text": "Demostración",
+  "fs": 12,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "deep note 13px",
+  "text": "También cierra el circuito fiscal:",
+  "fs": 13,
+  "fw": "400",
+  "fg": "167,164,159",
+  "bg": "26,19,18",
+  "ratio": 7.38
+ },
+ {
+  "label": "deep bullet",
+  "text": "Gasto operativo con evidencia, pre",
+  "fs": 15,
+  "fw": "400",
+  "fg": "205,202,197",
+  "bg": "26,19,18",
+  "ratio": 11.22
+ },
+ {
+  "label": "deep wa note",
+  "text": "Alcance actual: WhatsApp ejecuta t",
+  "fs": 13,
+  "fw": "400",
+  "fg": "167,164,159",
+  "bg": "26,19,18",
+  "ratio": 7.38
+ },
+ {
+  "label": "pricing faint",
+  "text": "Cobramos por sucursales incluidas,",
+  "fs": 18.7,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "nav link",
+  "text": "El problema",
+  "fs": 13,
+  "fw": "500",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "faq q",
+  "text": "¿Necesito conectar mi punto de ven",
+  "fs": 16,
+  "fw": "400",
+  "fg": "20,14,12",
+  "bg": "252,251,249",
+  "ratio": 18.5
+ },
+ {
+  "label": "deep cta legal",
+  "text": "Las cifras, sucursales y nombres d",
+  "fs": 12,
+  "fw": "400",
+  "fg": "155,152,147",
+  "bg": "26,19,18",
+  "ratio": 6.38
+ },
+ {
+  "label": "deep cta lead",
+  "text": "Empieza con una sucursal y configu",
+  "fs": 18.7,
+  "fw": "400",
+  "fg": "199,196,190",
+  "bg": "26,19,18",
+  "ratio": 10.53
+ },
+ {
+  "label": "industries faint",
+  "text": "La misma plataforma cambia de conf",
+  "fs": 18.7,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "252,251,249",
+  "ratio": 7.85
+ },
+ {
+  "label": "step faint",
+  "text": "Pulso se configura sobre lo que ya",
+  "fs": 18.7,
+  "fw": "400",
+  "fg": "86,78,75",
+  "bg": "244,241,235",
+  "ratio": 7.2
+ }
+]

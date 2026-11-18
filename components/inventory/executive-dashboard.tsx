@@ -72,6 +72,8 @@ function coverageLabel(cov: RevenueCoverage | undefined): string {
 export function ExecutiveDashboard() {
     const [report, setReport] = useState<ExecutiveReport | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [branchOptions, setBranchOptions] = useState<ExecutiveReport['byBranch']>([]);
     const [roleView, setRoleView] = useState<string>("ADMIN");
     const [startDate, setStartDate] = useState(() => {
         const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0];
@@ -81,14 +83,23 @@ export function ExecutiveDashboard() {
 
     const fetchReport = async () => {
         setLoading(true);
+        setLoadError(null);
+        setReport(null);
         try {
             const params = new URLSearchParams({ startDate, endDate });
             if (branchFilter && branchFilter !== "all") params.set("branchId", branchFilter);
             const res = await fetch(`/api/inventory/reports/executive?${params}`);
             const data = await res.json();
-            if (res.ok) setReport(data);
-            else toast.error(data.error || "Error al cargar reporte");
+            if (res.ok) {
+                setReport(data);
+                if (branchFilter === 'all') setBranchOptions(data.byBranch);
+            } else {
+                const message = typeof data.error === 'string' ? data.error : 'Inténtalo de nuevo';
+                setLoadError(message);
+                toast.error(message);
+            }
         } catch {
+            setLoadError('Error de red. Inténtalo de nuevo.');
             toast.error("Error de red");
         } finally {
             setLoading(false);
@@ -107,9 +118,9 @@ export function ExecutiveDashboard() {
                 title="Dashboard Ejecutivo"
                 description={roleConfig.description}
                 actions={
-                    <div className="flex items-center gap-2">
-                        <Select value={roleView} onValueChange={setRoleView}>
-                            <SelectTrigger className="w-44">
+                    <div className="flex max-w-full flex-wrap items-center gap-2">
+                        <Select value={roleView} onValueChange={setRoleView} disabled={loading}>
+                            <SelectTrigger aria-label="Vista de indicadores" className="w-44">
                                 <SelectValue placeholder="Rol" />
                             </SelectTrigger>
                             <SelectContent>
@@ -118,30 +129,36 @@ export function ExecutiveDashboard() {
                                 <SelectItem value="GERENTE">Gerente / Compras</SelectItem>
                             </SelectContent>
                         </Select>
-                        {report && report.byBranch.length > 1 && (
-                            <Select value={branchFilter} onValueChange={setBranchFilter}>
-                                <SelectTrigger className="w-44">
+                        {!loadError && branchOptions.length > 1 && (
+                            <Select value={branchFilter} onValueChange={setBranchFilter} disabled={loading}>
+                                <SelectTrigger aria-label="Sucursal del reporte" className="w-44">
                                     <SelectValue placeholder="Sucursal" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">Todas las sucursales</SelectItem>
-                                    {report.byBranch.map(b => (
+                                    {branchOptions.map(b => (
                                         <SelectItem key={b.branchId} value={b.branchId}>{b.branchName}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         )}
                         <div className="flex items-center gap-1">
-                            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-36" />
+                            <Input aria-label="Fecha de inicio" type="date" disabled={loading} value={startDate} onChange={e => setStartDate(e.target.value)} className="w-36" />
                             <span className="text-muted-foreground text-sm">→</span>
-                            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-36" />
+                            <Input aria-label="Fecha de fin" type="date" disabled={loading} value={endDate} onChange={e => setEndDate(e.target.value)} className="w-36" />
                         </div>
-                        <Button variant="outline" size="icon" onClick={fetchReport} disabled={loading}>
+                        <Button aria-label="Actualizar reporte" variant="outline" size="icon" onClick={fetchReport} disabled={loading}>
                             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                         </Button>
                     </div>
                 }
             />
+
+            {loadError && (
+                <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                    No se pudo cargar el reporte. {loadError} Corrige el problema y pulsa Actualizar reporte.
+                </div>
+            )}
 
             {/* KPIs Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -151,7 +168,7 @@ export function ExecutiveDashboard() {
                         value={kpi && kpi.foodCostPercent !== null ? `${kpi.foodCostPercent}%` : "—"}
                         subtitle={`COGS ${kpi ? formatCents(kpi.cogsCents) : "—"} · Cobertura ${kpi ? coverageLabel(kpi.revenueCoverage) : "—"}`}
                         icon={<TrendingDown className="h-4 w-4" />}
-                        tone={kpi && kpi.foodCostPercent === null ? "neutral" : kpi && kpi.foodCostPercent > 35 ? "destructive" : kpi && kpi.foodCostPercent > 28 ? "warning" : "success"}
+                        tone={!kpi || kpi.foodCostPercent === null ? "neutral" : kpi.foodCostPercent > 35 ? "destructive" : kpi.foodCostPercent > 28 ? "warning" : "success"}
                         loading={loading}
                     />
                 )}
@@ -160,7 +177,7 @@ export function ExecutiveDashboard() {
                     <MetricCard
                         label="COGS (Costo de Ventas)"
                         value={kpi ? formatCents(kpi.cogsCents) : "—"}
-                        subtitle={`Período: ${startDate} → ${endDate}`}
+                        subtitle={report ? `Período: ${report.period.start.slice(0, 10)} → ${report.period.end.slice(0, 10)}` : 'Sin reporte cargado'}
                         icon={<DollarSign className="h-4 w-4" />}
                         tone="info"
                         loading={loading}
@@ -264,7 +281,7 @@ export function ExecutiveDashboard() {
                                                 {b.foodCostPercent === null ? "N/D" : `${b.foodCostPercent}%`}
                                             </td>
                                             <td className="text-right py-2 px-2 font-mono">{formatCents(b.cogsCents)}</td>
-                                            <td className="text-right py-2 px-2 font-mono">{b.revenueCents === null ? "Parcial" : formatCents(b.revenueCents)}</td>
+                                            <td className="text-right py-2 px-2 font-mono">{b.revenueCents === null ? (b.revenueCoverage.status === 'NO_DATA' ? 'Sin datos' : 'Parcial') : formatCents(b.revenueCents)}</td>
                                             <td className="text-right py-2 px-2 font-mono">{coverageLabel(b.revenueCoverage)}</td>
                                             <td className="text-right py-2 px-2 font-mono">{b.inventoryTurnover}</td>
                                             <td className="text-right py-2 px-2 font-mono">{b.stockDays}</td>

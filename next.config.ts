@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const nextConfig: NextConfig = {
+  ...(process.env.PULSO_REPORT_BROWSER_TEST === '1' ? {
+    distDir: '.tmp/next-report-browser',
+    typescript: { tsconfigPath: '.tmp/report-browser-tsconfig.json' },
+  } : {}),
   // `ws` necesita require nativo para sus addons opcionales. Al empaquetarlo,
   // Webpack sustituía bufferutil ausente por {}, rompiendo las conexiones Neon.
   serverExternalPackages: ["ws"],

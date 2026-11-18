@@ -4,17 +4,17 @@ const FAQ_ITEMS = [
   {
     question: "¿Necesito conectar mi punto de venta para empezar?",
     answer:
-      "No. Puedes arrancar con workflows, inventario, compras y gastos. Cuando quieras usar los cortes de venta, Pulso permite cargarlos y mapear sus columnas sin cambiar de sistema.",
+      "No. Puedes arrancar con tareas, inventario, compras y gastos. Cuando quieras usar los cortes de venta, Pulso permite cargarlos e identificar sus columnas sin cambiar de sistema.",
   },
   {
     question: "¿Puedo registrar gastos desde WhatsApp?",
     answer:
-      "Hoy no. WhatsApp ejecuta tareas, registra asistencia y recibe evidencia fotográfica. El gasto se registra en el dashboard, donde se liga al presupuesto y a la autorización que corresponda.",
+      "Hoy no. WhatsApp ejecuta tareas, registra asistencia y recibe evidencia fotográfica. El gasto se registra en la plataforma web, donde se liga al presupuesto y a la autorización que corresponda.",
   },
   {
     question: "¿Se integra con mi ERP o con mi contabilidad?",
     answer:
-      "Todavía no hay un conector bidireccional con ERP. Pulso genera pólizas, exportaciones y comprobantes CFDI; la integración con sistemas contables externos está en el roadmap y no se ofrece como capacidad actual.",
+      "Todavía no hay un conector bidireccional con ERP. Pulso genera pólizas, exportaciones y comprobantes CFDI; la integración con sistemas contables externos está prevista y no se ofrece como capacidad actual.",
   },
   {
     question: "¿Pulso certifica NOM-251 y NOM-035?",

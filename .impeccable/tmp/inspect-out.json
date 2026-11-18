@@ -1,0 +1,1111 @@
+{
+ "url": "http://localhost:3000/",
+ "title": "Pulso HORECA — Operación y finanzas conectadas",
+ "finalUrl": "http://localhost:3000/",
+ "desktop": {
+  "docHeight": 11137,
+  "overflow": 0,
+  "overflowingEls": [],
+  "words": 1889,
+  "sections": [
+   {
+    "i": 0,
+    "id": null,
+    "top": 65,
+    "h": 810,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "Tu operación ya cuenta qué pasó. Ahora también cuenta cuánto costó."
+    ]
+   },
+   {
+    "i": 1,
+    "id": "problema",
+    "top": 875,
+    "h": 652,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "La operación se ejecuta en un lugar.El costo se explica en otro."
+    ]
+   },
+   {
+    "i": 2,
+    "id": "producto",
+    "top": 1527,
+    "h": 753,
+    "bg": "lab(95.1548 0.366032 3.0309)",
+    "headings": [
+     "Tres capas que comparten los mismos datos."
+    ]
+   },
+   {
+    "i": 3,
+    "id": "operaciones",
+    "top": 2280,
+    "h": 672,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "Un centro de operación, no un tablero de tarjetas."
+    ]
+   },
+   {
+    "i": 4,
+    "id": "finanzas",
+    "top": 2952,
+    "h": 745,
+    "bg": "lab(6.60781 3.23875 1.95998)",
+    "headings": [
+     "El costo de operar, con la misma claridad que la operación."
+    ]
+   },
+   {
+    "i": 5,
+    "id": "workflows",
+    "top": 3698,
+    "h": 834,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "De la incidencia al gasto, sin salir del hilo."
+    ]
+   },
+   {
+    "i": 6,
+    "id": "compras",
+    "top": 4531,
+    "h": 648,
+    "bg": "lab(95.1548 0.366032 3.0309)",
+    "headings": [
+     "Comprar bien empieza por saber quién autoriza qué."
+    ]
+   },
+   {
+    "i": 7,
+    "id": "personal",
+    "top": 5179,
+    "h": 552,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "El turno también tiene costo."
+    ]
+   },
+   {
+    "i": 8,
+    "id": "inteligencia",
+    "top": 5731,
+    "h": 599,
+    "bg": "lab(95.1548 0.366032 3.0309)",
+    "headings": [
+     "Una lectura ejecutiva, no otro reporte."
+    ]
+   },
+   {
+    "i": 9,
+    "id": "whatsapp",
+    "top": 6330,
+    "h": 695,
+    "bg": "lab(6.60781 3.23875 1.95998)",
+    "headings": [
+     "El trabajo ocurre donde está el equipo."
+    ]
+   },
+   {
+    "i": 10,
+    "id": "industrias",
+    "top": 7025,
+    "h": 821,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "Hecho para operaciones con turnos, insumos y mermas."
+    ]
+   },
+   {
+    "i": 11,
+    "id": "implementacion",
+    "top": 7846,
+    "h": 729,
+    "bg": "lab(95.1548 0.366032 3.0309)",
+    "headings": [
+     "Empezar no requiere migrar tu operación."
+    ]
+   },
+   {
+    "i": 12,
+    "id": "precios",
+    "top": 8575,
+    "h": 896,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "Planes por tamaño de operación."
+    ]
+   },
+   {
+    "i": 13,
+    "id": "faq",
+    "top": 9471,
+    "h": 648,
+    "bg": "rgba(0, 0, 0, 0)",
+    "headings": [
+     "Preguntas antes de empezar."
+    ]
+   },
+   {
+    "i": 14,
+    "id": null,
+    "top": 10119,
+    "h": 570,
+    "bg": "lab(6.60781 3.23875 1.95998)",
+    "headings": [
+     "Más control sobre tu operación. Más claridad sobre tus costos."
+    ]
+   }
+  ],
+  "h1": {
+   "text": "Tu operación ya cuenta qué pasó. Ahora también cuenta cuánto",
+   "w": 566,
+   "h": 361,
+   "fs": 73.6,
+   "fw": "600",
+   "lh": "72.128px",
+   "ls": "-2.576px",
+   "color": "lab(4.36923 2.47657 1.47884)",
+   "top": 193
+  },
+  "h2s": [
+   {
+    "text": "La operación se ejecuta en un lugar.El costo se explica en o",
+    "w": 517,
+    "h": 142,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 984
+   },
+   {
+    "text": "Tres capas que comparten los mismos datos.",
+    "w": 768,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 1636
+   },
+   {
+    "text": "Un centro de operación, no un tablero de tarjetas.",
+    "w": 567,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 2389
+   },
+   {
+    "text": "El costo de operar, con la misma claridad que la operación.",
+    "w": 567,
+    "h": 142,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(95.9605 0.135899 1.90177)",
+    "top": 3061
+   },
+   {
+    "text": "De la incidencia al gasto, sin salir del hilo.",
+    "w": 517,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 3807
+   },
+   {
+    "text": "Comprar bien empieza por saber quién autoriza qué.",
+    "w": 567,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 4640
+   },
+   {
+    "text": "El turno también tiene costo.",
+    "w": 567,
+    "h": 47,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 5288
+   },
+   {
+    "text": "Una lectura ejecutiva, no otro reporte.",
+    "w": 567,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 5840
+   },
+   {
+    "text": "El trabajo ocurre donde está el equipo.",
+    "w": 573,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(95.9605 0.135899 1.90177)",
+    "top": 6439
+   },
+   {
+    "text": "Hecho para operaciones con turnos, insumos y mermas.",
+    "w": 768,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 7134
+   },
+   {
+    "text": "Empezar no requiere migrar tu operación.",
+    "w": 768,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 7955
+   },
+   {
+    "text": "Planes por tamaño de operación.",
+    "w": 490,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 8684
+   },
+   {
+    "text": "Preguntas antes de empezar.",
+    "w": 435,
+    "h": 95,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 9580
+   },
+   {
+    "text": "Más control sobre tu operación. Más claridad sobre tus costo",
+    "w": 456,
+    "h": 190,
+    "fs": 45.6,
+    "fw": "600",
+    "lh": "47.424px",
+    "ls": "-1.2768px",
+    "color": "lab(95.9605 0.135899 1.90177)",
+    "top": 10228
+   },
+   {
+    "text": "Producto",
+    "w": 315,
+    "h": 18,
+    "fs": 12,
+    "fw": "500",
+    "lh": "18px",
+    "ls": "1.68px",
+    "color": "lab(47.785 1.35595 2.6678)",
+    "top": 10754
+   },
+   {
+    "text": "Acceso",
+    "w": 315,
+    "h": 18,
+    "fs": 12,
+    "fw": "500",
+    "lh": "18px",
+    "ls": "1.68px",
+    "color": "lab(47.785 1.35595 2.6678)",
+    "top": 10754
+   }
+  ],
+  "h3s": [
+   {
+    "text": "Qué sucede",
+    "w": 335,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 1944
+   },
+   {
+    "text": "Cuánto cuesta",
+    "w": 335,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 1944
+   },
+   {
+    "text": "Qué hacer después",
+    "w": 335,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 1944
+   },
+   {
+    "text": "Restaurantes",
+    "w": 527,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 7411
+   },
+   {
+    "text": "Hoteles",
+    "w": 527,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 7411
+   },
+   {
+    "text": "Cafeterías",
+    "w": 527,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 7587
+   },
+   {
+    "text": "Grupos y franquicias",
+    "w": 527,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 7587
+   },
+   {
+    "text": "Diagnóstico",
+    "w": 363,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 8255
+   },
+   {
+    "text": "Configuración",
+    "w": 363,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 8255
+   },
+   {
+    "text": "Operación",
+    "w": 363,
+    "h": 27,
+    "fs": 21,
+    "fw": "600",
+    "lh": "26.88px",
+    "ls": "-0.252px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 8255
+   },
+   {
+    "text": "Foundation",
+    "w": 91,
+    "h": 27,
+    "fs": 18,
+    "fw": "600",
+    "lh": "27px",
+    "ls": "-0.27px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 8932
+   },
+   {
+    "text": "Growth",
+    "w": 59,
+    "h": 27,
+    "fs": 18,
+    "fw": "600",
+    "lh": "27px",
+    "ls": "-0.27px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 8932
+   },
+   {
+    "text": "Executive",
+    "w": 74,
+    "h": 27,
+    "fs": 18,
+    "fw": "600",
+    "lh": "27px",
+    "ls": "-0.27px",
+    "color": "lab(4.36923 2.47657 1.47884)",
+    "top": 8932
+   }
+  ],
+  "badLinks": [],
+  "hashLinks": [
+   "#contenido",
+   "#problema",
+   "#operaciones",
+   "#finanzas",
+   "#workflows",
+   "#precios",
+   "#faq",
+   "#problema",
+   "#operaciones",
+   "#finanzas",
+   "#workflows",
+   "#precios",
+   "#faq",
+   "#workflows",
+   "#operaciones",
+   "#finanzas",
+   "#workflows",
+   "#operaciones",
+   "#finanzas",
+   "#workflows",
+   "#compras",
+   "#personal",
+   "#inteligencia"
+  ],
+  "missingAnchors": [],
+  "smallTargets": [
+   {
+    "t": "Saltar al contenido",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "t": "El problema",
+    "w": 70,
+    "h": 17
+   },
+   {
+    "t": "Operaciones",
+    "w": 74,
+    "h": 17
+   },
+   {
+    "t": "Finanzas",
+    "w": 50,
+    "h": 17
+   },
+   {
+    "t": "Workflows",
+    "w": 63,
+    "h": 17
+   },
+   {
+    "t": "Precios",
+    "w": 42,
+    "h": 17
+   },
+   {
+    "t": "Preguntas",
+    "w": 59,
+    "h": 17
+   },
+   {
+    "t": "Operaciones",
+    "w": 77,
+    "h": 19
+   },
+   {
+    "t": "Control financiero",
+    "w": 111,
+    "h": 19
+   },
+   {
+    "t": "Workflows",
+    "w": 65,
+    "h": 19
+   },
+   {
+    "t": "Compras y proveedores",
+    "w": 147,
+    "h": 19
+   },
+   {
+    "t": "Personal",
+    "w": 52,
+    "h": 19
+   },
+   {
+    "t": "Inteligencia",
+    "w": 71,
+    "h": 19
+   },
+   {
+    "t": "Crear cuenta",
+    "w": 78,
+    "h": 19
+   },
+   {
+    "t": "Iniciar sesión",
+    "w": 79,
+    "h": 19
+   },
+   {
+    "t": "Recuperar contraseña",
+    "w": 134,
+    "h": 19
+   }
+  ],
+  "imgs": [
+   {
+    "src": "/_next/image?url=%2Ficon-192.png&w=64&q=75",
+    "alt": ""
+   },
+   {
+    "src": "/_next/image?url=%2Ficon-192.png&w=64&q=75",
+    "alt": ""
+   }
+  ],
+  "svgCount": 28,
+  "unlabeledSvgs": 0,
+  "headings": [
+   "H1: Tu operación ya cuenta qué pasó. Ahora también cue",
+   "H2: La operación se ejecuta en un lugar.El costo se ex",
+   "H2: Tres capas que comparten los mismos datos.",
+   "H3: Qué sucede",
+   "H3: Cuánto cuesta",
+   "H3: Qué hacer después",
+   "H2: Un centro de operación, no un tablero de tarjetas.",
+   "H2: El costo de operar, con la misma claridad que la o",
+   "H2: De la incidencia al gasto, sin salir del hilo.",
+   "H2: Comprar bien empieza por saber quién autoriza qué.",
+   "H2: El turno también tiene costo.",
+   "H2: Una lectura ejecutiva, no otro reporte.",
+   "H2: El trabajo ocurre donde está el equipo.",
+   "H2: Hecho para operaciones con turnos, insumos y merma",
+   "H3: Restaurantes",
+   "H3: Hoteles",
+   "H3: Cafeterías",
+   "H3: Grupos y franquicias",
+   "H2: Empezar no requiere migrar tu operación.",
+   "H3: Diagnóstico",
+   "H3: Configuración",
+   "H3: Operación",
+   "H2: Planes por tamaño de operación.",
+   "H3: Foundation",
+   "H3: Growth",
+   "H3: Executive",
+   "H2: Preguntas antes de empezar.",
+   "H2: Más control sobre tu operación. Más claridad sobre",
+   "H2: Producto",
+   "H2: Acceso"
+  ],
+  "faqCount": 6,
+  "faq": [
+   "¿Necesito conectar mi punto de venta para empezar?",
+   "¿Puedo registrar gastos desde WhatsApp?",
+   "¿Se integra con mi ERP o con mi contabilidad?",
+   "¿Pulso certifica NOM-251 y NOM-035?",
+   "¿Cómo se cobra?",
+   "¿Dónde vive la evidencia y quién puede verla?"
+  ],
+  "deepBands": 3,
+  "ctaStyles": [
+   {
+    "text": "Crear cuenta",
+    "href": "/sign-up",
+    "bg": "lab(42.6062 53.7334 32.9016)",
+    "color": "rgb(255, 255, 255)",
+    "h": 36,
+    "fs": "13px",
+    "radius": "8px"
+   },
+   {
+    "text": "Crear cuenta",
+    "href": "/sign-up",
+    "bg": "lab(42.6062 53.7334 32.9016)",
+    "color": "rgb(255, 255, 255)",
+    "h": 0,
+    "fs": "14px",
+    "radius": "8px"
+   },
+   {
+    "text": "Crear mi cuenta",
+    "href": "/sign-up",
+    "bg": "lab(42.6062 53.7334 32.9016)",
+    "color": "rgb(255, 255, 255)",
+    "h": 44,
+    "fs": "14px",
+    "radius": "8px"
+   },
+   {
+    "text": "Crear mi cuenta",
+    "href": "/sign-up",
+    "bg": "lab(42.6062 53.7334 32.9016)",
+    "color": "rgb(255, 255, 255)",
+    "h": 44,
+    "fs": "14px",
+    "radius": "8px"
+   },
+   {
+    "text": "Crear cuenta",
+    "href": "/sign-up",
+    "bg": "rgba(0, 0, 0, 0)",
+    "color": "lab(33.8031 3.1274 2.99816)",
+    "h": 19,
+    "fs": "14px",
+    "radius": "0px"
+   }
+  ],
+  "bodyFont": "ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\""
+ },
+ "focusTrail": [
+  {
+   "t": "Saltar al contenido",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 12,
+   "visible": true
+  },
+  {
+   "t": "PulsoHORECA",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 15,
+   "visible": true
+  },
+  {
+   "t": "El problema",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 24,
+   "visible": true
+  },
+  {
+   "t": "Operaciones",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 24,
+   "visible": true
+  },
+  {
+   "t": "Finanzas",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 24,
+   "visible": true
+  },
+  {
+   "t": "Workflows",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 24,
+   "visible": true
+  },
+  {
+   "t": "Precios",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 24,
+   "visible": true
+  },
+  {
+   "t": "Preguntas",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 24,
+   "visible": true
+  },
+  {
+   "t": "Iniciar sesión",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 14,
+   "visible": true
+  },
+  {
+   "t": "Crear cuenta",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 14,
+   "visible": true
+  },
+  {
+   "t": "Crear mi cuenta",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 700,
+   "visible": true
+  },
+  {
+   "t": "Ver el recorrido",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 700,
+   "visible": true
+  },
+  {
+   "t": "OperaciónQué sucedeWorkflows, ",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 310,
+   "visible": true
+  },
+  {
+   "t": "CostoCuánto cuestaGastos, pres",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 310,
+   "visible": true
+  },
+  {
+   "t": "ConexiónQué hacer despuésEl wo",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 310,
+   "visible": true
+  },
+  {
+   "t": "Empezar",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 428,
+   "visible": true
+  },
+  {
+   "t": "Empezar",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 428,
+   "visible": true
+  },
+  {
+   "t": "Empezar",
+   "tag": "A",
+   "outline": "solid 2px",
+   "top": 428,
+   "visible": true
+  },
+  {
+   "t": "¿Necesito conectar mi punto de",
+   "tag": "SUMMARY",
+   "outline": "solid 2px",
+   "top": 806,
+   "visible": true
+  },
+  {
+   "t": "¿Puedo registrar gastos desde ",
+   "tag": "SUMMARY",
+   "outline": "solid 2px",
+   "top": 836,
+   "visible": true
+  },
+  {
+   "t": "¿Se integra con mi ERP o con m",
+   "tag": "SUMMARY",
+   "outline": "solid 2px",
+   "top": 418,
+   "visible": true
+  },
+  {
+   "t": "¿Pulso certifica NOM-251 y NOM",
+   "tag": "SUMMARY",
+   "outline": "solid 2px",
+   "top": 483,
+   "visible": true
+  }
+ ],
+ "mutableInjection": {
+  "title": "impeccable-probe",
+  "flag": true
+ },
+ "contrast": [
+  {
+   "sel": ".l-kicker",
+   "text": "Operación y finanzas para cadena",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "13px",
+   "fw": "500"
+  },
+  {
+   "sel": ".l-lead",
+   "text": "Pulso conecta la ejecución diari",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "18.72px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-lead",
+   "text": "Cuando la tarea, la evidencia y ",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "18.72px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-lead",
+   "text": "No es un módulo de operaciones c",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(95.1548 0.366032 3.0309)",
+   "ratio": 1.38,
+   "fs": "18.72px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-lead",
+   "text": "Revisa qué requiere atención hoy",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "18.72px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-body",
+   "text": "El mantenimiento llegó, la cámar",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "15px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-body",
+   "text": "La factura trae un monto y un pr",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "15px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-body",
+   "text": "Para cuando el reporte muestra l",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "15px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-body",
+   "text": "Workflows, evidencia, excepcione",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "15px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-display",
+   "text": "Tu operación ya cuenta qué pasó.",
+   "color": "lab(4.36923 2.47657 1.47884)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.5,
+   "fs": "73.6px",
+   "fw": "600"
+  },
+  {
+   "sel": ".l-h2",
+   "text": "La operación se ejecuta en un lu",
+   "color": "lab(4.36923 2.47657 1.47884)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.5,
+   "fs": "45.6px",
+   "fw": "600"
+  },
+  {
+   "sel": ".l-h2",
+   "text": "Tres capas que comparten los mis",
+   "color": "lab(4.36923 2.47657 1.47884)",
+   "bg": "lab(95.1548 0.366032 3.0309)",
+   "ratio": 1.47,
+   "fs": "45.6px",
+   "fw": "600"
+  },
+  {
+   "sel": ".l-h2",
+   "text": "Un centro de operación, no un ta",
+   "color": "lab(4.36923 2.47657 1.47884)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.5,
+   "fs": "45.6px",
+   "fw": "600"
+  },
+  {
+   "sel": ".l-h2",
+   "text": "El costo de operar, con la misma",
+   "color": "lab(95.9605 0.135899 1.90177)",
+   "bg": "lab(6.60781 3.23875 1.95998)",
+   "ratio": 1.46,
+   "fs": "45.6px",
+   "fw": "600"
+  },
+  {
+   "sel": ".l-chip",
+   "text": "Demostración",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "lab(98.6204 0.0796914 1.13986)",
+   "ratio": 1.41,
+   "fs": "12px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-chip",
+   "text": "12:04",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "rgb(255, 255, 255)",
+   "ratio": 19.4,
+   "fs": "12px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-chip",
+   "text": "Fuera de rango",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "rgb(255, 255, 255)",
+   "ratio": 19.4,
+   "fs": "12px",
+   "fw": "400"
+  },
+  {
+   "sel": ".l-chip",
+   "text": "Listo",
+   "color": "lab(33.8031 3.1274 2.99816)",
+   "bg": "rgb(255, 255, 255)",
+   "ratio": 19.4,
+   "fs": "12px",
+   "fw": "400"
+  }
+ ],
+ "consoleErrors": [],
+ "mobile": {
+  "overflow": 0,
+  "off": [],
+  "docHeight": 17067,
+  "h1fs": "41.6px",
+  "h1lines": 5,
+  "smallTargets": [
+   {
+    "t": "Saltar al contenido",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "t": "PulsoHORECA",
+    "w": 78,
+    "h": 34
+   },
+   {
+    "t": "",
+    "w": 40,
+    "h": 40
+   },
+   {
+    "t": "Operaciones",
+    "w": 77,
+    "h": 19
+   },
+   {
+    "t": "Control financiero",
+    "w": 111,
+    "h": 19
+   },
+   {
+    "t": "Workflows",
+    "w": 65,
+    "h": 19
+   },
+   {
+    "t": "Compras y proveedores",
+    "w": 147,
+    "h": 19
+   },
+   {
+    "t": "Personal",
+    "w": 52,
+    "h": 19
+   },
+   {
+    "t": "Inteligencia",
+    "w": 71,
+    "h": 19
+   },
+   {
+    "t": "Crear cuenta",
+    "w": 78,
+    "h": 19
+   },
+   {
+    "t": "Iniciar sesión",
+    "w": 79,
+    "h": 19
+   },
+   {
+    "t": "Recuperar contraseña",
+    "w": 134,
+    "h": 19
+   }
+  ],
+  "headerH": 57
+ },
+ "mobileMenu": {
+  "hidden": false,
+  "h": 413,
+  "bottom": 469,
+  "vh": 844,
+  "ariaExpanded": "true"
+ },
+ "mobileErrors": []
+}

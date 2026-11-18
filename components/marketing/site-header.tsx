@@ -4,12 +4,11 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Menu, X } from "lucide-react"
 import { Logo } from "./logo"
+import { diagnosisHref } from "./diagnosis"
 
 const NAV_LINKS = [
-  { label: "El problema", href: "#problema" },
-  { label: "Operaciones", href: "#operaciones" },
-  { label: "Finanzas", href: "#finanzas" },
-  { label: "Workflows", href: "#workflows" },
+  { label: "Cómo funciona", href: "#workflows" },
+  { label: "Implementación", href: "#implementacion" },
   // Si se publican precios (`PRICE_FROM_PER_BRANCH_MXN` en la landing),
   // este label vuelve a "Precios".
   { label: "Cómo se cobra", href: "#precios" },
@@ -65,16 +64,16 @@ export function SiteHeader() {
             Iniciar sesión
           </Link>
           <Link
-            href="/sign-up"
-            className="inline-flex h-9 items-center rounded-md bg-[var(--l-signal)] px-4 text-[0.8125rem] font-medium text-white transition-colors hover:bg-[var(--l-signal-hover)]"
+            href={diagnosisHref()}
+            className="inline-flex min-h-11 items-center rounded-md bg-[var(--l-signal)] px-4 py-2 text-[0.8125rem] font-medium text-white transition-colors hover:bg-[var(--l-signal-hover)]"
           >
-            Crear cuenta
+            Solicitar diagnóstico
           </Link>
         </div>
 
         <button
           type="button"
-          className="inline-flex size-10 items-center justify-center rounded-md text-[var(--l-ink)] transition-colors hover:bg-[var(--l-paper-deep)] lg:hidden"
+          className="inline-flex size-11 items-center justify-center rounded-md text-[var(--l-ink)] transition-colors hover:bg-[var(--l-paper-deep)] lg:hidden"
           aria-expanded={open}
           aria-controls="menu-movil"
           aria-label={open ? "Cerrar menú" : "Abrir menú"}
@@ -105,11 +104,11 @@ export function SiteHeader() {
           </ul>
           <div className="mt-5 flex flex-col gap-2">
             <Link
-              href="/sign-up"
+              href={diagnosisHref()}
               onClick={() => setOpen(false)}
               className="inline-flex h-11 items-center justify-center rounded-md bg-[var(--l-signal)] px-5 text-sm font-medium text-white"
             >
-              Crear cuenta
+              Solicitar diagnóstico
             </Link>
             <Link
               href="/sign-in"

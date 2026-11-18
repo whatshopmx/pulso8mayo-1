@@ -120,7 +120,7 @@ export function HeroControlPanel({ variant = "light" }: { variant?: Tone }) {
         <Row>
           <Dot color="warn" />
           <div className="min-w-0 flex-1">
-            <p className={cn("truncate text-[0.8125rem] font-medium", t.strong)}>Condesa</p>
+            <p className={cn("truncate text-[0.8125rem] font-medium", t.strong)}>Polanco</p>
             <p className={cn("truncate text-[0.75rem]", t.faint)}>Apertura sin registrar</p>
           </div>
           <span className={cn("l-chip l-num", t.faint)}>12:04</span>
@@ -128,7 +128,7 @@ export function HeroControlPanel({ variant = "light" }: { variant?: Tone }) {
         <Row>
           <Dot color="signal" />
           <div className="min-w-0 flex-1">
-            <p className={cn("truncate text-[0.8125rem] font-medium", t.strong)}>Polanco</p>
+            <p className={cn("truncate text-[0.8125rem] font-medium", t.strong)}>Condesa</p>
             <p className={cn("truncate text-[0.75rem]", t.faint)}>Cámara 2 · 6.4 °C</p>
           </div>
           <span className={cn("l-chip", t.faint)}>Fuera de rango</span>
@@ -212,7 +212,7 @@ export function ExceptionsPanel() {
               Condesa · Cámara 2 · M. García
             </p>
           </div>
-          <span className="l-chip">SLA 2 h</span>
+          <span className="l-chip">Atender en 2 h</span>
         </Row>
         <Row>
           <Dot color="warn" />
@@ -224,7 +224,7 @@ export function ExceptionsPanel() {
               Polanco · Proveedor · L. Fernández
             </p>
           </div>
-          <span className="l-chip">SLA 1 d</span>
+          <span className="l-chip">Atender en 1 día</span>
         </Row>
         <Row>
           <Dot color="warn" />
@@ -236,7 +236,7 @@ export function ExceptionsPanel() {
               Roma · Barra · P. Sánchez
             </p>
           </div>
-          <span className="l-chip">SLA 4 h</span>
+          <span className="l-chip">Atender en 4 h</span>
         </Row>
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <p className="text-[0.75rem] text-[var(--l-ink-faint)]">3 con evidencia adjunta</p>
@@ -275,7 +275,7 @@ export function FinancePanel() {
         <div className="grid grid-cols-3 gap-3 px-4 py-4">
           {[
             { label: "Venta neta", value: "$1.28 M", note: "Grupo" },
-            { label: "Prime cost", value: "61.4 %", note: "Objetivo 60 %" },
+            { label: "Alimentos + personal", value: "61.4 %", note: "Objetivo 60 %" },
             { label: "Resultado", value: "8.2 %", note: "Operativo" },
           ].map((metric) => (
             <div key={metric.label}>
@@ -419,28 +419,28 @@ export function WorkflowTimeline({ layout = "column" }: { layout?: "column" | "r
   )
 }
 
-export function PurchasePanel() {
+export function PurchasePanel({ variant = "light" }: { variant?: Tone }) {
+  const t = tone[variant]
   return (
     <div>
-      <Shell title="OC-2026-0412" meta="Pendiente de autorización">
+      <Shell title="OC-2026-0412" meta="Pendiente de autorización" variant={variant}>
         <div className="space-y-2.5 px-4 py-4">
           {[
-            { product: "Refrigerante R-404A", qty: "2 × $4,800", amount: "$9,600.00" },
-            { product: "Filtro de sedimentos", qty: "4 × $1,250", amount: "$5,000.00" },
-            { product: "Servicio de diagnóstico", qty: "1 × $10,260", amount: "$10,260.00" },
+            { product: "Mantenimiento · Cámara 2", qty: "Condesa · Servicios Fríos del Valle", amount: "$1,000.00" },
+            { product: "IVA", qty: "16 %", amount: "$160.00" },
           ].map((item) => (
             <div key={item.product} className="flex items-baseline justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-[0.8125rem] text-[var(--l-ink)]">{item.product}</p>
-                <p className="text-[0.75rem] text-[var(--l-ink-faint)]">{item.qty}</p>
+                <p className={cn("text-[0.8125rem]", t.strong)}>{item.product}</p>
+                <p className={cn("text-[0.75rem]", t.faint)}>{item.qty}</p>
               </div>
-              <p className="l-num shrink-0 text-[0.8125rem] text-[var(--l-ink-soft)]">{item.amount}</p>
+              <p className={cn("l-num shrink-0 text-[0.8125rem]", t.soft)}>{item.amount}</p>
             </div>
           ))}
         </div>
-        <div className="flex items-center justify-between gap-3 bg-[var(--l-paper)] px-4 py-3">
-          <p className="text-[0.75rem] text-[var(--l-ink-faint)]">Total con IVA</p>
-          <p className="l-num text-[0.9375rem] font-semibold text-[var(--l-ink)]">$24,860.00</p>
+        <div className={cn("flex items-center justify-between gap-3 px-4 py-3", variant === "deep" ? "bg-[var(--l-deep-head)]" : "bg-[var(--l-paper)]")}>
+          <p className={cn("text-[0.75rem]", t.faint)}>Total con IVA</p>
+          <p className={cn("l-num text-[0.9375rem] font-semibold", t.strong)}>$1,160.00</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 px-4 py-3">
           <span className="l-chip">
@@ -449,10 +449,10 @@ export function PurchasePanel() {
           <span className="l-chip">
             <Dot color="warn" /> Dirección pendiente
           </span>
-          <span className="l-chip">Recepción con temperatura</span>
+          <span className="l-chip">Evidencia de mantenimiento</span>
         </div>
       </Shell>
-      <DemoCaption />
+      <DemoCaption inverse={variant === "deep"} />
     </div>
   )
 }
@@ -532,8 +532,8 @@ export function IntelligencePanel() {
   )
 }
 
-export function WhatsAppPanel() {
-  const t = tone.deep
+export function WhatsAppPanel({ variant = "deep" }: { variant?: Tone }) {
+  const t = tone[variant]
   return (
     <div>
       <div className="l-panel mx-auto max-w-md">
@@ -542,23 +542,23 @@ export function WhatsAppPanel() {
           <span className={cn("l-chip", t.faint)}>Demostración</span>
         </div>
         <div className="space-y-3 px-4 py-5">
-          <div className="max-w-[85%] rounded-lg rounded-tl-sm bg-[var(--l-deep-hover)] px-3 py-2">
+          <div className={cn("max-w-[85%] rounded-lg rounded-tl-sm px-3 py-2", variant === "deep" ? "bg-[var(--l-deep-hover)]" : "bg-[var(--l-paper-deep)]")}>
             <p className={cn("text-[0.8125rem] leading-relaxed", t.soft)}>
               Tarea asignada: control de temperatura · Cámara 2 · Condesa
             </p>
             <p className={cn("mt-1 text-[0.75rem]", t.faint)}>08:14</p>
           </div>
-          <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-sm bg-[var(--l-deep-bubble)] px-3 py-2">
+          <div className={cn("ml-auto max-w-[85%] rounded-lg rounded-tr-sm px-3 py-2", variant === "deep" ? "bg-[var(--l-deep-bubble)]" : "bg-[var(--l-signal-soft)]")}>
             <p className={cn("text-[0.8125rem] leading-relaxed", t.strong)}>
               Lectura 6.4 °C. Adjunto foto del termómetro.
             </p>
-            <div className="mt-2 flex items-center gap-2 rounded border border-[var(--l-deep-line)] px-2 py-1.5">
-              <span aria-hidden className="size-6 rounded bg-[var(--l-deep-attachment)]" />
+            <div className={cn("mt-2 flex items-center gap-2 rounded border px-2 py-1.5", t.line)}>
+              <span aria-hidden className={cn("size-6 rounded", variant === "deep" ? "bg-[var(--l-deep-attachment)]" : "bg-[var(--l-line)]")} />
               <span className={cn("text-[0.75rem]", t.faint)}>evidencia-01.jpg</span>
             </div>
             <p className={cn("mt-1 text-right text-[0.75rem]", t.faint)}>08:16</p>
           </div>
-          <div className="max-w-[85%] rounded-lg rounded-tl-sm bg-[var(--l-deep-hover)] px-3 py-2">
+          <div className={cn("max-w-[85%] rounded-lg rounded-tl-sm px-3 py-2", variant === "deep" ? "bg-[var(--l-deep-hover)]" : "bg-[var(--l-paper-deep)]")}>
             <p className={cn("text-[0.8125rem] leading-relaxed", t.soft)}>
               Evidencia recibida. Se abre excepción y se avisa a mantenimiento.
             </p>
@@ -566,9 +566,7 @@ export function WhatsAppPanel() {
           </div>
         </div>
       </div>
-      <p className="mt-4 text-center text-[0.75rem] text-[var(--l-deep-fg-faint)]">
-        Hoy por WhatsApp: tareas, asistencia y evidencia. Los gastos se registran en el dashboard.
-      </p>
+      <DemoCaption inverse={variant === "deep"} />
     </div>
   )
 }

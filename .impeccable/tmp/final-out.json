@@ -1,0 +1,62 @@
+{
+ "desktop": {
+  "docHeight": 10966,
+  "words": 2004,
+  "overflow": 0,
+  "textNodesChecked": 311,
+  "worstContrast": {
+   "ratio": 99
+  },
+  "below12px": 0,
+  "brokenAnchors": [],
+  "h1Count": 1,
+  "headingLevels": "H1H2H2H3H3H3H2H2H2H2H3H3H2H2H2H3H3H3H3H2H3H3H3H2H3H3H3H2H2",
+  "fontFamily": "Geist, \"Geist Fallback\", ui-sans-serif, system-ui, sans-serif",
+  "fontsLoaded": [
+   "Geist",
+   "Geist Fallback"
+  ],
+  "signupLabels": [
+   "Crear cuenta",
+   "Empezar con Foundation",
+   "Empezar con Growth",
+   "Empezar con Executive"
+  ],
+  "sections": 14
+ },
+ "keyboard": {
+  "stops": 18,
+  "allRings": true,
+  "first": [
+   {
+    "t": "Saltar al contenido",
+    "outline": "solid 2px"
+   },
+   {
+    "t": "PulsoHORECA",
+    "outline": "solid 2px"
+   },
+   {
+    "t": "El problema",
+    "outline": "solid 2px"
+   },
+   {
+    "t": "Operaciones",
+    "outline": "solid 2px"
+   }
+  ]
+ },
+ "tablet": {
+  "overflow": 0,
+  "docHeight": 11931,
+  "offscreen": 0,
+  "h1": "50.874px"
+ },
+ "mobile": {
+  "overflow": 0,
+  "docHeight": 17683,
+  "offscreen": 0,
+  "h1": "41.6px"
+ },
+ "errors": []
+}

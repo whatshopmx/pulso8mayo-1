@@ -1,0 +1,12 @@
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3111
+- Network:       http://192.168.1.81:3111
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+  ✓ turbopackUseSystemTlsCerts
+
+✓ Starting...
+⨯ Unable to acquire lock at C:\Users\david\pulso29\.next\dev\lock, is another instance of next dev running?
+  Suggestion: If you intended to restart next dev, terminate the other process, and then try again.
+[?25h
