@@ -613,7 +613,8 @@
         "EXC-01",
         "EXC-02",
         "EXC-03.a",
-        "EXC-03.b"
+        "EXC-03.b",
+        "EXC-01.rls"
       ]
     },
     {
@@ -680,7 +681,8 @@
         "VAL-01.transversal.C4",
         "VAL-01.transversal.C5",
         "VAL-01.transversal.C6",
-        "VAL-01.transversal.C7"
+        "VAL-01.transversal.C7",
+        "EXC-01.rls"
       ]
     },
     {
@@ -1441,7 +1443,10 @@
         "INV-01.c.recovery.historical",
         "INV-01.c.recovery.provenance",
         "INV-01.c.recovery.sources",
-        "INV-01.c.recovery.proposal.service"
+        "INV-01.c.recovery.proposal.service",
+        "INV-01.c.recovery.decision.service",
+        "INV-01.c.recovery.apply",
+        "INV-01.c.recovery.ui-routes"
       ]
     },
     {
@@ -1657,6 +1662,41 @@
       ]
     },
     {
+      "id": "INV-01.c.recovery.ui-routes",
+      "title": "Rutas de propuesta y diálogo de revisión/aplicación de recuperación",
+      "parent": "INV-01.c",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.b",
+        "SEC-00",
+        "INV-01.c.recovery.proposal.service",
+        "INV-01.c.recovery.decision.service",
+        "INV-01.c.recovery.apply"
+      ]
+    },
+    {
+      "id": "INV-01.b4.storage",
+      "title": "Almacenamiento privado durable y lectura autorizada del POS del cierre",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b4.smartlink"
+      ]
+    },
+    {
       "id": "INV-01.b4.coverage",
       "title": "Propagar cobertura canónica de ingresos a lectores financieros",
       "type": "I",
@@ -1719,6 +1759,18 @@
         "INV-01.a",
         "INV-01.b4b",
         "INV-01.b4.coverage.cogs"
+      ]
+    },
+    {
+      "id": "EXC-01.rls",
+      "title": "Migración reproducible de aislamiento de excepciones y verificación runtime",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V2"
+      ],
+      "dependsOn": [
+        "SEC-00"
       ]
     }
   ],
@@ -1808,7 +1860,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M02"
+        "VAL-01.M01-M17.M02",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M02"
     },
@@ -1820,7 +1873,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M02"
+        "VAL-01.M01-M17.M02",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M02"
     },
@@ -1967,7 +2021,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -1979,7 +2034,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -1991,7 +2047,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -2003,7 +2060,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -2015,7 +2073,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -2027,7 +2086,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -2039,7 +2099,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -2051,7 +2112,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -2063,7 +2125,8 @@
         "EXC-03.a",
         "EXC-03.b",
         "EXC-05",
-        "VAL-01.M01-M17.M05"
+        "VAL-01.M01-M17.M05",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -2648,6 +2711,9 @@
     {
       "id": "11.11",
       "tasks": [
+        "INV-01.b4.coverage.cogs",
+        "INV-01.b4.coverage.executive",
+        "INV-01.b4.coverage.menu",
         "INV-01.a1",
         "INV-01.a2",
         "INV-01.b1",
@@ -2678,10 +2744,7 @@
         "INV-01.c.recovery.historical",
         "INV-01.c.recovery.provenance",
         "INV-01.c.recovery.sources",
-        "INV-01.c.recovery.proposal.service",
-        "INV-01.b4.coverage.cogs",
-        "INV-01.b4.coverage.executive",
-        "INV-01.b4.coverage.menu"
+        "INV-01.c.recovery.proposal.service"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -3446,7 +3509,8 @@
         "EXC-03.a",
         "EVI-02.b",
         "VAL-01.M01-M17.M05",
-        "VAL-01.transversal.C1"
+        "VAL-01.transversal.C1",
+        "EXC-01.rls"
       ],
       "acceptance": "VAL-01.M01-M17.M05"
     },
@@ -5109,12 +5173,203 @@
         }
       ]
     },
+    "NOM-02.c1": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-16/CONSOLIDACION/README.md",
+          "head": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
+          "environment": "Windows local + diff; Neon aislado ep-cold-morning-bewqoz3o, runtime pulso_app NOBYPASSRLS para nómina/recovery; EXC sin nueva V2; TypeScript previo exit 0, comprobación final con validadores de producción bloqueada por 7 errores de base; ver consolidación",
+          "commands": [
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom01-contract.test.ts lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/payroll-nom02b-overtime.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/sale-recovery-proposals-route.test.ts lib/services/__tests__/sale-recovery-apply.test.ts lib/services/__tests__/exception-service.test.ts tests/unit/faltantes-traceability.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts tests/integration/sale-recovery-e2e-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-17/NOM-02.c1-balance-status/README.md",
+          "head": "368264cd5b20c33e99b97ced902695413bbe28ce",
+          "environment": "Windows local (V1 con dbInstance simulado) + Neon aislado ep-cold-morning-bewqoz3o con pulso_app NOBYPASSRLS (V2 regresión de nómina)",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02c1-balance-status.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "EXC-01": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-16/EXC-01/README.md",
+          "head": "5f6a227b9b577a02e1613ac33540e9f9d520bfbb",
+          "environment": "Windows local; Neon aislado ep-cold-morning-bewqoz3o con pulso_app NOBYPASSRLS; PostgreSQL real sin mocks",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/exception-raise-atomic.test.ts lib/services/__tests__/exception-service.test.ts lib/services/__tests__/exception-adapters.test.ts lib/services/__tests__/group-exceptions-canonical.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/canonical-exception-persistence-db.test.ts tests/integration/exc01-exceptions-rls-migration-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/exception-service.ts lib/services/__tests__/exception-raise-atomic.test.ts lib/services/__tests__/exception-service.test.ts lib/services/__tests__/exception-adapters.test.ts lib/services/__tests__/group-exceptions-canonical.test.ts tests/integration/canonical-exception-persistence-db.test.ts tests/integration/exc01-exceptions-rls-migration-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "EXC-02": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-16/EXC-02/README.md",
+          "head": "754c7ea9e662c7d03c935af264fdf4d03aa18a24",
+          "environment": "Windows local; Neon aislado ep-cold-morning-bewqoz3o; PostgreSQL real; sesion mockeada solo en el caso V3 de ruta",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/exception-raise-atomic.test.ts lib/services/__tests__/exception-service.test.ts lib/services/__tests__/exception-adapters.test.ts lib/services/__tests__/group-exceptions-canonical.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/exc02-legacy-canonical-sync-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec tsc --noEmit (NODE_OPTIONS=--max-old-space-size=8192)",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/group-exceptions-service.ts lib/services/__tests__/group-exceptions-canonical.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2",
+            "V3"
+          ]
+        }
+      ]
+    },
+    "INV-01.c.recovery.ui-routes": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-16/CONSOLIDACION/README.md",
+          "head": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
+          "environment": "Windows local + diff; Neon aislado ep-cold-morning-bewqoz3o, runtime pulso_app NOBYPASSRLS para nómina/recovery; EXC sin nueva V2; TypeScript previo exit 0, comprobación final con validadores de producción bloqueada por 7 errores de base; ver consolidación",
+          "commands": [
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom01-contract.test.ts lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/payroll-nom02b-overtime.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/sale-recovery-proposals-route.test.ts lib/services/__tests__/sale-recovery-apply.test.ts lib/services/__tests__/exception-service.test.ts tests/unit/faltantes-traceability.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts tests/integration/sale-recovery-e2e-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.storage": {
+      "state": "V3",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-17/INV-01.b4.storage/README.md",
+          "head": "0dfd139d75a5870d7af3baad5423d218f54a093f",
+          "environment": "Windows local; unitarias con R2 y DB de la ruta simulados; sin Postgres real, sin R2 real, sin sesión",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/storage/__tests__/pos-upload.test.ts tests/unit/sales/pos-file-read.test.ts tests/unit/inventory/sales-entry-smart-link.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/storage/pos-upload.ts lib/storage/__tests__/pos-upload.test.ts app/api/workflows/smart-links/upload-pos/route.ts \"app/api/sales/cuts/[id]/pos-file/route.ts\" tests/unit/sales/pos-file-read.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-17/INV-01.b4.storage/README.md",
+          "head": "81ec4ddb97e6327b8c557c5ff9769d99a4b048af",
+          "environment": "Neon aislado (.env.test) con rollback + R2 real + sesión Better Auth por HTTP loopback; V3 HTTP acreditada, V3 navegador pendiente; rol dueño, no pulso_app",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=--use-system-ca pnpm exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/pos-storage-r2-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm exec eslint tests/integration/pos-storage-r2-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2",
+            "V3"
+          ]
+        }
+      ]
+    },
     "INV-01.b4.coverage": {
       "state": "en curso",
       "evidence": []
     },
     "INV-01.b4.coverage.cogs": {
-      "state": "V1",
+      "state": "V3",
       "evidence": [
         {
           "file": "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/README.md",
@@ -5150,16 +5405,174 @@
             "V1",
             "D"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/runtime.md",
+          "head": "0442fd8b5052f8d47cd922065552c265173678f2",
+          "environment": "Windows; Neon aislado con SET LOCAL ROLE pulso_app NOBYPASSRLS; grants 0154 solo rollback; frontera transaccional sustituida, SQL real; sin sesión real",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=\"--use-system-ca --max-old-space-size=4096\" pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/cogs-revenue-coverage.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--max-old-space-size=4096\" pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/sale-revenue-coverage.ts lib/services/inventory-reports-service.ts tests/integration/cogs-revenue-coverage-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --experimental-strip-types scripts/validate-faltantes.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/session-http.md",
+          "head": "1e8a2f394f6c382243c84651d8efb757c1aa9fbf",
+          "environment": "Windows; HTTP loopback real y Better Auth real sobre Neon aislado; Next headers/cookies y frontera DB suministrados por fixture rollback. Auth con rol dueño; RLS en suite runtime separada. Sin navegador ni servidor Next completo.",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/cogs-route-boundaries.test.ts lib/services/__tests__/cogs-revenue-coverage.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--use-system-ca --max-old-space-size=4096\" pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/cogs-session-db.test.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--use-system-ca --max-old-space-size=4096\" pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint app/api/inventory/reports/cogs/route.ts lib/services/__tests__/cogs-route-boundaries.test.ts lib/services/__tests__/cogs-revenue-coverage.test.ts tests/integration/cogs-session-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2",
+            "V3"
+          ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/next-browser.md",
+          "head": "1e8a2f394f6c382243c84651d8efb757c1aa9fbf",
+          "environment": "Windows; Next dev y Chromium headless; Better Auth, proxy y PostgreSQL reales sin mocks. Neon aislado con conexión dueña; fixtures sintéticos confirmados y eliminados. Sin DDL ni migración persistente.",
+          "commands": [
+            {
+              "command": "RUN_COGS_NEXT_BROWSER=1 NODE_OPTIONS=\"--use-system-ca --max-old-space-size=4096\" pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/cogs-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/cogs-route-boundaries.test.ts lib/services/__tests__/cogs-revenue-coverage.test.ts tests/unit/faltantes-traceability.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=\"--use-system-ca --max-old-space-size=4096\" pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/cogs-next-browser.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V3"
+          ]
         }
       ]
     },
     "INV-01.b4.coverage.executive": {
-      "state": "pendiente",
-      "evidence": []
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-17/INV-01.b4.coverage.executive/README.md",
+          "head": "0dfd139d75a5870d7af3baad5423d218f54a093f",
+          "environment": "Windows local; helpers puros y consolidación con KPIs sintéticos; sin Postgres real, sin sesión",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/executive-report-coverage.test.ts lib/services/__tests__/cogs-revenue-coverage.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint lib/services/executive-report-service.ts lib/services/intelligence-service.ts lib/services/intelligence/finance-engine.ts components/inventory/executive-dashboard.tsx lib/services/__tests__/executive-report-coverage.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
     },
     "INV-01.b4.coverage.menu": {
-      "state": "pendiente",
-      "evidence": []
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-17/INV-01.b4.coverage.menu/README.md",
+          "head": "0dfd139d75a5870d7af3baad5423d218f54a093f",
+          "environment": "Windows local; DB mockeada (recetas/ventas) y saleRevenueComplete sin ejecutarse contra Postgres; sin sesión",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/menu-engineering-coverage.test.ts lib/services/__tests__/executive-report-coverage.test.ts lib/services/__tests__/cogs-revenue-coverage.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint app/api/inventory/menu-engineering/route.ts components/inventory/menu-engineering-matrix.tsx tests/unit/inventory/menu-engineering-coverage.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1"
+          ]
+        }
+      ]
+    },
+    "EXC-01.rls": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-16/EXC-01.rls/README.md",
+          "head": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
+          "environment": "Windows local; Neon aislado ep-cold-morning-bewqoz3o con pulso_app NOBYPASSRLS (esquema privado y public)",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/exc01-exceptions-rls-migration-db.test.ts tests/integration/canonical-exception-persistence-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/exc01-exceptions-rls-migration-db.test.ts tests/integration/canonical-exception-persistence-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
     }
   }
 }

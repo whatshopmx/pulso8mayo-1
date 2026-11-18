@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useBranch } from "@/lib/branch-context";
 import { useFocusedRow } from "@/hooks/use-focused-row";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import {
   AGING_BUCKET_LABELS,
   type AccountsPayableResult,
@@ -192,7 +193,9 @@ function PayablesContent() {
         } else {
           // Una lista de deuda que no cargó no es una lista vacía. Presentarlas
           // igual haría creer que no se debe nada.
-          setError(json?.error || "El servidor no devolvió las cuentas por pagar.");
+          setError(
+            apiErrorMessage(json, "El servidor no devolvió las cuentas por pagar.")
+          );
           setData(null);
         }
       } catch (err) {

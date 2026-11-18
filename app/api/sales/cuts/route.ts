@@ -2,7 +2,7 @@ import { z } from "zod";
 import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
-import { assertBranchOfCompany } from "@/lib/branch-scope";
+import { assertBranchOfCompany, resolveBranchScope } from "@/lib/branch-scope";
 import { db } from "@/lib/db";
 import { dailySalesCuts, branches, users, salesCutCashiers } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
@@ -88,7 +88,15 @@ export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
   // `ApiError`, pero un `ZodError` caería a 500 y aquí ya devolvía 400.
   try {
     const { searchParams } = new URL(req.url);
-    const branchId = searchParams.get("branchId");
+    const requestedBranchId = z.string().uuid("La sucursal es inválida.").nullable().parse(searchParams.get("branchId"));
+    const branchScope = resolveBranchScope(auth.user.role, auth.user.branchId, requestedBranchId);
+    if (branchScope.kind === "NONE") {
+      throw ApiError.forbidden("No tienes una sucursal autorizada para consultar cortes.");
+    }
+    if (branchScope.kind === "BRANCH" && requestedBranchId && requestedBranchId !== branchScope.branchId) {
+      throw ApiError.forbidden("No puedes consultar cortes de otra sucursal.");
+    }
+    const branchId = branchScope.kind === "BRANCH" ? branchScope.branchId : null;
 
     // Sin fechas explícitas se acota al mes en curso en vez de barrer la
     // historia entera. El rango aplicado viaja en `scope` para que la página

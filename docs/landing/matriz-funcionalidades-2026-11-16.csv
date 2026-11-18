@@ -1,0 +1,100 @@
+id,dominio,capacidad,evidencia,estado,uso_en_landing,nota
+OPS-01,Operaciones,Centro de operaciones multi-sucursal,app/dashboard/page.tsx + live-command-service,Verificado,Si,Comando de Red
+OPS-02,Operaciones,Excepciones con ciclo de vida completo,app/api/exceptions/[id]/* + exception-service,Verificado,Si,Asignar/escalar/resolver/verificar
+OPS-03,Operaciones,Incidentes y remediacion,app/dashboard/incidents + incident-engine,Verificado,Si,Con evidencia
+OPS-04,Operaciones,Sucursales y comparativa de grupo,app/dashboard/branches + cross-branch-service,Verificado,Si,Incluye benchmarking
+OPS-05,Operaciones,Tareas personales,app/dashboard/my-tasks,Verificado,No,—
+WF-01,Workflows,Constructor de workflows,app/dashboard/builder,Verificado,Si,—
+WF-02,Workflows,Ejecucion paso a paso,app/dashboard/workflows + workflow-executor,Verificado,Si,—
+WF-03,Workflows,Plantillas HORECA,templates/** (31 JSON),Verificado,Si,Catalogo documentado dice 19: desactualizado
+WF-04,Workflows,Verificacion de evidencia con IA,/api/ai/verify + ai-service,Verificado,Si,Moondream/OpenAI/Cloudflare
+WF-05,Workflows,Smart links publicos,app/workflow/public/[token],Verificado,Si,Ejecucion sin cuenta
+WF-06,Workflows,Revision y aprobacion,app/dashboard/workflows/review/[id],Verificado,Si,—
+WF-07,Workflows,Evidencia fotografica y OCR,evidence-store + evidence-processor,Verificado,Si,—
+WF-08,Workflows,Escalamiento por niveles,templates + notification-dispatcher,Verificado,Si,—
+INV-01,Inventario,Catalogo y productos,app/dashboard/inventory/products,Verificado,Si,—
+INV-02,Inventario,Lotes y FEFO,app/dashboard/inventory/lotes + fefo-allocator,Verificado,Si,—
+INV-03,Inventario,Vencimientos,app/dashboard/inventory/expirations,Verificado,Si,—
+INV-04,Inventario,Mermas,app/dashboard/inventory/waste,Verificado,Si,—
+INV-05,Inventario,Conteo de inventario,app/dashboard/inventory/stock-count,Verificado,Si,—
+INV-06,Inventario,Transferencias,app/dashboard/inventory/transfers,Verificado,Si,—
+INV-07,Inventario,Produccion,app/dashboard/inventory/production,Verificado,Si,—
+INV-08,Inventario,Costeo y recetas,app/dashboard/inventory/costing + recipes,Verificado,Si,—
+INV-09,Inventario,Ingenieria de menu,app/dashboard/inventory/menu-engineering,Verificado,Si,—
+INV-10,Inventario,Alertas de stock,app/dashboard/inventory/alerts + stock-alert-service,Verificado,Si,—
+COM-01,Compras,Ordenes de compra con estados,purchase-order-service + app/dashboard/inventory/purchase-orders,Verificado,Si,DRAFT a CLOSED
+COM-02,Compras,Aprobacion por matriz de montos,approval-matrix-service,Verificado,Si,—
+COM-03,Compras,Ordenes sugeridas,app/dashboard/inventory/suggested-orders,Verificado,Si,—
+COM-04,Compras,Recepcion con temperatura,receiving-service + receiving-temperature,Verificado,Si,—
+COM-05,Compras,Proveedores,app/dashboard/inventory/suppliers,Verificado,Si,—
+COM-06,Compras,Facturas XML,app/dashboard/inventory/invoices + cfdi-parser,Verificado,Si,—
+COM-07,Compras,Reclamos,app/dashboard/inventory/claims,Verificado,Si,—
+FIN-01,Finanzas,Gastos operativos de punta a punta,expense-service + /api/expenses/*,Verificado,Si,Alta/aprobacion/pago/evidencia
+FIN-02,Finanzas,Presupuestos con comprometido,budget-service + app/dashboard/budgets,Verificado,Si,Incluye tope de emergencia
+FIN-03,Finanzas,Consumo de presupuesto,/api/expenses/budget-consumption,Verificado,Si,—
+FIN-04,Finanzas,Cuentas por pagar,app/dashboard/finance/payables + accounts-payable-service,Verificado,Si,—
+FIN-05,Finanzas,Tesoreria y corridas de pago,treasury-service + payment-run-settlement,Verificado,Si,—
+FIN-06,Finanzas,Caja chica,app/dashboard/finance/petty-cash,Verificado,Si,—
+FIN-07,Finanzas,Flujo de efectivo proyectado,cash-flow-service,Verificado,Si,—
+FIN-08,Finanzas,Conciliacion bancaria,bank-statement-service,Verificado,Si,—
+FIN-09,Finanzas,P&L por sucursal con procedencia,pnl-service + app/dashboard/finance/results,Verificado,Si,—
+FIN-10,Finanzas,Polizas y journals,app/dashboard/finance/control-interno/polizas + /api/finance/accounting/*,Verificado,Si,—
+FIN-11,Finanzas,Costo laboral por sucursal,labor-cost-service,Verificado,Si,—
+FIN-12,Finanzas,Comisiones por canal,commission-service,Verificado,Si,—
+FIN-13,Finanzas,CFDI validacion y timbrado,fiscal-service (FiscalAPI v4),Verificado con matiz,Si,Modo prueba por defecto
+FIN-14,Finanzas,Cortes de venta e ingesta POS,sales-ingestion-service + gateway-report-service,Verificado,Si,—
+FIN-15,Finanzas,Cuentas por cobrar,app/dashboard/finance/cash-flow,Verificado con matiz,Si,Verificar alcance antes de copy especifico
+CMP-01,Cumplimiento,NOM-251 con reporte PDF,ComplianceReportService,Verificado,Si,Documenta; no certifica
+CMP-02,Cumplimiento,NOM-035 con plan de accion,/api/compliance/nom-035/action-plan,Verificado,Si,—
+CMP-03,Cumplimiento,IMSS altas/bajas/SUA,app/dashboard/compliance/imss/*,Verificado,Si,—
+CMP-04,Cumplimiento,SAT validacion,app/dashboard/compliance/sat/*,Verificado,Si,Via FiscalAPI
+CMP-05,Cumplimiento,Expediente de empleado,app/dashboard/compliance/expediente,Verificado,Si,—
+CMP-06,Cumplimiento,Proteccion civil,civil-protection-service,Verificado,Si,Extintores/simulacros/salidas
+CMP-07,Cumplimiento,Auditoria interna,app/dashboard/audit,Verificado,Si,—
+CMP-08,Cumplimiento,Breaks y descansos,break-management-service,Verificado,Si,—
+HR-01,Personal,Directorio de empleados,app/dashboard/employees,Verificado,Si,—
+HR-02,Personal,Asistencia con geolocalizacion,app/dashboard/labor/attendance + CLOCK_IN,Verificado,Si,—
+HR-03,Personal,Turnos y constructor de horarios,app/dashboard/labor/shifts + schedule-builder,Verificado,Si,—
+HR-04,Personal,Cambios de turno,shift-approval-service,Verificado,Si,—
+HR-05,Personal,Horas extra,app/dashboard/labor/overtime,Verificado,Si,—
+HR-06,Personal,Vacaciones y permisos,app/dashboard/labor/vacations + leave,Verificado,Si,—
+HR-07,Personal,Propinas,propinas-distribution,Verificado,Si,—
+HR-08,Personal,Nomina LFT,payroll-service + compliance/payroll,Verificado,Si,—
+HR-09,Personal,Finiquitos y aguinaldo,severance-minimum-wage + aguinaldo-*,Verificado,Si,—
+HR-10,Personal,Desempeno y objetivos,app/dashboard/performance/*,Verificado,Si,—
+INT-01,Inteligencia,Cockpit ejecutivo,app/dashboard/executive + executive-twin-engine,Verificado,Si,Cockpit/economics/liquidity
+INT-02,Inteligencia,Unit economics y prime cost,/dashboard/executive?view=economics,Verificado,Si,—
+INT-03,Inteligencia,Liquidez 14 dias,/dashboard/executive?view=liquidity,Verificado,Si,—
+INT-04,Inteligencia,Benchmarking entre sucursales,CrossBranchService.getBenchmarking,Verificado,Si,—
+INT-05,Inteligencia,Morning brief,morning-brief-service,Verificado,Si,—
+INT-06,Inteligencia,Alertas avanzadas,advanced-alert-service + cron-advanced-alerts,Verificado,Si,—
+INT-07,Inteligencia,Reportes programados,cron-scheduled-reports + reportTemplates,Verificado,Si,—
+INT-08,Inteligencia,Reportes personalizados,app/dashboard/reports/custom,Verificado,Si,—
+INT-09,Inteligencia,Hub de analitica dedicado,next.config.ts redirects,No implementado,No,/analytics redirige a /branches
+INT-10,Inteligencia,Simulador de expansion,expansionReadiness en executive-twin-engine,Parcial,Con matiz,Es indice; no simulador
+WA-01,WhatsApp,Check-in y check-out,message-router CLOCK_IN/OUT,Verificado con matiz,Si,Requiere token configurado
+WA-02,WhatsApp,Breaks,message-router BREAK_START/END,Verificado con matiz,Si,—
+WA-03,WhatsApp,Listado de tareas,message-router TASKS,Verificado con matiz,Si,—
+WA-04,WhatsApp,Ejecucion de workflows,workflow-conversation-handler,Verificado con matiz,Si,—
+WA-05,WhatsApp,Evidencia fotografica,evidence-processor,Verificado con matiz,Si,—
+WA-06,WhatsApp,Notificaciones y recordatorios,notification-dispatcher + whapi-client,Verificado con matiz,Si,Requiere WHAPI_API_TOKEN
+WA-07,WhatsApp,Registro de gastos o comprobantes,sin comando ni handler,No implementado,No,No prometer
+PLT-01,Plataforma,Multi-tenant y 6 roles,proxy.ts + lib/rbac/*,Verificado,Si,—
+PLT-02,Plataforma,Tiers Foundation/Growth/Executive,subscription_tiers + tier-service,Verificado con matiz,Si,Precio 0 en catalogo
+PLT-03,Plataforma,Cobro y checkout,billing-service, Mock,No,subscribe es mock
+PLT-04,Plataforma,Integracion ERP,feature-slug erp_integrations,No implementado,No,Sin conector
+PLT-05,Plataforma,API publica con llaves,sin emision de API keys,No implementado,No,Solo sesion por cookie
+PLT-06,Plataforma,PWA instalable,public/manifest.json + iconos,Verificado,No,—
+PLT-07,Plataforma,Tema claro/oscuro,ThemeProvider + tokens,Verificado,No,—
+MKT-01,Marketing,Captacion de leads,sin tabla/endpoint/formulario,No implementado,No,Fase 3
+MKT-02,Marketing,Analitica de marketing,sin proveedor instalado,No implementado,No,Fase 3/7
+MKT-03,Marketing,Analitica de conversion,sin eventos,No implementado,No,Fase 3
+MKT-04,Marketing,Paginas secundarias,sin rutas comerciales,No implementado,No,Fase 6
+MKT-05,Marketing,Demo publica,sin ruta publica,No implementado,No,Fase 4
+MKT-06,Marketing,Calculadora de visibilidad,sin pagina,No implementado,No,Fase 5
+MKT-07,Marketing,Sitemap y robots,sin app/sitemap.ts ni app/robots.ts,No implementado,No,Fase 7
+MKT-08,Marketing,Imagen Open Graph,sin opengraph-image,No implementado,No,Fase 7
+MKT-09,Marketing,Logotipo vectorial,solo PNG de icono,No implementado,No,Bloqueo de marca
+MKT-10,Marketing,Aviso de privacidad,sin pagina,No implementado,No,Requerido para formulario
+MKT-11,Marketing,Correo transaccional,RESEND_KEY vs RESEND_API_KEY,No implementado,No,Desajuste de variable
+MKT-12,Marketing,Metadata del landing,app/page.tsx sin metadata propia,No implementado,No,Hereda la raiz

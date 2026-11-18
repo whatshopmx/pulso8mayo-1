@@ -17,7 +17,9 @@ import type {
   ExceptionStatus,
   QsrRiskCategory,
 } from "./exception-types";
+import type { DbExecutor } from "./fefo-allocator";
 
+export type { DbExecutor };
 export type ExceptionRow = typeof exceptions.$inferSelect;
 
 export interface RaiseExceptionInput {
@@ -71,20 +73,24 @@ async function writeAudit(params: {
   before?: unknown;
   after?: unknown;
   reason?: string | null;
+  executor?: DbExecutor;
 }) {
   // Los adaptadores no tienen actor humano: la fila de dominio origen ya tiene
   // su propia auditoría. Solo se registra la mutación humana.
   if (!params.actorId) return;
-  await AuditService.logEmployeeAction({
-    userId: params.actorId,
-    performedBy: params.actorId,
-    action: params.action,
-    entityType: "EXCEPTION",
-    entityId: params.row.id,
-    oldValue: params.before ?? null,
-    newValue: params.after ?? null,
-    reason: params.reason ?? undefined,
-  });
+  await AuditService.logEmployeeAction(
+    {
+      userId: params.actorId,
+      performedBy: params.actorId,
+      action: params.action,
+      entityType: "EXCEPTION",
+      entityId: params.row.id,
+      oldValue: params.before ?? null,
+      newValue: params.after ?? null,
+      reason: params.reason ?? undefined,
+    },
+    params.executor,
+  );
 }
 
 function emitRaised(row: ExceptionRow) {
@@ -129,9 +135,10 @@ function emitClosed(row: ExceptionRow) {
 async function resolveDefaultOwner(
   companyId: string,
   branchId: string | null | undefined,
+  executor: DbExecutor = db,
 ): Promise<string | null> {
   if (!branchId) return null;
-  const [branch] = await db
+  const [branch] = await executor
     .select({ managerId: branches.managerId })
     .from(branches)
     .where(and(eq(branches.id, branchId), eq(branches.companyId, companyId)))
@@ -139,7 +146,7 @@ async function resolveDefaultOwner(
   const managerId = branch?.managerId;
   if (!managerId) return null;
 
-  const [manager] = await db
+  const [manager] = await executor
     .select({ id: users.id })
     .from(users)
     .where(
@@ -153,8 +160,12 @@ async function resolveDefaultOwner(
   return manager?.id ?? null;
 }
 
-async function loadScoped(id: string, companyId: string): Promise<ExceptionRow> {
-  const [row] = await db
+async function loadScoped(
+  id: string,
+  companyId: string,
+  executor: DbExecutor = db,
+): Promise<ExceptionRow> {
+  const [row] = await executor
     .select()
     .from(exceptions)
     .where(and(eq(exceptions.id, id), eq(exceptions.companyId, companyId)))
@@ -177,39 +188,67 @@ async function applyEvent(params: {
   actorId: string | null;
   patch: Partial<typeof exceptions.$inferInsert>;
   auditReason?: string | null;
+  executor?: DbExecutor;
 }): Promise<ExceptionRow> {
-  const row = await loadScoped(params.id, params.companyId);
+  const runMutation = async (exec: DbExecutor) => {
+    const row = await loadScoped(params.id, params.companyId, exec);
 
-  const result = transition(row.status, params.event, {
-    actorId: params.actorId ?? undefined,
-    ownerId: (params.patch.ownerId as string | undefined) ?? undefined,
-    resolution: (params.patch.resolution as string | undefined) ?? undefined,
-    resolvedBy: row.resolvedBy ?? undefined,
-    reason: params.auditReason ?? undefined,
-  });
+    const result = transition(row.status, params.event, {
+      actorId: params.actorId ?? undefined,
+      ownerId: (params.patch.ownerId as string | undefined) ?? undefined,
+      resolution: (params.patch.resolution as string | undefined) ?? undefined,
+      resolvedBy: row.resolvedBy ?? undefined,
+      reason: params.auditReason ?? undefined,
+    });
 
-  if (!result.ok) {
-    throw ApiError.conflict(result.reason ?? "Transición ilegal");
+    if (!result.ok) {
+      throw ApiError.conflict(result.reason ?? "Transición ilegal");
+    }
+
+    const [updated] = await exec
+      .update(exceptions)
+      .set({ ...params.patch, status: result.to ?? row.status, updatedAt: new Date() })
+      .where(and(eq(exceptions.id, row.id), eq(exceptions.companyId, params.companyId)))
+      .returning();
+
+    const fallbackReasons: Record<ExceptionEvent, string> = {
+      ASSIGN: `Asignación de excepción a ${params.patch.ownerId ?? "responsable"}`,
+      START_ACTION: "Inicio de atención y plan de acción de excepción",
+      RESOLVE:
+        typeof params.patch.resolution === "string" && params.patch.resolution.trim().length >= 4
+          ? params.patch.resolution.trim()
+          : "Resolución documentada de excepción",
+      VERIFY: `Verificación técnica de excepción por ${params.actorId ?? "auditor"}`,
+      CLOSE: "Cierre definitivo de excepción",
+      REOPEN: "Reapertura de excepción por reincidencia o nueva evidencia",
+      ESCALATE: "Escalamiento jerárquico de excepción",
+      CANCEL: "Cancelación administrativa de excepción",
+    };
+
+    const auditReason =
+      params.auditReason && params.auditReason.trim().length >= 4
+        ? params.auditReason.trim()
+        : fallbackReasons[params.event];
+
+    await writeAudit({
+      row: updated,
+      action: "UPDATE",
+      actorId: params.actorId,
+      before: snapshot(row, ["status", "ownerId", "resolution", "resolvedBy"]),
+      after: snapshot(updated, ["status", "ownerId", "resolution", "resolvedBy"]),
+      reason: auditReason,
+      executor: exec,
+    });
+
+    if (result.to === "CLOSED") emitClosed(updated);
+
+    return updated;
+  };
+
+  if ((!params.executor || params.executor === db) && typeof (db as any).transaction === "function") {
+    return db.transaction(async (tx) => runMutation(tx));
   }
-
-  const [updated] = await db
-    .update(exceptions)
-    .set({ ...params.patch, status: result.to ?? row.status, updatedAt: new Date() })
-    .where(and(eq(exceptions.id, row.id), eq(exceptions.companyId, params.companyId)))
-    .returning();
-
-  await writeAudit({
-    row: updated,
-    action: "UPDATE",
-    actorId: params.actorId,
-    before: snapshot(row, ["status", "ownerId", "resolution", "resolvedBy"]),
-    after: snapshot(updated, ["status", "ownerId", "resolution", "resolvedBy"]),
-    reason: params.auditReason ?? null,
-  });
-
-  if (result.to === "CLOSED") emitClosed(updated);
-
-  return updated;
+  return runMutation(params.executor ?? db);
 }
 
 export const ExceptionService = {
@@ -217,16 +256,27 @@ export const ExceptionService = {
    * Upsert idempotente por `(companyId, subjectType, subjectId)`. Reejecutar un
    * adaptador actualiza severidad/razón sin duplicar ni reiniciar el lifecycle.
    */
-  async raise(input: RaiseExceptionInput): Promise<ExceptionRow> {
+  async raise(
+    input: RaiseExceptionInput,
+    executor: DbExecutor = db,
+  ): Promise<ExceptionRow> {
     if (!input.reason?.trim()) {
       throw ApiError.badRequest("La excepción requiere una razón.");
     }
 
+    // El alta humana y su auditoría deben confirmar o revertir juntas,
+    // igual que las transiciones del lifecycle. Un executor recibido ya
+    // pertenece a la transacción del llamador y se conserva.
+    if (input.actorId && executor === db && typeof db.transaction === "function") {
+      return db.transaction(tx => ExceptionService.raise(input, tx));
+    }
+
     const ownerId =
-      input.ownerId ?? (await resolveDefaultOwner(input.companyId, input.branchId));
+      input.ownerId ??
+      (await resolveDefaultOwner(input.companyId, input.branchId, executor));
     const slaDueAt = computeSlaDueAt(input.severity);
 
-    const [row] = await db
+    const [row] = await executor
       .insert(exceptions)
       .values({
         companyId: input.companyId,
@@ -267,8 +317,15 @@ export const ExceptionService = {
         row,
         action: "CREATE",
         actorId: input.actorId,
-        after: snapshot(row, ["status", "severity", "domain", "subjectType", "subjectId"]),
+        after: snapshot(row, [
+          "status",
+          "severity",
+          "domain",
+          "subjectType",
+          "subjectId",
+        ]),
         reason: input.reason,
+        executor,
       });
       emitRaised(row);
     }
@@ -276,8 +333,12 @@ export const ExceptionService = {
     return row;
   },
 
-  async getById(id: string, companyId: string): Promise<ExceptionRow> {
-    return loadScoped(id, companyId);
+  async getById(
+    id: string,
+    companyId: string,
+    executor: DbExecutor = db,
+  ): Promise<ExceptionRow> {
+    return loadScoped(id, companyId, executor);
   },
 
   /** Fila canónica por clave de idempotencia; `null` si no existe. */
@@ -285,8 +346,9 @@ export const ExceptionService = {
     companyId: string,
     subjectType: string,
     subjectId: string,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow | null> {
-    const [row] = await db
+    const [row] = await executor
       .select()
       .from(exceptions)
       .where(
@@ -303,6 +365,7 @@ export const ExceptionService = {
   async list(
     companyId: string,
     opts: ListExceptionsOptions = {},
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow[]> {
     const statuses = opts.status
       ? Array.isArray(opts.status)
@@ -310,7 +373,7 @@ export const ExceptionService = {
         : [opts.status]
       : undefined;
 
-    return db
+    return executor
       .select()
       .from(exceptions)
       .where(
@@ -336,8 +399,9 @@ export const ExceptionService = {
   async listOpen(
     companyId: string,
     opts: { branchId?: string | null; limit?: number } = {},
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow[]> {
-    return db
+    return executor
       .select()
       .from(exceptions)
       .where(
@@ -356,6 +420,7 @@ export const ExceptionService = {
     companyId: string,
     ownerId: string,
     actorId: string | null,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -363,6 +428,7 @@ export const ExceptionService = {
       actorId,
       event: "ASSIGN",
       patch: { ownerId },
+      executor,
     });
   },
 
@@ -370,8 +436,16 @@ export const ExceptionService = {
     id: string,
     companyId: string,
     actorId: string | null,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
-    return applyEvent({ id, companyId, actorId, event: "START_ACTION", patch: {} });
+    return applyEvent({
+      id,
+      companyId,
+      actorId,
+      event: "START_ACTION",
+      patch: {},
+      executor,
+    });
   },
 
   async resolve(
@@ -379,6 +453,7 @@ export const ExceptionService = {
     companyId: string,
     actorId: string | null,
     resolution: string,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -390,6 +465,7 @@ export const ExceptionService = {
         resolvedBy: actorId,
         resolvedAt: new Date(),
       },
+      executor,
     });
   },
 
@@ -397,6 +473,7 @@ export const ExceptionService = {
     id: string,
     companyId: string,
     actorId: string,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -404,6 +481,7 @@ export const ExceptionService = {
       actorId,
       event: "VERIFY",
       patch: { verifiedBy: actorId, verifiedAt: new Date() },
+      executor,
     });
   },
 
@@ -411,6 +489,7 @@ export const ExceptionService = {
     id: string,
     companyId: string,
     actorId: string | null,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -418,6 +497,7 @@ export const ExceptionService = {
       actorId,
       event: "CLOSE",
       patch: { closedAt: new Date() },
+      executor,
     });
   },
 
@@ -426,16 +506,25 @@ export const ExceptionService = {
     companyId: string,
     actorId: string | null,
     reason: string,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
-    const row = await loadScoped(id, companyId);
-    return applyEvent({
-      id,
-      companyId,
-      actorId,
-      event: "REOPEN",
-      patch: { reopenedFromId: row.reopenedFromId ?? row.id },
-      auditReason: reason,
-    });
+    const run = async (exec: DbExecutor) => {
+      const row = await loadScoped(id, companyId, exec);
+      return applyEvent({
+        id,
+        companyId,
+        actorId,
+        event: "REOPEN",
+        patch: { reopenedFromId: row.reopenedFromId ?? row.id },
+        auditReason: reason,
+        executor: exec,
+      });
+    };
+
+    if ((!executor || executor === db) && typeof (db as any).transaction === "function") {
+      return db.transaction(async (tx) => run(tx));
+    }
+    return run(executor);
   },
 
   async escalate(
@@ -443,19 +532,28 @@ export const ExceptionService = {
     companyId: string,
     actorId: string | null,
     reason?: string,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
-    const row = await loadScoped(id, companyId);
-    // Al escalar se recalcula el SLA si aún no había uno.
-    return applyEvent({
-      id,
-      companyId,
-      actorId,
-      event: "ESCALATE",
-      patch: row.slaDueAt
-        ? {}
-        : { slaDueAt: computeSlaDueAt(row.severity) },
-      auditReason: reason,
-    });
+    const run = async (exec: DbExecutor) => {
+      const row = await loadScoped(id, companyId, exec);
+      // Al escalar se recalcula el SLA si aún no había uno.
+      return applyEvent({
+        id,
+        companyId,
+        actorId,
+        event: "ESCALATE",
+        patch: row.slaDueAt
+          ? {}
+          : { slaDueAt: computeSlaDueAt(row.severity) },
+        auditReason: reason,
+        executor: exec,
+      });
+    };
+
+    if ((!executor || executor === db) && typeof (db as any).transaction === "function") {
+      return db.transaction(async (tx) => run(tx));
+    }
+    return run(executor);
   },
 
   async cancel(
@@ -463,6 +561,7 @@ export const ExceptionService = {
     companyId: string,
     actorId: string | null,
     reason?: string,
+    executor: DbExecutor = db,
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -471,6 +570,7 @@ export const ExceptionService = {
       event: "CANCEL",
       patch: {},
       auditReason: reason,
+      executor,
     });
   },
 };

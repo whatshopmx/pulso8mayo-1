@@ -1,6 +1,6 @@
 # COGS — lector runtime y consulta integrada
 
-Continuación del 2026-11-16 sobre HEAD `0442fd8b5052f8d47cd922065552c265173678f2` más cambios locales. **Código corregido y V2 transaccional comprobada; sin aceptación integrada**. Se conserva la evidencia V1 anterior, sin atribuirle pruebas de sesión real.
+Continuación del 2026-11-16 sobre HEAD `0442fd8b5052f8d47cd922065552c265173678f2` más cambios locales. **Código corregido y V2 transaccional comprobada; sin aceptación integrada**. Se conserva la evidencia V1 anterior, sin atribuirle pruebas de sesión real. La [continuación posterior HTTP/sesión](session-http.md) verifica ese recorrido acotado y actualiza sus límites; este registro describe el incremento runtime anterior.
 
 ## Alcance fijado
 

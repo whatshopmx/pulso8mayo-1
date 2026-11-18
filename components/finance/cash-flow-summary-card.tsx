@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import type { CashFlowDay, CashFlowProjection } from "@/components/finance/cash-flow-calendar";
 import type { DateRange } from "@/components/finance/period-selector";
 import { ArrowRight, Calendar, Clock, Loader2, RefreshCw, TrendingDown } from "lucide-react";
@@ -80,7 +81,12 @@ export function CashFlowSummaryCard({ branchId, dateRange: _dateRange }: { branc
       if (res.ok && json.success) {
         setSummary(toSummary(json.data));
       } else {
-        setError(json?.error || "No se pudo calcular la proyección de tesorería.");
+        // `ApiHandler.error` responde `{ error: { message, details } }`: guardar
+        // el objeto completo en el estado lo hacía llegar a un nodo de React y
+        // tronaba con "Objects are not valid as a React child".
+        setError(
+          apiErrorMessage(json, "No se pudo calcular la proyección de tesorería."),
+        );
         setSummary(null);
       }
     } catch (err) {

@@ -13,7 +13,9 @@ import {
   validatePayrollPeriod, 
   resolveContractSalaryForPeriod,
   resolveOvertimeForPeriod,
-  type OvertimeBreakdown 
+  resolveVacationsForPeriod,
+  type OvertimeBreakdown,
+  type VacationPeriodBreakdown,
 } from '@/lib/services/payroll-service';
 import { diaCivilEnZona } from '@/lib/services/aguinaldo-days-adapter';
 
@@ -38,6 +40,9 @@ export interface PayrollEmployeeRecord {
   overtimePay?: number;
   overtimePayCents?: number;
   overtimeBreakdown?: OvertimeBreakdown;
+  vacationPrimePay?: number;
+  vacationPrimePayCents?: number;
+  vacationBreakdown?: VacationPeriodBreakdown;
   lateMinutes: number;
   vacationDays: number;
   sickDays: number;
@@ -224,6 +229,18 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
     const overtimePayCents = overtimeBreakdown.totalPayCents;
     const overtimePay = Math.round(overtimePayCents) / 100;
 
+    const vacationBreakdown = await resolveVacationsForPeriod({
+      userId: emp.userId,
+      companyId,
+      startDate,
+      endDate,
+      dailySalaryCents,
+      timezone,
+    });
+    const vacationPrimePayCents = vacationBreakdown.vacationPrimeCents;
+    const vacationPrimePay = Math.round(vacationPrimePayCents) / 100;
+    const resolvedVacationDays = vacationBreakdown.vacationDaysTaken;
+
     records.push({
       employeeNumber: emp.employeeNumber || '',
       name: emp.name || '',
@@ -245,8 +262,11 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
       overtimePay,
       overtimePayCents,
       overtimeBreakdown,
+      vacationPrimePay,
+      vacationPrimePayCents,
+      vacationBreakdown,
       lateMinutes: totalLateMinutes,
-      vacationDays,
+      vacationDays: resolvedVacationDays,
       sickDays,
       otherLeaveDays,
       totalDeductions: 0, // Placeholder for ISR, IMSS, etc.
@@ -271,7 +291,7 @@ export function payrollToCSV(records: PayrollEmployeeRecord[], format: 'generic'
     'Departamento', 'Puesto', 'Salario_Diario', 'Salario_Semanal', 'Salario_Mensual',
     'Banco', 'CLABE', 'Metodo_Pago',
     'Dias_Trabajados', 'Horas_Regulares', 'Horas_Extra', 'Min_Retardo',
-    'Dias_Vacaciones', 'Dias_Incapacidad', 'Otros_Permisos',
+    'Dias_Vacaciones', 'Prima_Vacacional', 'Dias_Incapacidad', 'Otros_Permisos',
     'Dias_Netos_Trabajo'
   ];
 
@@ -280,7 +300,7 @@ export function payrollToCSV(records: PayrollEmployeeRecord[], format: 'generic'
     r.department, r.position, r.baseSalaryDaily, r.baseSalaryWeekly, r.baseSalaryMonthly,
     r.bankName, r.clabe, r.paymentMethod,
     r.daysWorked, r.regularHours, r.overtimeHours, r.lateMinutes,
-    r.vacationDays, r.sickDays, r.otherLeaveDays,
+    r.vacationDays, (r.vacationPrimePay ?? 0).toFixed(2), r.sickDays, r.otherLeaveDays,
     r.netWorkDays,
   ].map(v => `"${v}"`).join(','));
 

@@ -15,6 +15,7 @@ import { account, users, sessions, companies, branches, dailySalesCuts, dataAcce
 config({ path: ".env" });
 const enabled = process.env.RUN_POS_NEXT_BROWSER === "1";
 const companyId = randomUUID(), branchId = randomUUID(), actorId = randomUUID(), cutId = randomUUID();
+const otherCutId = randomUUID(), cutIds = [cutId, otherCutId];
 const foreignCompanyId = randomUUID(), foreignBranchId = randomUUID(), otherBranchId = randomUUID();
 const peers = [
   { id: randomUUID(), role: "ADMIN" as const, companyId: foreignCompanyId, branchId: foreignBranchId, status: 404 },
@@ -63,6 +64,8 @@ beforeAll(async () => {
       providerId: "credential", password: hash, createdAt: now, updatedAt: now })));
     await tx.insert(dailySalesCuts).values({ id: cutId, companyId, branchId, businessDate: day,
       shift: "COMPLETO", channel: "TOTAL", totalSales: 10000, source: "MANUAL_FORM", status: "VALIDATED" });
+    await tx.insert(dailySalesCuts).values({ id: otherCutId, companyId, branchId: otherBranchId, businessDate: day,
+      shift: "COMPLETO", channel: "TOTAL", totalSales: 20000, source: "MANUAL_FORM", status: "VALIDATED" });
   });
   seeded = true;
   log = openSync(".tmp/pos-next-browser-server.log", "w");
@@ -103,7 +106,7 @@ afterAll(async () => {
         await tx.delete(dataAccessLogs).where(inArray(dataAccessLogs.companyId, companyIds));
         await tx.delete(sessions).where(inArray(sessions.userId, actorIds));
         await tx.delete(account).where(inArray(account.userId, actorIds));
-        await tx.delete(dailySalesCuts).where(eq(dailySalesCuts.id, cutId));
+        await tx.delete(dailySalesCuts).where(inArray(dailySalesCuts.id, cutIds));
         await tx.delete(users).where(inArray(users.id, actorIds));
         await tx.delete(branches).where(inArray(branches.id, branchIds));
         await tx.delete(companies).where(inArray(companies.id, companyIds));
@@ -207,3 +210,34 @@ it.skipIf(!enabled)("Next + sesión + R2: sube POS, descarga desde el detalle y 
     throw error;
   } finally { await context.close(); }
 }, 120000);
+
+it.skipIf(!enabled)("listado de cortes respeta empresa y sucursal con sesiones reales", async () => {
+  const range = `startDate=${day}&endDate=${day}`;
+  for (const peer of [{ id: actorId, role: "ADMIN" as const }, ...peers]) {
+    const session = await browser!.newContext({ baseURL });
+    try {
+      const login = await session.request.post("/api/auth/sign-in/email", { headers: { origin: baseURL },
+        data: { email: `${peer.id}@example.invalid`, password } });
+      expect(login.status()).toBe(200);
+      const list = await session.request.get(`/api/sales/cuts?${range}`);
+      if (peer.role === "EMPLEADO") {
+        expect(list.status()).toBe(403);
+      } else {
+        expect(list.status()).toBe(200);
+        const listed = (await list.json()).data;
+        const expected = peer.id === actorId ? cutIds : peer.role === "GERENTE" ? [otherCutId] : [];
+        expect(listed.items.map((cut: { id: string }) => cut.id).sort()).toEqual([...expected].sort());
+        expect(listed.total).toBe(expected.length);
+        expect(listed.scope.branchId).toBe(peer.role === "GERENTE" ? otherBranchId : null);
+        if (peer.role === "GERENTE") {
+          expect((await session.request.get(`/api/sales/cuts?${range}&branchId=${branchId}`)).status()).toBe(403);
+          const own = await session.request.get(`/api/sales/cuts?${range}&branchId=${otherBranchId}`);
+          expect(own.status()).toBe(200);
+          const ownList = (await own.json()).data;
+          expect(ownList).toMatchObject({ total: 1, scope: { branchId: otherBranchId } });
+          expect(ownList.items.map((cut: { id: string }) => cut.id)).toEqual([otherCutId]);
+        }
+      }
+    } finally { await session.close(); }
+  }
+}, 60000);

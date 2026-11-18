@@ -24,6 +24,23 @@ La primera ejecución con conexión TLS funcional reprodujo dos fallos nuevos `4
 - Validador final `pnpm.cmd exec tsx scripts/validate-faltantes.ts`: 239 filas, 86 entradas base, 73 hijos, 12 aceptaciones previas, cero errores, exit 0. El primer intento detectó la dependencia heredada INV-01.a ausente del hijo nuevo; se corrigió antes del resultado final.
 - Revisión del diff: SQL parametrizado, sin dependencias añadidas, mismo writer/savepoint para venta y stock, sin cambios de contratos contables. `git diff --check`: exit 0. Apareció `.claude/settings.local.json` durante la ejecución; no forma parte de este incremento y no se modifica.
 
+## Continuación 2026-11-17 — V2 reejecutada sobre el branch aislado
+
+HEAD `69b044cd6cc330ebfc03f533d068e18df85ba23f` (los commits `368264c`/`69b044c` de otra sesión entraron durante la ejecución; el árbol probado es el vigente). Entorno: rama Neon aislada `ep-cold-morning-bewqoz3o` (`neondb`), rol `pulso_app` con `rolbypassrls=false` y sin membresías. No se aplicó DDL en esta sesión: al abrir la transacción autorizada para `0137/0138/0139/0141/0154` los objetos ya existían (otra sesión los había instalado), así que se hizo **rollback** sin cambios.
+
+**Deriva de privilegios detectada y corregida (solo `recipes`).** El primer intento dio **16/17**: el caso «permiso de nombre mantiene RLS sin contexto y entre empresas» esperaba `42501` al hacer `UPDATE recipes` como `pulso_app` y no hubo error. La causa era deriva del entorno: `pulso_app` tenía `SELECT/INSERT/UPDATE/DELETE` **a nivel de tabla** en `public.recipes`, privilegio que ninguna migración concede (0137/0138/0141 solo otorgan columnas). Se revocaron esos grants y se reaplicaron exactamente los de `0137` (`id, company_id`), `0138` (`id, company_id, base_yield, unit`) y `0141` (`name`). Resultado: `has_table_privilege('pulso_app','public.recipes','UPDATE') = false`, `name` legible. La ejecución posterior pasó completa.
+
+| Comando | Resultado |
+|---|---|
+| `NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads` | **17/17, exit 0**, 137.59 s |
+| Primera ejecución, mismo comando (antes del fix de grants) | 16/17, 1 fallo esperado `42501`; conservado como diagnóstico |
+
+Cubre: importación con y sin ingreso, repetición/corrección, captura manual atómica, resolución de nombres bajo runtime, receta ajena/ambigua, insuficiencia de stock, cambio de receta con reversión al lote original (incluido vencido), corrección monetaria sin mover stock, revisión obsoleta, venta legacy sin consumo, ingreso desconocido ≠ cero, precisión/desbordamiento y snapshot serializable obligatorio.
+
+**Límite nuevo, no resuelto:** el branch conserva deriva del mismo tipo en `branches`, `inventory_batches`, `inventory_items` y `sales_entries` (`DELETE,INSERT,SELECT,UPDATE` a nivel de tabla; las migraciones solo conceden columnas). No se revocó para no romper suites concurrentes; el privilegio mínimo real de esos objetos queda para `SEC-05`. Esto no invalida los 17 casos (el writer solo usa columnas concedidas y RLS sigue activo), pero **no** debe declararse V2 de privilegios mínimos cerrada para esas tablas.
+
+No se acepta todavía `INV-01.b4b`, `b4b.rls`, el padre `b4` ni `INV-01.b`: siguen pendientes la aceptación formal de la dependencia b4a en el registro, el checkpoint, las V3 HTTP/UI de `manual/bulk/smartlink/ui`, las V2/V3 de `storage` y `coverage.executive/menu`, y el build del hito.
+
 ## Límites y continuación
 
 No se aplican migraciones a main, no hay backfill, despliegue ni aceptación operativa/API/UI. Los lectores legacy que consultan solo `sales_entries` todavía no reciben cobertura; deben consumir heads/cobertura antes de presentar ese subtotal como ingreso completo. Las fronteras API/UI deben mostrar `updated` y cobertura y fijar namespaces según origen en b4/INV-01.d. La captura manual y cualquier otra frontera que siga escribiendo consumo por separado permanecen en b4. Recuperación y carreras de conexiones independientes siguen en INV-01.c. El build global queda acreditado; las dependencias b3/b4a requieren su cierre de checkpoint por separado. No hay commit ni cierre de padre basado solo en este build.

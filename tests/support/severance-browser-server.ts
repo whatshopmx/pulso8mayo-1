@@ -3,21 +3,14 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
-import ts from "typescript";
 
 /** Sigue el harness Vite existente; solo sustituye límites de Next/DB/sesión. */
 export async function startSeveranceBrowserServer() {
   const fromVitest = createRequire(require.resolve("vitest/package.json"));
   const { createServer } = await import(pathToFileURL(fromVitest.resolve("vite")).href);
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
-  // Ejecuta la función salarial REAL sin cargar el resto de employee-service (DB).
-  const salarySource = ts.createSourceFile("employee-service.ts",
-    readFileSync(path.join(root, "lib/services/employee-service.ts"), "utf8"), ts.ScriptTarget.Latest, true);
-  const salaryFunction = salarySource.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "resolveEffectiveSalary");
-  if (!salaryFunction) throw new Error("No se encontró la función salarial real.");
-  const salaryJs = ts.transpileModule(salaryFunction.getText(salarySource), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-  }).outputText;
+  // La calculadora importa directamente el módulo salarial puro de producción;
+  // no se sustituye por una extracción AST que oculte dependencias de servidor.
   // Reutiliza los estilos del build local cuando existen; la prueba no cambia tokens.
   // En un checkout sin build se compilan desde la misma hoja global del producto.
   const chunks = path.join(root, ".next/static/chunks");
@@ -32,7 +25,6 @@ export async function startSeveranceBrowserServer() {
       .catch(error => { console.error(error); process.exitCode = 1; });
   `], { cwd: root, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
   const fixtures: Record<string, string> = {
-    "\0severance-salary": salaryJs,
     "\0severance-session": `export const useSession = () => ({ session: { user: { id: 'actor-test', companyId: 'company-test', role: 'ADMIN' } } });`,
     "\0severance-link": `import React from 'react'; export default ({children, ...props}) => React.createElement('a', props, children);`,
     "\0severance-navigation": `export const useRouter = () => ({ push: () => {} });`,
@@ -56,7 +48,6 @@ export async function startSeveranceBrowserServer() {
       "class-variance-authority", "clsx", "tailwind-merge", "sonner", "radix-ui"] },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },
     resolve: { alias: [
-      { find: /^@\/lib\/services\/employee-service$/, replacement: "\0severance-salary" },
       { find: /^@\/hooks\/use-session$/, replacement: "\0severance-session" },
       { find: /^next\/link$/, replacement: "\0severance-link" },
       { find: /^next\/navigation$/, replacement: "\0severance-navigation" },

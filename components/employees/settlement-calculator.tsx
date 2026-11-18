@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Info, Calculator, Receipt, AlertCircle, TrendingDown } from "lucide-react";
 import { calcularAguinaldoAnual, diasCalendarioEntre } from "@/lib/services/aguinaldo-service";
-import { resolveEffectiveSalary } from "@/lib/services/employee-service";
+import { resolveEffectiveSalary } from "@/lib/services/employee-salary";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { calculateSeniorityPremiumCents, resolveSeveranceMinimumWage, type MinimumWageZone } from "@/lib/services/severance-minimum-wage";

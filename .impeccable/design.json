@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-23T19:20:00.000Z",
+  "generatedAt": "2026-11-18T18:14:00.000Z",
   "title": "Design System: Pulso HORECA",
   "extensions": {
     "colorMeta": {
@@ -18,7 +18,14 @@
       "success": { "role": "semantic", "displayName": "Success Green", "canonical": "oklch(0.60 0.16 150)" },
       "warning": { "role": "semantic", "displayName": "Warning Amber", "canonical": "oklch(0.72 0.15 80)" },
       "info": { "role": "semantic", "displayName": "Info Blue", "canonical": "oklch(0.52 0.10 245)" },
-      "destructive": { "role": "semantic", "displayName": "Destructive Red", "canonical": "oklch(0.50 0.22 22)" }
+      "destructive": { "role": "semantic", "displayName": "Destructive Red", "canonical": "oklch(0.50 0.22 22)" },
+      "sidebar-bg": { "role": "neutral", "displayName": "Sidebar Background", "canonical": "oklch(0.985 0.003 85)" },
+      "sidebar-fg": { "role": "neutral", "displayName": "Sidebar Foreground", "canonical": "oklch(0.16 0.01 30)" },
+      "chart-1": { "role": "semantic", "displayName": "Chart 1", "canonical": "oklch(0.58 0.18 25)" },
+      "chart-2": { "role": "semantic", "displayName": "Chart 2", "canonical": "oklch(0.62 0.16 70)" },
+      "chart-3": { "role": "semantic", "displayName": "Chart 3", "canonical": "oklch(0.55 0.10 160)" },
+      "chart-4": { "role": "semantic", "displayName": "Chart 4", "canonical": "oklch(0.52 0.08 240)" },
+      "chart-5": { "role": "semantic", "displayName": "Chart 5", "canonical": "oklch(0.56 0.15 0)" }
     },
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "Page titles, used once per page." },
@@ -26,7 +33,13 @@
       "title": { "displayName": "Title", "purpose": "Subsection headers, sidebar items, dialog titles." },
       "body": { "displayName": "Body", "purpose": "Primary reading text, table cells, descriptions." },
       "label": { "displayName": "Label", "purpose": "Button text, form labels, badges, metadata." },
-      "mono": { "displayName": "Mono", "purpose": "Code, IDs, timestamps, numeric data." }
+      "mono": { "displayName": "Mono", "purpose": "Code, IDs, timestamps, numeric data." },
+      "marketing-display": { "displayName": "Marketing Display", "purpose": "Marketing H1 only, inside landing-scope." },
+      "marketing-headline": { "displayName": "Marketing Headline", "purpose": "Marketing section headings only." },
+      "marketing-title": { "displayName": "Marketing Title", "purpose": "Marketing card and panel headings." },
+      "marketing-price": { "displayName": "Marketing Price", "purpose": "Pricing table figures with tabular numerals." },
+      "marketing-lead": { "displayName": "Marketing Lead", "purpose": "Marketing lead paragraphs, 48ch measure." },
+      "marketing-body": { "displayName": "Marketing Body", "purpose": "Marketing body copy, 52–62ch measure." }
     },
     "shadows": [],
     "motion": [
@@ -119,7 +132,9 @@
     "rules": [
       { "name": "The One Voice Rule", "body": "Operational Red is used on at most 10-15% of any given screen. Its rarity is the point — when red appears, it means something.", "section": "colors" },
       { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Depth is conveyed through tonal layering (lighter/darker backgrounds), not shadows. Shadows appear only as a response to interaction.", "section": "elevation" },
-      { "name": "The No-Orphan Rule", "body": "Body text uses text-wrap: pretty. Headlines use text-wrap: balance.", "section": "typography" }
+      { "name": "The No-Orphan Rule", "body": "Body text uses text-wrap: pretty. Headlines use text-wrap: balance.", "section": "typography" },
+      { "name": "The Label-Floor Rule", "body": "Label (12px / text-xs) is the smallest size. Separate metadata through weight and color rather than smaller text.", "section": "typography" },
+      { "name": "The Persuade Sub-Ramp", "body": "Marketing typography belongs to landing-scope and must not be reused inside the dashboard.", "section": "typography" }
     ],
     "dos": [
       "Do use Operational Red sparingly — at most 10-15% of any screen. Its rarity signals importance.",

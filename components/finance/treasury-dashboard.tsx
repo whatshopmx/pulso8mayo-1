@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { formatCents } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import {
   Card,
   CardContent,
@@ -172,7 +173,7 @@ export function TreasuryDashboard() {
       if (res.ok && json.success) {
         setData(json.data);
       } else {
-        setError(json.error || "Error al cargar la tesorería");
+        setError(apiErrorMessage(json, "Error al cargar la tesorería"));
       }
     } catch (e) {
       setError("Error de conexión con el servicio de tesorería");
@@ -275,7 +276,10 @@ export function TreasuryDashboard() {
         }
       } else {
         toast.error("Error al descargar layout", {
-          description: json.error || "No se pudo generar el archivo de dispersión.",
+          description: apiErrorMessage(
+            json,
+            "No se pudo generar el archivo de dispersión."
+          ),
           duration: 12_000,
         });
       }

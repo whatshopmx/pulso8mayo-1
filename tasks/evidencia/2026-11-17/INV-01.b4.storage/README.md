@@ -1,6 +1,6 @@
 # INV-01.b4.storage — Almacenamiento POS privado durable y lectura autorizada
 
-Continuación 2026-11-17 sobre HEAD `0dfd139d75a5870d7af3baad5423d218f54a093f` más cambios locales. **Código implementado y V1 comprobada; sin aceptación (V2/V3 pendientes).**
+Continuación 2026-11-17 sobre HEAD `0dfd139d75a5870d7af3baad5423d218f54a093f` más cambios locales. **V1, V2 y V3 HTTP comprobadas con R2 real y sesión Better Auth real (HEAD `81ec4dd`); sin aceptación: falta V3 navegador y el runtime NOBYPASSRLS de V2.**
 
 ## Brecha cerrada
 
@@ -29,12 +29,65 @@ Casos de la ruta de lectura: id mal formado → 400 sin tocar storage; corte ine
 
 Regresión: la frontera del cierre (`sales-entry-smart-link.test.ts`, 4 casos) sigue en verde; su `console.error` de 403/400 esperados es del `ApiHandler.error`, no un fallo.
 
+## Continuación 2026-11-17 — V2/V3 con R2 real y sesión Better Auth
+
+HEAD `81ec4ddb97e6327b8c557c5ff9769d99a4b048af`. Incremento de verificación: **no se tocó código de producción**; se añadió una prueba de integración.
+
+Archivo nuevo: `tests/integration/pos-storage-r2-db.test.ts` (3 casos).
+
+| Comando | Resultado |
+|---|---|
+| `NODE_OPTIONS=--use-system-ca pnpm exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/pos-storage-r2-db.test.ts` | **3/3, exit 0** (27,6 s; 23,8 s de pruebas) |
+| `pnpm exec eslint tests/integration/pos-storage-r2-db.test.ts` | **exit 0**, sin errores ni advertencias |
+
+`NODE_OPTIONS=--use-system-ca` es necesario en este Windows para la cadena TLS de Neon y de R2.
+
+### Entorno real de la corrida
+
+- **Postgres**: base aislada de `.env.test` (`TEST_DATABASE_URL`, mismo branch aislado de trabajo). La prueba verifica en `beforeAll` que su host **no** coincide con el de `DATABASE_URL` de `.env`; nunca corre contra la operativa.
+- **Rollback**: empresas, sucursales, usuarios, cuentas y cortes se insertan dentro de `db.transaction` y se fuerza rollback. Al final se comprueba que no sobreviven usuarios, sesiones, empresas ni cortes. Los inicios de sesión de better-auth también se revierten.
+- **R2**: bucket real (`R2_BUCKET_NAME`) con credenciales de `.env`; la prueba exige `isR2Configured() === true` y falla con mensaje explícito si no lo está. Los objetos creados se borran en `afterAll` y se verifica que `getFromR2` ya no los encuentre (sin residuos en el bucket compartido).
+- **Sesión**: Better Auth real por HTTP loopback (`/api/auth/sign-in/email`); la cookie resultante se valida con `auth.api.getSession` y se usa en las peticiones siguientes. Next sólo aporta `headers()`/`cookies()` (mismo patrón que `cogs-session-db.test.ts`); no se levanta `next dev`.
+
+### Casos (V2)
+
+1. Tras subir el archivo por la ruta, `daily_sales_cuts.raw_file_url` guarda la **KEY** `companies/{companyA}/branches/{branchA1}/pos/{fecha}/\d+_cierre_POS_.csv` — jerarquía de tenancy, nombre normalizado y nunca una URL `http(s)://`.
+2. Una llamada GetObject independiente (`getFromR2`) devuelve **los mismos bytes** subidos: el objeto existe de verdad en R2, no es un mock.
+3. La base sintética usa dos empresas y tres sucursales; lectura entre empresas y entre sucursales queda separada (ver V3).
+4. Rollback sin residuos en DB y borrado verificado de los objetos R2.
+
+### Casos (V3 HTTP)
+
+| Caso | Resultado |
+|---|---|
+| POST multipart sin sesión | 401 |
+| POST multipart con ADMIN de la empresa, sucursal propia | 200, `durable: true`, `matchedCount: 1`, key privada |
+| GET `/api/sales/cuts/[id]/pos-file` como ADMIN de la empresa | 200 con `url`, `fileKey` y `expiresInSeconds: 600` |
+| Descarga de la URL firmada | 200 y bytes idénticos al archivo subido |
+| GET sin sesión | 401 |
+| GET como GERENTE de la misma sucursal | 200 |
+| GET como GERENTE de otra sucursal de la misma empresa | 404 |
+| GET como ADMIN de otra empresa | 404 |
+| GET como EMPLEADO (rol sin acceso a evidencia financiera) | 403 |
+| POST como GERENTE hacia otra sucursal | 403 y `raw_file_url` sigue `NULL` |
+| POST como ADMIN de otra empresa apuntando a sucursal ajena | 400 y `raw_file_url` sigue `NULL` |
+| POST con `x-pulso-tenant-id` de otra empresa | 403 y sin escritura |
+| POST con archivo vacío | 400 |
+| POST con MIME no permitido (`application/pdf`) | 400 |
+
+Los `console.error` de `ApiHandler.error` y de `[upload-pos] parse/ingest failed` en la salida son los rechazos **esperados** de cada caso, no fallos.
+
+### Fallo encontrado en el propio arnés (no en el producto)
+
+La primera corrida dio 2/3: `RequestContentLengthMismatchError` al subir un archivo vacío. Causa: el servidor loopback copiaba **todas** las cabeceras de la petición al fixture de sesión, así que el `content-length` de la petición anterior viajaba en la siguiente. Se corrigió copiando sólo `cookie` y `x-pulso-tenant-id` (y enviando sólo la cookie en las peticiones del cliente). No hubo cambio de código de producción.
+
 ## Límites
 
-- **V1 únicamente**: unitarias con R2 simulado (`uploadToR2`/`generatePresignedUrl` mockeados) y DB de la ruta de lectura mockeada. No acredita almacenamiento R2 real ni sesión real.
-- **V2 pendiente**: Postgres real + runtime NOBYPASSRLS con dos empresas/dos sucursales; objetos reales en R2 (o bucket de prueba) y rollback; `raw_file_url` se lee por empresa.
-- **V3 pendiente**: recorrido HTTP con Better Auth real (subir → leer archivo propio; rechazo entre empresas/sucursales) y navegador.
+- **Runtime de la corrida**: `TEST_DATABASE_URL` conecta con el rol dueño del branch, no con `pulso_app` NOBYPASSRLS. El aislamiento acreditado es el de la **frontera de aplicación** (sesión → `company_id` en el `WHERE` y `resolveBranchScope`), que es la que usa esta ruta; RLS y privilegios de runtime para este flujo siguen en la órbita de SEC-05. No se afirma V2 de RLS aquí.
+- **V3 navegador pendiente**: se acreditó el recorrido HTTP real con sesión; la pantalla que consume `pos-file` corresponde a `INV-01.d`/`b4.ui`.
+- **V1** sigue siendo la de unitarias con R2 y DB mockeados (21/21 ya registrada arriba).
 - Sin R2 configurado, la ruta degrada a `local://…` y NO afirma durabilidad; el modelo privado durable exige R2 (mismo criterio que `scoped-evidence.ts`).
 - No se modifica el recorrido de ingesta de ventas (fuente `pos:import`) ni se aplica migración. Sin despliegue.
+- El nombre del archivo se normaliza (`cierre POS!.csv` → `cierre_POS_.csv`); es comportamiento documentado por la unitaria, no una pérdida silenciosa.
 
-No se acepta `INV-01.b4.storage`, el padre `INV-01.b4`, `INV-01.b` ni la fila 11.11. El cierre del padre sigue pendiente de `b4.coverage` (cogs/executive/menu), la dependencia `b4b` y la aceptación HTTP/UI en `INV-01.d`.
+No se acepta `INV-01.b4.storage`, el padre `INV-01.b4`, `INV-01.b` ni la fila 11.11. Para aceptar `b4.storage` falta la V3 navegador; el cierre del padre sigue pendiente además de `b4.coverage` (cogs/executive/menu) y la dependencia `b4b`.

@@ -12,6 +12,10 @@ import {
   shiftSessions,
   shiftApprovals,
   holidays,
+  vacationRequests,
+  vacationAccruals,
+  leaveRequests,
+  leaveTypes,
   payrollRuns,
   payrollPayslips,
 } from "@/lib/db/schema";
@@ -38,6 +42,8 @@ describe("NOM-01 V2 + NOM-02.a V2: Base salarial, congelamiento e inmutabilidad 
       "leave_types",
       "leave_requests",
       "vacation_requests",
+      "vacation_accruals",
+      "leave_balances",
       "payroll_runs",
       "payroll_payslips",
       "propinas",
@@ -613,6 +619,242 @@ describe("NOM-01 V2 + NOM-02.a V2: Base salarial, congelamiento e inmutabilidad 
       });
       expect(payrollA.overtimePayCents).toBe(37500);
       expect(payrollA.totalPercepcionesCents).toBe(payrollA.baseSalaryCents + 37500);
+    });
+  });
+
+  describe("NOM-02.c1 V2: Vacaciones, saldos, prima vacacional y RLS en Postgres aislado", () => {
+    it("NOM-02.c1 V2: Cálculo de vacaciones autorizadas y prima vacacional 25% LFT desde Postgres real", async () => {
+      await runWithIsolation(async (tx, ctx) => {
+        const periodStart = "2026-05-01";
+        const periodEnd = "2026-05-15";
+
+        // 1. Insertar saldo acumulado de 12 días en vacation_accruals
+        await tx.insert(vacationAccruals).values({
+          userId: ctx.userIdA,
+          companyId: ctx.companyIdA,
+          year: 2026,
+          daysAccrued: 12,
+          daysTaken: 0,
+          daysBalance: 12,
+          yearsOfService: 1,
+          applicableLawDays: 12,
+          periodStart: new Date("2026-01-01T12:00:00Z"),
+          periodEnd: new Date("2026-12-31T12:00:00Z"),
+        });
+
+        // 2. Insertar solicitud de vacaciones aprobada por 6 días (4 al 9 de mayo)
+        await tx.insert(vacationRequests).values({
+          companyId: ctx.companyIdA,
+          branchId: ctx.branchIdA,
+          userId: ctx.userIdA,
+          startDate: new Date("2026-05-04T12:00:00Z"),
+          endDate: new Date("2026-05-09T12:00:00Z"),
+          totalDays: 6,
+          status: "APPROVED",
+          reason: "Vacaciones de ley año 1",
+          approvedBy: ctx.userIdA,
+          approvedAt: new Date("2026-05-01T12:00:00Z"),
+        });
+
+        // 3. Ejecutar cálculo de nómina en DB real
+        const payroll = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+          dbInstance: tx,
+        });
+
+        // Verificaciones
+        expect(payroll.vacationDays).toBe(6);
+        expect(payroll.vacationPrimeCents).toBe(75000); // 6 * 50,000 * 0.25 = 75,000¢
+        expect(payroll.vacationBreakdown.vacationDaysEligible).toBe(6);
+        expect(payroll.vacationBreakdown.vacationDaysExceeded).toBe(0);
+        expect(payroll.vacationBreakdown.vacationRemainingBalance).toBe(6);
+        expect(payroll.vacationBreakdown.justification).toBe("LFT_ARTS_76_80");
+        expect(payroll.totalPercepcionesCents).toBe(payroll.baseSalaryCents + 75000);
+        expect(payroll.attendanceBreakdown.vacationDays).toBe(6);
+        expect(payroll.attendanceBreakdown.payableDays).toBe(15);
+      });
+    });
+
+    it("NOM-02.c1 V2: Validación de saldo de vacaciones en base de datos real (saldo parcial / excedido)", async () => {
+      await runWithIsolation(async (tx, ctx) => {
+        const periodStart = "2026-05-01";
+        const periodEnd = "2026-05-15";
+
+        // 1. Insertar saldo acumulado disponible de solo 3 días
+        await tx.insert(vacationAccruals).values({
+          userId: ctx.userIdA,
+          companyId: ctx.companyIdA,
+          year: 2026,
+          daysAccrued: 12,
+          daysTaken: 9,
+          daysBalance: 3,
+          yearsOfService: 1,
+          applicableLawDays: 12,
+          periodStart: new Date("2026-01-01T12:00:00Z"),
+          periodEnd: new Date("2026-12-31T12:00:00Z"),
+        });
+
+        // 2. Insertar solicitud de vacaciones aprobada por 5 días (4 al 8 de mayo)
+        await tx.insert(vacationRequests).values({
+          companyId: ctx.companyIdA,
+          branchId: ctx.branchIdA,
+          userId: ctx.userIdA,
+          startDate: new Date("2026-05-04T12:00:00Z"),
+          endDate: new Date("2026-05-08T12:00:00Z"),
+          totalDays: 5,
+          status: "APPROVED",
+          reason: "Solicitud con saldo parcial",
+          approvedBy: ctx.userIdA,
+          approvedAt: new Date("2026-05-01T12:00:00Z"),
+        });
+
+        // 3. Ejecutar cálculo
+        const payroll = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+          dbInstance: tx,
+        });
+
+        expect(payroll.vacationDays).toBe(5);
+        expect(payroll.vacationBreakdown.vacationDaysEligible).toBe(3);
+        expect(payroll.vacationBreakdown.vacationDaysExceeded).toBe(2);
+        // Prima solo sobre los 3 días elegibles: 3 * 50,000 * 0.25 = 37,500¢
+        expect(payroll.vacationPrimeCents).toBe(37500);
+        expect(payroll.vacationBreakdown.vacationRemainingBalance).toBe(0);
+        expect(payroll.vacationBreakdown.justification).toBe("EXCEEDED_VACATION_BALANCE");
+        expect(payroll.totalPercepcionesCents).toBe(payroll.baseSalaryCents + 37500);
+      });
+    });
+
+    it("NOM-02.c1 V2: Permiso sin goce descuenta sueldo base vs permiso con goce mantiene sueldo íntegro sin prima vacacional", async () => {
+      await runWithIsolation(async (tx, ctx) => {
+        const periodStart = "2026-05-01";
+        const periodEnd = "2026-05-15";
+
+        // 1. Crear tipos de permiso (con goce y sin goce)
+        const leaveTypeIdPaid = randomUUID();
+        const leaveTypeIdUnpaid = randomUUID();
+
+        await tx.insert(leaveTypes).values([
+          {
+            id: leaveTypeIdPaid,
+            companyId: ctx.companyIdA,
+            name: "PATERNITY",
+            isPaid: true,
+            maxDaysPerYear: 15,
+          },
+          {
+            id: leaveTypeIdUnpaid,
+            companyId: ctx.companyIdA,
+            name: "PERSONAL_UNPAID",
+            isPaid: false,
+            maxDaysPerYear: 30,
+          },
+        ]);
+
+        // 2. Insertar permiso sin goce de 2 días (4 y 5 de mayo)
+        await tx.insert(leaveRequests).values({
+          companyId: ctx.companyIdA,
+          branchId: ctx.branchIdA,
+          userId: ctx.userIdA,
+          leaveTypeId: leaveTypeIdUnpaid,
+          startDate: new Date("2026-05-04T12:00:00Z"),
+          endDate: new Date("2026-05-05T12:00:00Z"),
+          totalDays: 2,
+          status: "APPROVED",
+          reason: "Asuntos personales sin goce",
+          approvedBy: ctx.userIdA,
+          approvedAt: new Date("2026-05-01T12:00:00Z"),
+        });
+
+        // 3. Insertar permiso con goce de 3 días (11 al 13 de mayo)
+        await tx.insert(leaveRequests).values({
+          companyId: ctx.companyIdA,
+          branchId: ctx.branchIdA,
+          userId: ctx.userIdA,
+          leaveTypeId: leaveTypeIdPaid,
+          startDate: new Date("2026-05-11T12:00:00Z"),
+          endDate: new Date("2026-05-13T12:00:00Z"),
+          totalDays: 3,
+          status: "APPROVED",
+          reason: "Paternidad con goce",
+          approvedBy: ctx.userIdA,
+          approvedAt: new Date("2026-05-01T12:00:00Z"),
+        });
+
+        // 4. Ejecutar cálculo
+        const payroll = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+          dbInstance: tx,
+        });
+
+        // Permiso con goce (3 días) + permiso sin goce (2 días):
+        // Días pagaderos: 15 - 2 (sin goce) = 13 días
+        expect(payroll.attendanceBreakdown.unpaidAbsenceDays).toBe(2);
+        expect(payroll.attendanceBreakdown.payableDays).toBe(13);
+        // Sueldo base deducido en 2 días: 13 * 50,000 = 650,000¢ (deducción de 100,000¢)
+        expect(payroll.baseSalaryCents).toBe(650000);
+        // Permisos no generan prima vacacional
+        expect(payroll.vacationPrimeCents).toBe(0);
+        expect(payroll.vacationDays).toBe(0);
+        expect(payroll.totalPercepcionesCents).toBe(650000);
+      });
+    });
+
+    it("NOM-02.c1 V2: Aislamiento multi-empresa de vacaciones y saldos bajo pulso_app (NOBYPASSRLS)", async () => {
+      await runWithIsolation(async (tx, ctx) => {
+        const periodStart = "2026-05-01";
+        const periodEnd = "2026-05-15";
+
+        // 1. Con contexto de Empresa A, intentar insertar corrida para Empresa B se bloquea por RLS
+        await tx.execute(sql.raw("SAVEPOINT forbidden_payroll_run_insert"));
+        let errorCodeRun: string | undefined;
+        try {
+          await tx.insert(payrollRuns).values({
+            companyId: ctx.companyIdB,
+            periodStart: "2026-05-01",
+            periodEnd: "2026-05-15",
+            status: "COMPLETED",
+          });
+        } catch (error: unknown) {
+          const failure = error as { code?: string; cause?: { code?: string } };
+          errorCodeRun = failure.cause?.code || failure.code;
+        }
+        await tx.execute(sql.raw("ROLLBACK TO SAVEPOINT forbidden_payroll_run_insert"));
+        expect(errorCodeRun).toBe("42501");
+
+        // 2. Insertar vacaciones legítimas para Empresa A
+        await tx.insert(vacationAccruals).values({
+          userId: ctx.userIdA,
+          companyId: ctx.companyIdA,
+          year: 2026,
+          daysAccrued: 10,
+          daysBalance: 10,
+          yearsOfService: 1,
+          applicableLawDays: 12,
+          periodStart: new Date("2026-01-01T12:00:00Z"),
+          periodEnd: new Date("2026-12-31T12:00:00Z"),
+        });
+
+        await tx.insert(vacationRequests).values({
+          companyId: ctx.companyIdA,
+          branchId: ctx.branchIdA,
+          userId: ctx.userIdA,
+          startDate: new Date("2026-05-04T12:00:00Z"),
+          endDate: new Date("2026-05-07T12:00:00Z"),
+          totalDays: 4,
+          status: "APPROVED",
+          reason: "Vacaciones legítimas Empresa A",
+        });
+
+        // 3. Calcular nómina de Empresa A: procesa sus 4 días legítimos (50,000¢ prima)
+        const payrollA = await calculateEmployeePayroll(ctx.userIdA, periodStart, periodEnd, {
+          dbInstance: tx,
+        });
+        expect(payrollA.vacationDays).toBe(4);
+        expect(payrollA.vacationPrimeCents).toBe(50000); // 4 * 50,000 * 0.25 = 50,000¢
+
+        // 4. Intentar calcular nómina de usuario B bajo contexto A falla
+        await expect(
+          calculateEmployeePayroll(ctx.userIdB, periodStart, periodEnd, { dbInstance: tx })
+        ).rejects.toThrow(/no tiene contrato vigente|no encontrado o sin empresa asignada/i);
+      });
     });
   });
 });

@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { statusBadgeClasses } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import { Receipt, FileText, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 
 interface TimbradoResult {
@@ -185,7 +186,7 @@ export default function FiscalPage() {
       if (res.ok && json.success) {
         setTimbradoResult(json.data);
       } else {
-        setTimbradoError(json?.error || "Error al timbrar la nómina.");
+        setTimbradoError(apiErrorMessage(json, "Error al timbrar la nómina."));
       }
     } catch (err) {
       console.error("Timbrar nomina error:", err);

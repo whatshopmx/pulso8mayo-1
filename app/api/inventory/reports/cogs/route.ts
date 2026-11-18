@@ -4,11 +4,13 @@ import { hasPermission } from "@/lib/permissions";
 import { resolveBranchScope } from "@/lib/branch-scope";
 import { CogsReportScopeError, InventoryReportsService } from "@/lib/services/inventory-reports-service";
 import { z } from "zod";
+import { isApiError } from "@/lib/api/error";
 
+const dateInput = z.union([z.iso.date(), z.iso.datetime({ offset: true })]);
 const querySchema = z.object({
-    branchId: z.string().optional(),
-    startDate: z.string().optional(),
-    endDate: z.string().optional(),
+    branchId: z.uuid().optional(),
+    startDate: dateInput.optional(),
+    endDate: dateInput.optional(),
 });
 
 /**
@@ -36,7 +38,10 @@ export async function GET(req: NextRequest) {
         });
 
         const scope = resolveBranchScope(user.role, user.branchId, validated.branchId);
-        if (scope.kind === "NONE" || scope.kind === "ALL") {
+        if (scope.kind === "NONE") {
+            return NextResponse.json({ error: "No tienes una sucursal autorizada" }, { status: 403 });
+        }
+        if (scope.kind === "ALL") {
             return NextResponse.json(
                 { error: "Selecciona una sucursal para ver el reporte de COGS" },
                 { status: 400 }
@@ -47,17 +52,26 @@ export async function GET(req: NextRequest) {
         const startDate = validated.startDate
             ? new Date(validated.startDate)
             : new Date(endDate.getTime() - 30 * 86400000);
+        if (startDate > endDate) {
+            return NextResponse.json({ error: "La fecha de inicio debe ser anterior o igual a la fecha de fin" }, { status: 400 });
+        }
 
         const report = await InventoryReportsService.getCogsReport(tenant.id, scope.branchId, startDate, endDate);
 
         return NextResponse.json({ success: true, report });
     } catch (error) {
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: "Parámetros del reporte inválidos" }, { status: 400 });
+        }
         if (error instanceof CogsReportScopeError) {
             return NextResponse.json({ error: error.message }, { status: 403 });
         }
         console.error("[CogsReport] Error:", error);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Error interno del servidor" },
+            { error: "Error interno del servidor" },
             { status: 500 }
         );
     }

@@ -1,0 +1,112 @@
+{
+  "baseHead": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
+  "workingTree": "Base más cambios locales existentes y consolidación; sin commit ni despliegue",
+  "environment": "Windows local; Neon aislado ep-cold-morning-bewqoz3o para integración",
+  "checks": [
+    {
+      "name": "TypeScript tras corregir atomicidad; anterior a extracción salarial por bloqueo de build",
+      "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "exit": 0
+    },
+    {
+      "name": "unitarias iniciales",
+      "exit": 0,
+      "files": 8,
+      "passed": 110
+    },
+    {
+      "name": "regresión atomicidad del alta humana",
+      "beforeFix": { "exit": 1, "failed": 2, "reason": "La excepción quedaba persistida tras fallo de auditoría" },
+      "afterFix": { "exit": 0, "files": 4, "passed": 28 },
+      "overlapsInitialSuite": true
+    },
+    {
+      "name": "Postgres nómina y recovery",
+      "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts tests/integration/sale-recovery-e2e-db.test.ts",
+      "nodeOptions": "--use-system-ca",
+      "exit": 0,
+      "files": 2,
+      "passed": 17,
+      "seconds": 171.91,
+      "limits": "Sesión y R2 simulados en recovery; reintento secuencial con savepoints. No acredita carreras con commits ni V3 integrada."
+    },
+    {
+      "name": "lint de archivos propios de código y prueba DB renombrada",
+      "exit": 0,
+      "errors": 0,
+      "warnings": 3,
+      "warningScope": "any existentes en lifecycle de exception-service"
+    },
+    {
+      "name": "lint ampliado a once archivos consolidados",
+      "exit": 0,
+      "errors": 0,
+      "warnings": 22,
+      "warningScope": "19 any en payroll-service y 3 en exception-service"
+    },
+    {
+      "name": "trazabilidad documental",
+      "exit": 0,
+      "rows": 239,
+      "planTasks": 86,
+      "additionalTasks": 96,
+      "acceptedTasks": 21,
+      "errors": 0
+    },
+    {
+      "name": "Turbopack build y reintento con acceso ampliado",
+      "exit": 1,
+      "reason": "Descarga de Geist y Geist Mono desde fonts.googleapis.com",
+      "diagnostic": "Node con --use-system-ca devuelve HTTP 200 para la URL de Geist; Turbopack sigue fallando."
+    },
+    {
+      "name": "Webpack antes de separar la función salarial pura",
+      "command": "pnpm.cmd exec next build --webpack",
+      "nodeOptions": "--max-old-space-size=4096 --use-system-ca",
+      "exit": 1,
+      "reason": "UnhandledSchemeError node:crypto en el cliente de finiquitos por import de employee-service",
+      "correction": "Extraer employee-salary.ts y conservar reexport de servidor; el harness usa el módulo puro real"
+    },
+    {
+      "name": "Navegador de finiquitos tras separar la función salarial pura",
+      "command": "pnpm.cmd exec playwright test --config tests/playwright-severance.config.ts",
+      "exit": 0,
+      "passed": 3,
+      "limits": "Navegador real con sesión/API simuladas; sin escrituras a backend ni aceptación operativa"
+    },
+    {
+      "name": "Webpack posterior a la extracción salarial",
+      "command": "pnpm.cmd exec next build --webpack",
+      "nodeOptions": "--max-old-space-size=4096 --use-system-ca",
+      "compilation": "passed",
+      "compilationMinutes": 18.0,
+      "exit": 1,
+      "reason": "Validación de tipos generada: getSavedSearches no es un export válido de ruta"
+    },
+    {
+      "name": "TypeScript final con validadores de producción regenerados",
+      "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "exit": 1,
+      "errors": 7,
+      "sourceFiles": [
+        "app/api/employees/search/route.ts",
+        "app/api/inventory/products/route.ts",
+        "app/api/inventory/waste/route.ts",
+        "app/dashboard/labor/shift-changes/[id]/page.tsx",
+        "app/dashboard/profile/page.tsx",
+        "app/external/report/[token]/page.tsx"
+      ],
+      "limits": "Archivos de base sin cambios de esta consolidación; no se modificaron los validadores generados ni se excluyeron de TypeScript"
+    }
+  ],
+  "newAcceptances": [],
+  "pending": [
+    "Build global: corregir 7 errores de validadores Next en 6 archivos de base y repetir build",
+    "EXC-01.rls: migración reproducible y V2 sobre esa migración",
+    "NOM-02.c1: revisar saldos/fuentes y fallos de consulta antes de aceptar",
+    "INV-01.b4.storage: POS privado durable y lectura autorizada",
+    "INV-01.b4.coverage: cobertura en lectores financieros",
+    "INV-01.c.recovery.ui-routes: sesión/R2/HTTP/navegador reales y dependencias",
+    "INV-01.c.recovery.apply: carreras entre conexiones con commits independientes"
+  ]
+}

@@ -72,7 +72,8 @@ test("selector por teclado y bloqueo visibles en escritorio y móvil", async ({ 
     await page.setViewportSize({ width, height: 1000 });
     await expect(zone).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({ path: path.resolve(`tasks/evidencia/consolidado-2026-10-22/FIS-03/screen-${width}.png`), fullPage: true });
+    const screenshotDir = process.env.SEVERANCE_SCREENSHOT_DIR ?? "tasks/evidencia/consolidado-2026-10-22/FIS-03";
+    await page.screenshot({ path: path.resolve(screenshotDir, `screen-${width}.png`), fullPage: true });
   }
   expect(errors).toEqual([]);
 });

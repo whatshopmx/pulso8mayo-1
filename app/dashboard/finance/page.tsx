@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import { computeCashVariance } from "@/lib/sales/cash-variance";
+import { apiErrorMessage } from "@/lib/api/error";
 import { CashFlowSummaryCard } from "@/components/finance/cash-flow-summary-card";
 import {
   HoyCaseDossier,
@@ -91,7 +92,9 @@ export default function FinanceTodayPage() {
             setSelectedCaseId(null);
           }
         } else {
-          setError(json?.error || "No se pudo consultar la bandeja de pendientes financieros.");
+          setError(
+            apiErrorMessage(json, "No se pudo consultar la bandeja de pendientes financieros.")
+          );
           setItems(null);
         }
       } catch (err) {

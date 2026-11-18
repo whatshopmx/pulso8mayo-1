@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Plus, Building2, AlertCircle, ShieldCheck, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { formatCents } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 
 export interface CompanyBankAccountOption {
   id: string;
@@ -177,7 +178,7 @@ export function CreatePaymentRunModal({
         setSourceBankAccountId("");
         if (onSuccess) onSuccess();
       } else {
-        toast.error("Error al crear", { description: json.error || "Ocurrió un error inesperado." });
+        toast.error("Error al crear", { description: apiErrorMessage(json, "Ocurrió un error inesperado.") });
       }
     } catch (err) {
       toast.error("Error de red", { description: "No se pudo conectar al servidor." });

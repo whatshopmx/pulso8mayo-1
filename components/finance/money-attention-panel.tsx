@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import { computeCashVariance } from "@/lib/sales/cash-variance";
 import type { Violation } from "@/components/finance/excepciones-panel";
 import type { DateRange } from "@/components/finance/period-selector";
@@ -145,7 +146,9 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
 
         setItems(collected);
       } else {
-        setError(json?.error || "No se pudo consultar ninguna de las fuentes de alertas financieras.");
+        setError(
+          apiErrorMessage(json, "No se pudo consultar ninguna de las fuentes de alertas financieras.")
+        );
         setItems(null);
       }
     } catch (err) {

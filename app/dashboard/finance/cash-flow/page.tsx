@@ -10,6 +10,7 @@ import { AccountingCashFlow } from "@/components/finance/accounting-cash-flow";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBranch } from "@/lib/branch-context";
+import { apiErrorMessage } from "@/lib/api/error";
 import { useSession } from "@/hooks/use-session";
 import { Calendar, Loader2, AlertCircle, RefreshCw, Repeat, CreditCard } from "lucide-react";
 import Link from "next/link";
@@ -121,7 +122,9 @@ function CashFlowContent() {
       if (res.ok && json.success) {
         setProjection(json.data ?? null);
       } else {
-        setError(json?.error || "No se pudo calcular la proyección de flujo de efectivo.");
+        setError(
+          apiErrorMessage(json, "No se pudo calcular la proyección de flujo de efectivo.")
+        );
         setProjection(null);
       }
     } catch (err) {

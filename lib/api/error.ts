@@ -35,6 +35,34 @@ export class ApiError extends Error {
 }
 
 /**
+ * Saca el mensaje legible de un cuerpo de respuesta de la API.
+ *
+ * `ApiHandler.error` responde `{ success: false, error: { message, details } }`,
+ * pero varias rutas antiguas mandan `error` como string. Guardar el objeto tal
+ * cual en el estado y pintarlo en JSX tronaba con "Objects are not valid as a
+ * React child (found: object with keys {message})" (visto en la portada de
+ * finanzas, 2026-11-17); pasarlo como `description` a un toast falla igual.
+ */
+export function apiErrorMessage(cuerpo: unknown, fallback: string): string {
+  const textos: unknown[] = [];
+
+  if (typeof cuerpo === "object" && cuerpo !== null) {
+    const { error, message } = cuerpo as { error?: unknown; message?: unknown };
+    textos.push(error);
+    textos.push(message);
+    if (typeof error === "object" && error !== null) {
+      textos.push((error as { message?: unknown }).message);
+    }
+  }
+
+  for (const texto of textos) {
+    if (typeof texto === "string" && texto.trim()) return texto;
+  }
+
+  return fallback;
+}
+
+/**
  * Detecta un `ApiError` sin depender de `instanceof` cruzado entre módulos.
  *
  * Turbopack/Next duplica un módulo si se importa por rutas distintas (alias

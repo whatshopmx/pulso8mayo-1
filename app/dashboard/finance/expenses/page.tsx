@@ -32,6 +32,7 @@ import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
 import { useBranches } from "@/hooks/queries/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import { localDateString } from "@/lib/workflows/today";
 
 /**
@@ -208,7 +209,7 @@ function ExpensesContent() {
         setTruncated(Boolean(data.data?.truncated));
         setError(null);
       } else {
-        setError(data?.error || "No se pudieron cargar los gastos operativos.");
+        setError(apiErrorMessage(data, "No se pudieron cargar los gastos operativos."));
         setExpenses([]);
         setScope(null);
         setTruncated(false);
@@ -287,7 +288,10 @@ function ExpensesContent() {
       } else {
         toast({
           title: type === "approve" ? "No se pudo aprobar" : "No se pudo rechazar",
-          description: data?.error || "El servidor rechazó la operación. Intenta de nuevo.",
+          description: apiErrorMessage(
+            data,
+            "El servidor rechazó la operación. Intenta de nuevo."
+          ),
           variant: "destructive",
         });
       }

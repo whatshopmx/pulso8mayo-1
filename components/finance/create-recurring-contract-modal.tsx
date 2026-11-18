@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { apiErrorMessage } from "@/lib/api/error";
 import {
   Dialog,
   DialogContent,
@@ -183,7 +184,7 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
         });
       } else {
         toast.error("Error al crear proveedor", {
-          description: json.error || "No se pudo dar de alta el proveedor.",
+          description: apiErrorMessage(json, "No se pudo dar de alta el proveedor."),
         });
       }
     } catch (err) {
@@ -245,7 +246,7 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
         setTolBelow("");
         if (onSuccess) onSuccess();
       } else {
-        toast.error("Error al registrar", { description: json.error || "Ocurrió un error inesperado." });
+        toast.error("Error al registrar", { description: apiErrorMessage(json, "Ocurrió un error inesperado.") });
       }
     } catch (err) {
       toast.error("Error de red", { description: "No se pudo conectar al servidor." });

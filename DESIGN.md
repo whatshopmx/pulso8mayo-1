@@ -53,6 +53,40 @@ typography:
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: "0.01em"
+  marketing-display:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "clamp(2.6rem, 6.1vw, 4.6rem)"
+    fontWeight: 600
+    lineHeight: 0.98
+    letterSpacing: "-0.035em"
+  marketing-headline:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "clamp(1.85rem, 3.5vw, 2.85rem)"
+    fontWeight: 600
+    lineHeight: 1.04
+    letterSpacing: "-0.028em"
+  marketing-title:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "clamp(1.1rem, 1.6vw, 1.3125rem)"
+    fontWeight: 600
+    lineHeight: 1.28
+    letterSpacing: "-0.012em"
+  marketing-price:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "1.75rem"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: "-0.02em"
+  marketing-lead:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "clamp(1.0625rem, 1.3vw, 1.1875rem)"
+    fontWeight: 400
+    lineHeight: 1.6
+  marketing-body:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "0.9375rem"
+    fontWeight: 400
+    lineHeight: 1.65
   mono:
     fontFamily: "Geist Mono, monospace"
     fontSize: "0.8125rem"
@@ -165,6 +199,12 @@ The palette is anchored by Operational Red — a deep, confident crimson that co
 **Display & Body Font:** Geist (with system-ui, sans-serif fallback)
 **Mono Font:** Geist Mono (with monospace fallback)
 
+**Delivery:** La familia se aplica en `body` desde `app/globals.css` con
+`font-family: var(--font-geist-sans)`. La variable la define `next/font` en el
+mismo elemento y ya incluye el fallback métrico (`Geist Fallback`), así que el
+cambio de fuente no produce reflow. Los controles nativos heredan con
+`font: inherit`.
+
 **Character:** A single geometric sans-serif family across the entire system. Geist is clean, precise, and slightly condensed — it reads well at small sizes in dense data tables and scales confidently to headings. The single-family approach reinforces the "one platform, one truth" principle: no decorative flourishes, no hierarchy confusion.
 
 ### Hierarchy
@@ -177,6 +217,25 @@ The palette is anchored by Operational Red — a deep, confident crimson that co
 
 ### Named Rules
 **The No-Orphan Rule.** Body text uses `text-wrap: pretty` to prevent single-word orphans. Headlines use `text-wrap: balance` for even line lengths.
+
+**The Persuade Sub-Ramp.** Las superficies de persuasión (landing comercial)
+usan una rampa propia, más grande y más apretada que la de producto, porque su
+trabajo es distinto: el display es la voz de marca y el lector no escanea
+tablas. Vive en `.landing-scope` como `--l-display`, `--l-h2`, `--l-h3`,
+`--l-lead`, `--l-section` y no debe reutilizarse dentro del dashboard.
+
+| Rol | Valor | Uso |
+|---|---|---|
+| `marketing-display` | `clamp(2.6rem, 6.1vw, 4.6rem)` / 600 / 0.98 / -0.035em | Solo el H1 de la landing |
+| `marketing-headline` | `clamp(1.85rem, 3.5vw, 2.85rem)` / 600 / 1.04 / -0.028em | Encabezados de sección del landing |
+| `marketing-title` | `clamp(1.1rem, 1.6vw, 1.3125rem)` / 600 / 1.28 / -0.012em | Títulos de tarjeta y panel |
+| `marketing-price` | `1.75rem` / 600 / -0.02em, `tabular-nums` | Cifra de precio en la tabla de planes |
+| `marketing-lead` | `clamp(1.0625rem, 1.3vw, 1.1875rem)` / 400 / 1.6 | Bajada de sección, 48ch |
+| `marketing-body` | `0.9375rem` / 400 / 1.65 | Cuerpo de sección, 52–62ch |
+| Label | `0.75rem` | Kickers, chips, metadatos, nav |
+
+El tracking del display se detiene en -0.035em: más apretado y Geist pierde sus
+contraformas a 73px.
 
 **The Label-Floor Rule.** Label (12px / `text-xs`) is the smallest size in the system. There is no 9px, 10px or 11px step: those values were an undocumented sub-ramp that made the type scale punch through its own floor, and they are unreadable at arm's length on a tablet in a kitchen. Micro-metadata, helper text and glyph badges all sit at Label; separation comes from weight and color, not from shrinking below the floor.
 

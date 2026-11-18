@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { apiErrorMessage } from "@/lib/api/error";
 import {
   Card,
   CardContent,
@@ -144,7 +145,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
 
       if (!res.ok) {
         throw new Error(
-          json.error || json.message || "No autorizado para cambiar el estado."
+          apiErrorMessage(json, "No autorizado para cambiar el estado.")
         );
       }
 

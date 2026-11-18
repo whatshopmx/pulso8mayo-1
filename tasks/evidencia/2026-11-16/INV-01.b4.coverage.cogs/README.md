@@ -1,6 +1,6 @@
 # INV-01.b4.coverage.cogs — ingreso completo en COGS
 
-Estado: **V1 comprobada; sin aceptación**. Base observada `51b90d4b31a14096a3b6fa37e1f18e774e23d55f` más árbol compartido. El HEAD cambió durante la exploración; no se creó commit ni se tocaron migraciones, secretos o configuración de conexión. Se conservaron los cambios locales de otros frentes.
+Estado: **V1 comprobada y V2 transaccional posterior; sin aceptación**. Continuación y correcciones de consulta/permisos: [lector runtime](runtime.md). Continuación posterior con [sesión real y HTTP](session-http.md), inicialmente sin Next completo ni navegador. La [prueba posterior Next/Chromium](next-browser.md) ya comprueba pantalla parcial/vacía y fronteras con sesión real, bajo conexión dueña de pruebas; sin nueva aceptación. Los resultados y pendientes inferiores describen la ejecución V1 original. Base observada `51b90d4b31a14096a3b6fa37e1f18e774e23d55f` más árbol compartido. El HEAD cambió durante la exploración; no se creó commit ni se tocaron migraciones, secretos o configuración de conexión. Se conservaron los cambios locales de otros frentes.
 
 ## Alcance y contrato
 

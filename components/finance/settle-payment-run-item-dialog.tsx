@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { apiErrorMessage } from "@/lib/api/error";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -115,7 +116,7 @@ export function SettlePaymentRunItemDialog({
       const json = await res.json();
       if (!res.ok) {
         throw new Error(
-          json.error || json.message || "Error al liquidar la partida."
+          apiErrorMessage(json, "Error al liquidar la partida.")
         );
       }
 

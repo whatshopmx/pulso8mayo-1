@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import {
   CheckCircle2,
   XCircle,
@@ -164,7 +165,10 @@ export function HoyCaseDossier({
       } else {
         toast({
           title: "No se pudo autorizar el gasto",
-          description: data?.error || "Error al procesar la autorización en el servidor.",
+          description: apiErrorMessage(
+            data,
+            "Error al procesar la autorización en el servidor."
+          ),
           variant: "destructive",
         });
       }
@@ -205,7 +209,7 @@ export function HoyCaseDossier({
       } else {
         toast({
           title: "No se pudo rechazar",
-          description: data?.error || "Error al registrar el rechazo.",
+          description: apiErrorMessage(data, "Error al registrar el rechazo."),
           variant: "destructive",
         });
       }

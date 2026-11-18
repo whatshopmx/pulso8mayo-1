@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { statusBadgeClasses } from "@/lib/utils";
+import { apiErrorMessage } from "@/lib/api/error";
 import { Search, FileCheck, AlertCircle, Loader2, XCircle } from "lucide-react";
 
 interface ValidationResult {
@@ -64,7 +65,9 @@ export function FiscalInvoiceValidator() {
       if (res.ok && json.success) {
         setResult(json.data);
       } else {
-        setError(json?.error || "Error al validar la factura. Verifica los datos e intenta de nuevo.");
+        setError(
+          apiErrorMessage(json, "Error al validar la factura. Verifica los datos e intenta de nuevo.")
+        );
       }
     } catch (err) {
       console.error("Invoice validation error:", err);

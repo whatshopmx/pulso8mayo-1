@@ -10,6 +10,7 @@ import { ExcepcionesPanel, type Violation } from "@/components/finance/excepcion
 import { ApprovalInbox } from "@/components/service-orders/approval-inbox";
 import { ApprovalMatrixEditor } from "@/components/service-orders/approval-matrix-editor";
 import { useBranch } from "@/lib/branch-context";
+import { apiErrorMessage } from "@/lib/api/error";
 import { useSession } from "@/hooks/use-session";
 import { useApprovalInbox } from "@/hooks/queries";
 import Link from "next/link";
@@ -114,7 +115,9 @@ export default function ControlInternoPage() {
       } else {
         // Una bitácora que no cargó no es una bitácora vacía. En una superficie
         // de cumplimiento las dos lecturas no pueden compartir render.
-        setAuditError(json?.error || "El servidor no devolvió la bitácora de autorizaciones.");
+        setAuditError(
+          apiErrorMessage(json, "El servidor no devolvió la bitácora de autorizaciones.")
+        );
         setAuditEntries([]);
         setAuditTotal(0);
       }
@@ -149,7 +152,9 @@ export default function ControlInternoPage() {
       } else {
         // Sin esto, una conexión caída se rendía como "Sin excepciones detectadas /
         // Todos los gastos cumplen": una afirmación de cumplimiento inventada.
-        setViolationsError(json?.error || "El servidor no devolvió el análisis de excepciones.");
+        setViolationsError(
+          apiErrorMessage(json, "El servidor no devolvió el análisis de excepciones.")
+        );
         setViolations([]);
       }
     } catch (err) {

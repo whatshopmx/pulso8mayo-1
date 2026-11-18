@@ -115,7 +115,7 @@ describe("reporte COGS", () => {
   });
   it("la ruta entrega cobertura parcial y rechaza sucursal ajena", async () => {
     await report([{ recipeId: "r", quantitySold: "1", revenue: 900, revenueComplete: false }]);
-    const request = () => new NextRequest("http://localhost/api/inventory/reports/cogs?branchId=b&startDate=2026-11-16&endDate=2026-11-17");
+    const request = () => new NextRequest("http://localhost/api/inventory/reports/cogs?branchId=ed11aaa9-b893-45da-b339-bbba36162b32&startDate=2026-11-16&endDate=2026-11-17");
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect((await response.json()).report).toMatchObject({ revenueCents: null, foodCostPercent: null, reportedRevenueCents: 900 });

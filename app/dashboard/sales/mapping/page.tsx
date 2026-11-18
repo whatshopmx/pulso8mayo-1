@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { apiErrorMessage } from "@/lib/api/error";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Settings2, Trash2, ArrowLeft, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import Link from "next/link";
@@ -55,7 +56,7 @@ export default function MappingTemplatesPage() {
       } else {
         // Sin este `else`, un fallo de carga pintaba "Sin plantillas configuradas"
         // e invitaba a recrear una configuración que sí existe.
-        setError(data?.error || "El servidor no devolvió las plantillas de mapeo.");
+        setError(apiErrorMessage(data, "El servidor no devolvió las plantillas de mapeo."));
         setTemplates([]);
       }
     } catch (err) {
