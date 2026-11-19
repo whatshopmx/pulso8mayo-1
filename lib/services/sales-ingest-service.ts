@@ -21,8 +21,8 @@ export class SalesIngestService {
   /** UUID y nombres se verifican contra catálogo propio; nombres ambiguos no resuelven. */
   static async resolveRecipeRefs(companyId: string, refs: string[], tx?: Tx): Promise<Map<string, string | null>> {
     if (!tx) {
-      const { db } = await import("@/lib/db");
-      return db.transaction(async scoped => {
+      const { withSalesWriterTransaction } = await import("@/lib/db/sales-runtime");
+      return withSalesWriterTransaction(async scoped => {
         await scoped.execute(sql`SELECT set_config('app.current_company_id', ${companyId}, true)`);
         return this.resolveRecipeRefs(companyId, refs, scoped);
       });
@@ -89,9 +89,9 @@ export class SalesIngestService {
 
   /** Transacción serializable; nunca persiste venta separada del consumo. */
   static async ingest(params: ImportInput) {
-    const { db } = await import("@/lib/db");
+    const { withSalesWriterTransaction } = await import("@/lib/db/sales-runtime");
     for (let attempt = 0; ; attempt++) {
-      try { return await db.transaction(tx => this.ingestInTransaction(tx, params), { isolationLevel: "serializable" }); }
+      try { return await withSalesWriterTransaction(tx => this.ingestInTransaction(tx, params)); }
       catch (error) {
         const failure = error as { code?: string; cause?: { code?: string } };
         if (attempt >= 2 || !["40001", "40P01"].includes(failure.cause?.code ?? failure.code)) throw error;

@@ -4,10 +4,11 @@ import { parse } from 'dotenv';
 import { Pool } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 import * as schema from '@/lib/db/schema';
 import { SalesIngestService } from '@/lib/services/sales-ingest-service';
+import { withSalesWriterTransaction } from '@/lib/db/sales-runtime';
 
 // Login real de Postgres, no SET ROLE ni mocks. Rol efímero con los grants
 // declarados por las migraciones; no modifica el rol pulso_app compartido.
@@ -31,7 +32,11 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function rollback(run: (tx: Tx) => Promise<void>) {
   const sentinel = new Error('Independent runtime rollback');
   try {
-    await runtime.transaction(async tx => { await run(tx); throw sentinel; }, { isolationLevel: 'serializable' });
+    await withSalesWriterTransaction(async tx => {
+      expect((await tx.execute(sql`SELECT current_user, session_user, current_setting('transaction_isolation') AS isolation`)).rows[0])
+        .toMatchObject({ current_user: roleName, session_user: roleName, isolation: 'serializable' });
+      await run(tx); throw sentinel;
+    });
   } catch (error) { if (error !== sentinel) throw error; }
   expect(await db.select({ id: schema.salesConsumptionIdentities.id }).from(schema.salesConsumptionIdentities)
     .where(inArray(schema.salesConsumptionIdentities.companyId, company))).toEqual([]);
@@ -85,6 +90,7 @@ beforeAll(async () => {
       initialQuantity: '20', currentQuantity: '20', status: 'AVAILABLE' as const, expirationDate: new Date('2099-01-01') })));
   });
   seeded = true;
+  vi.stubEnv('SALES_RUNTIME_DATABASE_URL', runtimeConnection.toString());
 }, 90_000);
 
 afterAll(async () => {
@@ -106,6 +112,7 @@ afterAll(async () => {
       expect(await db.select({ id: schema.companies.id }).from(schema.companies).where(inArray(schema.companies.id, company))).toEqual([]);
     }
   } finally {
+    vi.unstubAllEnvs();
     await pool.end();
     if (roleCreated) {
       // The fresh role must own no object. Revoke grants as their owner without
