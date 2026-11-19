@@ -13,7 +13,9 @@ const nextConfig: NextConfig = {
   } : {}),
   // `ws` necesita require nativo para sus addons opcionales. Al empaquetarlo,
   // Webpack sustituía bufferutil ausente por {}, rompiendo las conexiones Neon.
-  serverExternalPackages: ["ws"],
+  // Drizzle detecta Pool con instanceof: conservar una única identidad del
+  // constructor también al reutilizar el pool global entre bundles de Next.
+  serverExternalPackages: ["ws", "@neondatabase/serverless"],
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',
