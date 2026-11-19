@@ -1,5 +1,14 @@
 # Captura manual visible y consolidación del CSV
 
+Continuación final 2026-11-19: el [recorrido Next con writer runtime independiente](../INV-01.b4.manual.next/README.md)
+ya pasa **3/3**, además de **17/17** navegador controlado. Detectó y corrigió
+`actualQty=null → toFixed` y overflow móvil al poblar la tabla. Se usa el
+contrato nullable real, se diferencia cero y se habilita scroll con teclado;
+build final con tipos/455 páginas y lint exit 0. Esta evidencia posterior
+acredita guardado/corrección/repetición/ingreso/anulación y error/reintento
+desde Next, sin aceptar dependencias, módulo o despliegue. Las notas de
+ejecuciones previas inferiores se conservan como historial.
+
 Base: `07055084df845584047e449f24d4bb68b42dd086`, árbol limpio al comenzar.
 Hijo `INV-01.b4.manual.ui` de INV-01.b, I/M, V1/V3; depende de INV-01.a,
 manual y la UI CSV canónica. La fila 11.11 y su aceptación M11 incorporan

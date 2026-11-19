@@ -65,6 +65,14 @@ ingestión falla; no afirma que esa evidencia haya generado ventas.
 cierre y reintentos. `sales-ingest-runtime-connection-db.test.ts` recorre la
 frontera configurada con login PostgreSQL y grants mínimos reales, con writer
 en rollback. `sales-entry-session-db.test.ts` prueba sesiones HTTP y el
-rechazo de la conexión dueña configurada como runtime. Estos casos no
-sustituyen el guardado exitoso Next→runtime→stock ni su aceptación integrada.
-No se han configurado secretos de despliegue ni modificado producción.
+rechazo de la conexión dueña configurada como runtime.
+`sales-runtime-next-browser.test.ts` verifica también el recorrido manual
+Next de producción→login runtime→stock, sin mocks, en una copia desechable
+de la base aislada. Incluye guardado/corrección/repetición/ingreso/anulación,
+insuficiencia sin efectos y recuperación, NULL/cero, móvil y teclado, más
+limpieza de servidor/base/rol. Se activa con `RUN_SALES_RUNTIME_NEXT_BROWSER=1`
+tras construir el producto; requiere CREATEROLE/CREATEDB solo en el dueño
+del arnés y un origen temporalmente sin clientes. No termina sesiones del
+origen para copiarlo. Esa prueba no sustituye la aceptación de CSV/cierre,
+otros dominios o el despliegue. No se han configurado secretos de despliegue
+ni modificado producción.

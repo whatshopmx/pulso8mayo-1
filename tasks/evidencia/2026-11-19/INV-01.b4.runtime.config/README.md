@@ -1,5 +1,11 @@
 # Selección explícita de conexión runtime para ventas
 
+Continuación verificada: [3/3 Next de producción/Chromium con login runtime](../INV-01.b4.manual.next/README.md),
+exit 0, en base desechable; guardado manual, error/reintento y rechazo de
+dueño configurado comprobados sin mocks. No activa secretos ni aplica
+migraciones en main; el cierre de los demás orígenes y dependencias sigue
+pendiente. El historial inferior corresponde a la preparación de esta V3.
+
 Base `bf010bb`, árbol limpio al comenzar. Nuevo hijo
 `INV-01.b4.runtime.config`, I/M, V1/V2, depende de INV-01.a, b3 y b4b.
 Scope de cuatro archivos de implementación/prueba: módulo

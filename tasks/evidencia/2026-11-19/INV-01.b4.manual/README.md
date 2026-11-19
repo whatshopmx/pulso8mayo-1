@@ -1,5 +1,11 @@
 # Captura manual: HTTP, sesión real y writer runtime
 
+Continuación posterior: [Next de producción y navegador con login runtime independiente](../INV-01.b4.manual.next/README.md)
+**3/3, exit 0**, guarda/corrige/repite/completa ingreso/anula, rechaza dueño
+configurado como runtime y recupera tras insuficiencia sin efectos parciales.
+La base desechable, rol y servidores se eliminaron. Auth y lookup previos
+siguen usando dueño; dependencias y aceptación permanecen pendientes.
+
 Base: `565521f2b322874a940ea27524eb4fc32907a76d`, árbol limpio al comenzar.
 Continuación de `INV-01.b4.manual`; no acepta el padre ni la fila 11.11.
 

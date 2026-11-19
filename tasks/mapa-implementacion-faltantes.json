@@ -845,7 +845,8 @@
         "INV-01.b4.coverage.executive",
         "INV-01.b4.coverage.menu",
         "INV-01.b4.manual.ui",
-        "INV-01.b4.runtime.config"
+        "INV-01.b4.runtime.config",
+        "INV-01.b4.manual.next"
       ]
     },
     {
@@ -1266,7 +1267,8 @@
         "INV-01.b4.smartlink",
         "INV-01.b4.ui",
         "INV-01.b4.coverage",
-        "INV-01.b4.runtime.config"
+        "INV-01.b4.runtime.config",
+        "INV-01.b4.manual.next"
       ],
       "checks": [
         "V1",
@@ -1848,6 +1850,24 @@
         "INV-01.a",
         "INV-01.b3",
         "INV-01.b4b"
+      ]
+    },
+    {
+      "id": "INV-01.b4.manual.next",
+      "title": "Verificar captura manual Next con login runtime y stock reales en base desechable",
+      "parent": "INV-01.b",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b",
+        "INV-01.b4.runtime.config",
+        "INV-01.b4.manual.ui"
       ]
     }
   ],
@@ -2823,7 +2843,8 @@
         "INV-01.c.recovery.sources",
         "INV-01.c.recovery.proposal.service",
         "INV-01.b4.manual.ui",
-        "INV-01.b4.runtime.config"
+        "INV-01.b4.runtime.config",
+        "INV-01.b4.manual.next"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -4443,6 +4464,20 @@
           "checks": [
             "V2"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+          "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+          "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
         }
       ]
     },
@@ -5868,6 +5903,20 @@
             "V1",
             "V3"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+          "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+          "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V3"
+          ]
         }
       ]
     },
@@ -5887,6 +5936,40 @@
           "checks": [
             "V1",
             "V2"
+          ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+          "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+          "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.manual.next": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+          "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+          "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2",
+            "V3"
           ]
         }
       ]
