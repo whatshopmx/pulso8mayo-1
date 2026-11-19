@@ -45,7 +45,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = bulkSchema.parse(await req.json());
+    let input: unknown;
+    try {
+      input = await req.json();
+    } catch {
+      return NextResponse.json({ error: "El cuerpo debe contener JSON válido." }, { status: 400 });
+    }
+    const body = bulkSchema.parse(input);
 
     const scope = resolveBranchScope(
       role,

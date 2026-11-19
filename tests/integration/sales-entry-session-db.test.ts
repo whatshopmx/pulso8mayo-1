@@ -52,6 +52,7 @@ import { account, users, sessions, companies, branches, recipes, recipeItems, in
   inventoryBatches, inventoryMovements, salesEntries, salesConsumptionIdentities, salesConsumptionRevisions } from '@/lib/db/schema';
 import { auth } from '@/lib/auth';
 import { POST } from '@/app/api/inventory/sales-entry/route';
+import { POST as bulkPOST } from '@/app/api/inventory/sales-entry/bulk/route';
 
 const endpoint = '/api/inventory/sales-entry', day = '2026-11-19';
 let baseURL: string;
@@ -66,7 +67,7 @@ const server = createServer(async (req, res) => {
     const url = `http://localhost:3000${req.url}`;
     const response = req.url?.startsWith('/api/auth/')
       ? await auth.handler(new Request(url, { method: req.method, headers, body: body || undefined }))
-      : await POST(new NextRequest(url, { method: 'POST', headers, body }));
+      : await (req.url === `${endpoint}/bulk` ? bulkPOST : POST)(new NextRequest(url, { method: 'POST', headers, body }));
     res.statusCode = response.status;
     response.headers.forEach((value, name) => { if (name !== 'set-cookie') res.setHeader(name, value); });
     const cookies = response.headers.getSetCookie();
@@ -91,6 +92,7 @@ afterAll(async () => {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Scope = { company: string[]; branch: string[]; recipe: string[]; batch: string[];
+  bulk: (csvText: string, branchId?: string) => Promise<Response>;
   login: (index?: number) => Promise<void>; post: (sales: object[], branchId?: string) => Promise<Response> };
 async function probe(check: (tx: Tx, f: Scope) => Promise<void>) {
   const ids = (n: number) => Array.from({ length: n }, () => randomUUID());
@@ -136,7 +138,12 @@ async function probe(check: (tx: Tx, f: Scope) => Promise<void>) {
       fixture.headers = new Headers({ cookie });
       expect((await auth.api.getSession({ headers: fixture.headers }))?.user.id).toBe(actor[index]);
     };
-    await check(tx, { company, branch, recipe, batch, login, post: (sales, branchId = branch[0]) =>
+    await check(tx, { company, branch, recipe, batch, login,
+      bulk: (csvText, branchId = branch[0]) => fetch(`${baseURL}${endpoint}/bulk`, { method: 'POST',
+        headers: { cookie: fixture.headers.get('cookie') ?? '', 'content-type': 'application/json' },
+        body: JSON.stringify({ branchId, csvText, defaultDay: day,
+          mapping: { recipeRef: 'Recipe', productKey: 'SKU', quantitySold: 'Qty', totalRevenue: 'Revenue' } }) }),
+      post: (sales, branchId = branch[0]) =>
       fetch(`${baseURL}${endpoint}`, { method: 'POST', headers: { cookie: fixture.headers.get('cookie') ?? '', 'content-type': 'application/json' },
         body: JSON.stringify({ branchId, saleDate: day, sales }) }) });
     throw rollback;
@@ -238,5 +245,54 @@ it('manual HTTP: malformed JSON is a client error and leaves stock untouched', a
     expect(response.status).toBe(400);
     expect(await state(tx, f)).toEqual(before);
     expect(fixture.runtimeCalls).toBe(0);
+  });
+}, 180_000);
+
+it('bulk HTTP with real login: POS identity, correction, retry and revenue-only completion', async () => {
+  await probe(async (tx, f) => {
+    await f.login();
+    const submit = async (quantity: number, revenue = '') => {
+      const response = await f.bulk(`SKU,Recipe,Qty,Revenue\nPOS-01,${f.recipe[0]},${quantity},${revenue}`);
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result.errors).toEqual([]);
+      return result;
+    };
+    expect(await submit(10)).toMatchObject({ inserted: 1, revenueComplete: false });
+    expect((await state(tx, f)).stock).toBe('10.0000');
+    expect(await submit(8)).toMatchObject({ updated: 1, revenueComplete: false });
+    const corrected = await state(tx, f);
+    expect(corrected.stock).toBe('12.0000');
+    expect(corrected.identities).toHaveLength(1);
+    expect(corrected.identities[0]).toMatchObject({ source: 'pos:import', productKey: 'POS-01', saleDay: day });
+    expect(await submit(8)).toMatchObject({ skipped: 1, revenueComplete: false });
+    expect(await state(tx, f)).toEqual(corrected);
+    expect(await submit(8, '80.25')).toMatchObject({ updated: 1, revenueComplete: true });
+    const completed = await state(tx, f);
+    expect(completed.movements).toEqual(corrected.movements);
+    expect(completed.sales[0]).toMatchObject({ quantitySold: '8.00', totalRevenue: 8025 });
+    expect(await submit(0, '0')).toMatchObject({ updated: 1, revenueComplete: true });
+    expect((await state(tx, f)).stock).toBe('20.0000');
+    expect(fixture.runtimeCalls).toBe(5);
+  });
+}, 180_000);
+
+it('bulk HTTP: session, branch and company boundaries reject writes without consumption', async () => {
+  await probe(async (tx, f) => {
+    const csv = `SKU,Recipe,Qty,Revenue\nPOS-01,${f.recipe[0]},1,0`;
+    const before = await state(tx, f);
+    expect((await f.bulk(csv)).status).toBe(401);
+    for (const index of [2, 3]) { await f.login(index); expect((await f.bulk(csv)).status).toBe(403); }
+    await f.login(1);
+    expect((await f.bulk(csv, f.branch[1])).status).toBe(403);
+    await f.login();
+    expect((await f.bulk(csv, f.branch[2])).status).toBe(403);
+    for (const body of ['{', '']) {
+      const response = await fetch(`${baseURL}${endpoint}/bulk`, { method: 'POST',
+        headers: { cookie: fixture.headers.get('cookie') ?? '', 'content-type': 'application/json' }, body });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: 'El cuerpo debe contener JSON válido.' });
+    }
+    expect(await state(tx, f)).toEqual(before);
   });
 }, 180_000);

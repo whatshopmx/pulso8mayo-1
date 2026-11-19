@@ -22,6 +22,14 @@ beforeEach(() => {
   vi.mocked(SalesIngestService.ingest).mockResolvedValue({ inserted: 0, updated: 1, skipped: 0, errors: [], revenueCoverage: [], revenueComplete: true });
 });
 describe("frontera bulk al writer", () => {
+  it("rechaza JSON inválido o vacío antes de parsear CSV o aplicar consumo", async () => {
+    for (const body of ['{', '']) {
+      const response = await POST(new NextRequest('http://localhost/api/inventory/sales-entry/bulk', { method: 'POST', body }));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: 'El cuerpo debe contener JSON válido.' });
+    }
+    expect(SalesIngestService.ingest).not.toHaveBeenCalled();
+  });
   it("no eleva rol ausente a ADMIN y rechaza sucursal fuera de alcance", async () => {
     session(); expect((await request()).status).toBe(403);
     session("GERENTE"); expect((await request({ ...body, branchId: otherBranch })).status).toBe(403);
