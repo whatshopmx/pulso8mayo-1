@@ -67,7 +67,12 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const body = await req.json();
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            throw ApiError.badRequest("El cuerpo debe contener JSON válido.");
+        }
         const validated = salesSchema.parse(body);
 
         const scope = resolveBranchScope(role, session.user.branchId, validated.branchId ?? null);

@@ -17,9 +17,9 @@ const recipeId = "d1000000-0000-4000-8000-000000000001";
 function session(user: Record<string, unknown>) {
   vi.mocked(getSession).mockResolvedValue({ user: { id: "actor", ...user } } as never);
 }
-function request(body: Record<string, unknown>) {
+function request(body: Record<string, unknown> | string) {
   return POST(new NextRequest("http://localhost/api/inventory/sales-entry", { method: "POST",
-    headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    headers: { "content-type": "application/json" }, body: typeof body === 'string' ? body : JSON.stringify(body) }));
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -28,6 +28,16 @@ beforeEach(() => {
   vi.mocked(SalesIngestService.ingest).mockResolvedValue({ inserted: 1, updated: 0, skipped: 0, errors: [], revenueComplete: false, revenueCoverage: [] });
 });
 describe("captura manual mediante writer único", () => {
+  it("rechaza JSON mal formado o vacío con 400 antes de consultar stock", async () => {
+    session({ role: "ADMIN", companyId, branchId: null });
+    for (const body of ['{', '']) {
+      const response = await request(body);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: 'El cuerpo debe contener JSON válido.' });
+    }
+    expect(db.select).not.toHaveBeenCalled();
+    expect(SalesIngestService.ingest).not.toHaveBeenCalled();
+  });
   it("niega sesión ausente, empleado sin permiso y rol ausente antes de escribir", async () => {
     vi.mocked(getSession).mockResolvedValue(null);
     expect((await request({})).status).toBe(401);
