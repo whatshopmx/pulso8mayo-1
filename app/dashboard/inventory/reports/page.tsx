@@ -15,17 +15,7 @@ import { cn } from "@/lib/utils";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { ManualSalesEntry } from "@/components/inventory/manual-sales-entry";
 import { useBranch } from "@/lib/branch-context";
-
-interface VarianceRow {
-    itemId: string;
-    itemName: string;
-    sku?: string;
-    unit: string;
-    theoreticalQty: number;
-    actualQty: number;
-    varianceQty: number;
-    variancePercent: number;
-}
+import type { VarianceReportRow } from "@/lib/services/reports-service";
 
 interface Recipe {
     id: string;
@@ -34,7 +24,7 @@ interface Recipe {
 
 export default function InventoryReportsPage() {
     const { selectedBranchId } = useBranch();
-    const [reportRows, setReportRows] = useState<VarianceRow[]>([]);
+    const [reportRows, setReportRows] = useState<VarianceReportRow[]>([]);
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [loadingReport, setLoadingReport] = useState(false);
 
@@ -83,7 +73,7 @@ export default function InventoryReportsPage() {
 
     // Prepare chart data (top 5 items with highest mermas/variance)
     const chartData = [...reportRows]
-        .filter(r => r.varianceQty > 0)
+        .filter(r => r.varianceQty !== null && r.actualQty !== null && r.varianceQty > 0)
         .sort((a, b) => b.varianceQty - a.varianceQty)
         .slice(0, 5)
         .map(r => ({
@@ -219,6 +209,7 @@ export default function InventoryReportsPage() {
                                         <TableBody>
                                             {reportRows.map(row => {
                                                 const varianceVal = row.varianceQty;
+                                                const missingCounts = row.actualQty === null || varianceVal === null || row.variancePercent === null;
                                                 const isAlert = varianceVal > 0;
 
                                                 return (
@@ -226,21 +217,22 @@ export default function InventoryReportsPage() {
                                                         <TableCell>
                                                             <p className="font-medium text-foreground">{row.itemName}</p>
                                                             {row.sku && <p className="text-xs text-muted-foreground font-mono">{row.sku}</p>}
+                                                            {missingCounts && <p className="mt-1 text-xs text-muted-foreground">{row.actionableNote ?? 'Falta conteo físico inicial o final en este periodo.'}</p>}
                                                         </TableCell>
                                                         <TableCell className="text-right font-mono text-muted-foreground">
                                                             {row.theoreticalQty.toFixed(2)} {row.unit}
                                                         </TableCell>
                                                         <TableCell className="text-right font-mono text-muted-foreground">
-                                                            {row.actualQty.toFixed(2)} {row.unit}
+                                                            {row.actualQty === null ? '—' : `${row.actualQty.toFixed(2)} ${row.unit}`}
                                                         </TableCell>
                                                         <TableCell className={cn(
                                                             "text-right font-mono font-semibold",
-                                                            varianceVal > 0 ? "text-destructive" : (varianceVal < 0 ? "text-success" : "text-muted-foreground")
+                                                            varianceVal === null ? "text-muted-foreground" : varianceVal > 0 ? "text-destructive" : (varianceVal < 0 ? "text-success" : "text-muted-foreground")
                                                         )}>
-                                                            {varianceVal > 0 ? `+${varianceVal.toFixed(2)}` : varianceVal.toFixed(2)} {row.unit}
+                                                            {varianceVal === null ? '—' : `${varianceVal > 0 ? '+' : ''}${varianceVal.toFixed(2)} ${row.unit}`}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            {isAlert ? (
+                                                            {missingCounts ? <Badge variant="secondary">Falta conteo</Badge> : isAlert ? (
                                                                 <Badge variant="destructive" className="gap-1">
                                                                     <AlertCircle className="w-3 h-3" /> Merma: {row.variancePercent.toFixed(0)}%
                                                                 </Badge>

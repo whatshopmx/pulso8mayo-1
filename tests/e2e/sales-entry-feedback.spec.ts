@@ -20,6 +20,30 @@ test.describe('captura manual: contrato y respuesta visible', () => {
     await page.getByRole('option', { name: 'Platillo sintético', exact: true }).click();
   }
   const save = (page: Page) => page.getByRole('button', { name: /Registrar Venta|Guardar total/, exact: true });
+  test('guardar una venta sin conteos mantiene captura y muestra varianza sin dato, sin afirmar conformidad', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await prepareManual(page);
+    await page.route('**/api/inventory/reports/variance?**', route => route.fulfill({ json: { report: [{
+      itemId: 'synthetic-item', itemName: 'Ingrediente sin conteo', unit: 'KG', theoreticalQty: 10,
+      actualQty: null, varianceQty: null, variancePercent: null, status: 'MISSING_DATA',
+      actionableNote: 'Falta conteo físico inicial o final en este periodo.',
+    }, { itemId: 'synthetic-zero', itemName: 'Ingrediente cero medido', unit: 'KG', theoreticalQty: 0,
+      actualQty: 0, varianceQty: 0, variancePercent: 0, status: 'SUCCESS' }] } }));
+    await page.route('**/api/inventory/sales-entry', route => route.fulfill({ json: { inserted: 1, updated: 0, skipped: 0, revenueComplete: false } }));
+    await save(page).click();
+    const row = page.getByRole('row').filter({ hasText: 'Ingrediente sin conteo' });
+    await expect(row).toBeVisible();
+    await expect(row.getByRole('cell', { name: '—', exact: true })).toHaveCount(2);
+    await expect(row).toContainText('Falta conteo');
+    await expect(row).not.toContainText('Conforme');
+    await expect(page.getByRole('region', { name: 'Resultado de captura' })).toBeVisible();
+    await expect(save(page)).toBeEnabled();
+    const zero = page.getByRole('row').filter({ hasText: 'Ingrediente cero medido' });
+    await expect(zero.getByRole('cell', { name: '0.00 KG', exact: true })).toHaveCount(3);
+    await expect(zero).toContainText('Conforme');
+    expect(errors).toEqual([]);
+  });
   test('envía pesos sin multiplicarlos y confirma el total sin prometer otro consumo', async ({ page }) => {
     const writes: Record<string, unknown>[] = [];
     await page.route('**/api/inventory/sales-entry', route => {
