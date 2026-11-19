@@ -4325,6 +4325,24 @@
           "checks": [
             "V2"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.runtime.connection/README.md",
+          "head": "04003b2",
+          "environment": "Neon aislado; login independiente con rol efímero NOBYPASSRLS y grants mínimos, writer rollback; rol/datos eliminados; no Next ni despliegue",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-ingest-runtime-connection-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/sales-ingest-runtime-connection-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
         }
       ]
     },
@@ -4388,6 +4406,24 @@
             "V1",
             "V2"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.runtime.connection/README.md",
+          "head": "04003b2",
+          "environment": "Neon aislado; login independiente con rol efímero NOBYPASSRLS y grants mínimos, writer rollback; rol/datos eliminados; no Next ni despliegue",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-ingest-runtime-connection-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/sales-ingest-runtime-connection-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
         }
       ]
     },
@@ -4404,7 +4440,10 @@
               "exit": 0
             }
           ],
-          "checks": ["V1", "V2"]
+          "checks": [
+            "V1",
+            "V2"
+          ]
         },
         {
           "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
@@ -5806,7 +5845,10 @@
               "exit": 0
             }
           ],
-          "checks": ["V1", "V3"]
+          "checks": [
+            "V1",
+            "V3"
+          ]
         }
       ]
     }

@@ -154,6 +154,8 @@ Descomposición de ejecución para respetar el límite de archivos, materializad
 
 [Registro y límites](../tasks/evidencia/2026-11-11/INV-01.b/README.md). El padre no se acepta hasta acreditar todos los hijos; ninguna fila se acepta por el planificador o el snapshot aislados.
 
+Continuación V2 2026-11-19 de b4b/manual (un archivo de prueba): `sales-ingest-runtime-connection-db.test.ts` ejecuta ambos orígenes con login PostgreSQL independiente, rol efímero NOBYPASSRLS y grants mínimos declarados de 0137/0138/0139/0141. Catálogos sintéticos confirmados/eliminados; writer en rollback SERIALIZABLE, sin SET ROLE, cambios del rol compartido o migraciones aplicadas. Verifica corrección/repetición/ingreso/cero, aislamiento y cuatro DML denegados, más limpieza de rol/grants/datos. **4/4, exit 0**. [Evidencia y límites](../tasks/evidencia/2026-11-19/INV-01.b4.runtime.connection/README.md). No sustituye el recorrido Next ni la configuración runtime de la aplicación o acepta dependencias.
+
 Hijos adicionales de consolidación (2026-11-16), sin aceptación: **INV-01.b4.storage** (I/M, V1/V2/V3; depende de INV-01.a y b4.smartlink), almacenamiento privado durable y acceso autorizado del POS; **INV-01.b4.coverage** (I/P, V1/V2/V3; depende de INV-01.a, b4b y sus tres hijos), propagación de ingreso no reportado a lectores financieros. El padre b no cierra sin ellos.
 
 Descomposición de cobertura (2026-11-16), sin nuevas aceptaciones. El coordinador coverage es padre independiente; INV-01.b4 depende de su cierre en el mapa para que INV-01.b no se acepte sin cobertura. La fila 11.11 y su aceptación dependen de los tres hijos ejecutables.
