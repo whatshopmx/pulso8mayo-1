@@ -7,9 +7,10 @@ import { account, users, companies, branches, recipes, recipeItems, inventoryIte
   inventoryMovements, salesEntries, salesConsumptionRevisions } from '@/lib/db/schema';
 import { createSalesRuntimeDatabase } from './helpers/sales-runtime-database';
 import { startSalesRuntimeNextServer } from './helpers/sales-runtime-next-server';
+import { seedCsvRuntimeScenario } from './helpers/csv-runtime-scenario';
 
 const enabled = process.env.RUN_SALES_RUNTIME_NEXT_BROWSER === '1';
-// All cases use one disposable copy; only the manual scenario writes data.
+// All cases use one disposable copy; writing scenarios use disjoint tenants.
 // Avoid repeatedly contending for the shared source database's template lock.
 let fixture: Awaited<ReturnType<typeof createSalesRuntimeDatabase>> | undefined;
 beforeAll(async () => { if (enabled) fixture = await createSalesRuntimeDatabase(); }, 150_000);
@@ -167,4 +168,128 @@ it.skipIf(!enabled)('Next + Chromium + real runtime: rejects owner fallback, the
     try { await browser?.close(); }
     finally { await server?.close(); }
   }
+}, 300_000);
+
+it.skipIf(!enabled)('Next + Chromium + real runtime: CSV SKU survives rename, correction and revenue completion', async () => {
+  const database = fixture!, scenario = await seedCsvRuntimeScenario(database);
+  let server: Awaited<ReturnType<typeof startSalesRuntimeNextServer>> | undefined, browser: Browser | undefined;
+  try {
+    server = await startSalesRuntimeNextServer(database);
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ baseURL: server.baseURL, timezoneId: 'America/Mexico_City', viewport: { width: 1440, height: 1000 } });
+    try {
+      expect((await context.request.post('/api/auth/sign-in/email', { headers: { origin: server.baseURL },
+        data: { email: `${scenario.actorId}@example.invalid`, password: scenario.password } })).status()).toBe(200);
+      await context.addCookies([{ name: 'pulso_selected_branch', value: scenario.branchId, url: server.baseURL }]);
+      const page = await context.newPage(), errors: string[] = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await page.goto('/dashboard/inventory/sales-entry', { timeout: 90_000 });
+      await browserExpect(page.getByLabel('Sucursal destino')).toHaveCount(0);
+      const row = (key: string, recipe: string, quantity: number | string, revenue = '') =>
+        [key, recipe, quantity, revenue].map(value => `"${String(value).replaceAll('"', '""')}"`).join(',');
+      const csv = (quantity: number, revenue = '') => `SKU,"Producto, receta",Cantidad,Ingreso\n${row('POS-01', scenario.recipeNames[0], quantity, revenue)}`;
+      let uploaded = '';
+      const upload = async (text: string, name: string, first = false) => {
+        uploaded = text;
+        await page.getByLabel('Archivo CSV', { exact: true }).setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(text) });
+        await browserExpect(page.getByText(`Seleccionado: ${name}`, { exact: true })).toBeVisible();
+        await browserExpect(page.getByLabel('Producto / receta *', { exact: true })).toBeVisible();
+        if (first) {
+          await page.getByLabel('Producto / receta *', { exact: true }).selectOption('Producto, receta');
+          await page.getByLabel('Cantidad vendida *', { exact: true }).selectOption('Cantidad');
+          await page.getByLabel('Ingreso $ (opcional)', { exact: true }).selectOption('Ingreso');
+          await page.getByLabel('Clave del producto (opcional)', { exact: true }).selectOption('SKU');
+        }
+        await page.getByLabel(/Día del corte/).fill('2026-11-19');
+        await browserExpect(page.getByLabel('Clave del producto (opcional)', { exact: true })).toHaveValue('SKU');
+        await browserExpect(page.getByRole('region', { name: 'Vista previa de ventas', exact: true })).toBeVisible();
+        await browserExpect(page.getByRole('region', { name: 'Resultado de importación', exact: true })).toHaveCount(0);
+      };
+      const submit = async (counts: object, status = 200) => {
+        const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/inventory/sales-entry/bulk' && r.request().method() === 'POST', { timeout: 90_000 });
+        await page.getByRole('button', { name: /^Importar / }).click();
+        const received = await response;
+        expect(received.status()).toBe(status);
+        expect(received.request().postDataJSON()).toMatchObject({ branchId: scenario.branchId, csvText: uploaded,
+          defaultDay: '2026-11-19', mapping: { productKey: 'SKU', recipeRef: 'Producto, receta', quantitySold: 'Cantidad', totalRevenue: 'Ingreso' } });
+        const body = await received.json(); expect(body).toMatchObject(counts);
+        const result = page.getByRole('region', { name: 'Resultado de importación', exact: true });
+        await browserExpect(result).toBeVisible();
+        if (status !== 200) {
+          await browserExpect(result).toContainText('Importación no completada');
+          return body;
+        }
+        if (body.skipped) await browserExpect(result).toContainText(`${body.skipped} sin cambios`);
+        if (body.updated) await browserExpect(result).toContainText(`${body.updated} corregida`);
+        if (body.inserted) await browserExpect(result).toContainText(`${body.inserted} nueva`);
+        await browserExpect(result).toContainText(body.revenueComplete ? 'Importación completada' : 'Ingreso incompleto');
+        return body;
+      };
+      const stock = async () => (await scenario.state()).batches.find(batch => batch.id === scenario.batchIds[0])!.quantity;
+      await upload(csv(10), 'inicial.csv', true);
+      await submit({ inserted: 1, updated: 0, skipped: 0, revenueComplete: false, errors: [] });
+      expect(await stock()).toBe('10.0000');
+      const initial = await scenario.state();
+      expect(initial.identities).toHaveLength(1);
+      expect(initial.identities[0]).toMatchObject({ source: 'pos:import', productKey: 'POS-01', day: '2026-11-19' });
+      expect(initial.revisions[0].revenue).toBe(null);
+      await upload(csv(10), 'archivo-renombrado.csv');
+      await submit({ inserted: 0, updated: 0, skipped: 1, revenueComplete: false, errors: [] });
+      expect(await scenario.state()).toEqual(initial);
+      await upload(csv(12), 'correccion.csv');
+      await submit({ updated: 1, revenueComplete: false, errors: [] }); expect(await stock()).toBe('8.0000');
+      await upload(csv(8), 'reduccion.csv');
+      await submit({ updated: 1, revenueComplete: false, errors: [] }); expect(await stock()).toBe('12.0000');
+      const beforeRevenue = await scenario.state();
+      await upload(csv(8, '80.25'), 'ingreso.csv');
+      await submit({ updated: 1, revenueComplete: true, errors: [] });
+      const completed = await scenario.state();
+      expect(completed.movements).toEqual(beforeRevenue.movements);
+      expect(completed.sales).toHaveLength(1);
+      expect(completed.sales[0]).toMatchObject({ recipeId: scenario.recipeIds[0], quantity: '8.00', revenue: 8025 });
+      expect(completed.revisions).toHaveLength(4);
+      expect((await context.request.post('/api/auth/sign-out', { headers: { origin: server.baseURL }, data: {} })).status()).toBe(200);
+      await submit({}, 401);
+      expect(await scenario.state()).toEqual(completed);
+      expect((await context.request.post('/api/auth/sign-in/email', { headers: { origin: server.baseURL },
+        data: { email: `${scenario.actorId}@example.invalid`, password: scenario.password } })).status()).toBe(200);
+      await submit({ inserted: 0, updated: 0, skipped: 1, revenueComplete: true, errors: [] });
+      expect(await scenario.state()).toEqual(completed);
+      await upload(['SKU,"Producto, receta",Cantidad,Ingreso',
+        row('POS-01', scenario.recipeNames[0], 8, '80.25'),
+        row('POS-02', scenario.recipeNames[0], 1, '10'),
+        row('POS-02', scenario.recipeNames[0], 'invalid', '10'),
+        row('POS-03', scenario.recipeNames[1], 21, '210'),
+        row('POS-04', scenario.recipeNames[0], 1, '10')].join('\n'), 'grupos.csv');
+      const mixed = await submit({ inserted: 1, updated: 0, skipped: 1, revenueComplete: false });
+      expect(mixed.errors.map((error: { rowNumber: number }) => error.rowNumber).sort()).toEqual([3, 4, 5]);
+      const result = page.getByRole('region', { name: 'Resultado de importación', exact: true });
+      for (const n of [3, 4, 5]) await browserExpect(result).toContainText(`Fila ${n}`);
+      const grouped = await scenario.state();
+      expect(await stock()).toBe('11.0000');
+      expect(grouped.batches.find(batch => batch.id === scenario.batchIds[1])!.quantity).toBe('20.0000');
+      expect(grouped.identities.map(identity => identity.productKey)).toEqual(['POS-01', 'POS-04']);
+      expect(grouped.revisions).toHaveLength(5);
+      expect(grouped.sales).toHaveLength(1);
+      expect(grouped.sales[0]).toMatchObject({ recipeId: scenario.recipeIds[0], quantity: '9.00', revenue: 9025 });
+      await upload(['SKU,"Producto, receta",Cantidad,Ingreso',
+        row('POS-01', scenario.recipeNames[0], 0, '0'),
+        row('POS-04', scenario.recipeNames[0], 0, '0')].join('\n'), 'cancelacion.csv');
+      await submit({ inserted: 0, updated: 2, skipped: 0, revenueComplete: true, errors: [] });
+      const cancelled = await scenario.state();
+      expect(cancelled.batches.map(batch => batch.quantity)).toEqual(['20.0000', '20.0000']);
+      expect(cancelled.sales[0]).toMatchObject({ quantity: '0.00', revenue: 0 });
+      expect(cancelled.identities).toHaveLength(2);
+      expect(cancelled.revisions).toHaveLength(7);
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const preview = page.getByRole('region', { name: 'Vista previa de ventas', exact: true });
+      await preview.focus();
+      const scrollBefore = await preview.evaluate(element => element.scrollLeft);
+      await preview.press(scrollBefore > 0 ? 'ArrowLeft' : 'ArrowRight');
+      await browserExpect.poll(() => preview.evaluate(element => element.scrollLeft)).not.toBe(scrollBefore);
+      await page.screenshot({ path: '.tmp/csv-sales-runtime-next-mobile.png', fullPage: true });
+      expect(errors).toEqual([]);
+    } finally { await context.close(); }
+  } finally { try { await browser?.close(); } finally { await server?.close(); } }
 }, 300_000);
