@@ -844,7 +844,8 @@
         "INV-01.b4.coverage.cogs",
         "INV-01.b4.coverage.executive",
         "INV-01.b4.coverage.menu",
-        "INV-01.b4.manual.ui"
+        "INV-01.b4.manual.ui",
+        "INV-01.b4.runtime.config"
       ]
     },
     {
@@ -1264,7 +1265,8 @@
         "INV-01.b4.bulk",
         "INV-01.b4.smartlink",
         "INV-01.b4.ui",
-        "INV-01.b4.coverage"
+        "INV-01.b4.coverage",
+        "INV-01.b4.runtime.config"
       ],
       "checks": [
         "V1",
@@ -1830,6 +1832,22 @@
         "INV-01.a",
         "INV-01.b4.manual",
         "INV-01.b4.ui"
+      ]
+    },
+    {
+      "id": "INV-01.b4.runtime.config",
+      "title": "Activación explícita de conexión runtime independiente del writer de ventas",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b"
       ]
     }
   ],
@@ -2804,7 +2822,8 @@
         "INV-01.c.recovery.provenance",
         "INV-01.c.recovery.sources",
         "INV-01.c.recovery.proposal.service",
-        "INV-01.b4.manual.ui"
+        "INV-01.b4.manual.ui",
+        "INV-01.b4.runtime.config"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -5848,6 +5867,26 @@
           "checks": [
             "V1",
             "V3"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.runtime.config": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.runtime.config/README.md",
+          "head": "bf010bb",
+          "environment": "Local y Neon aislado con rol efímero/grants mínimos; sin secretos de despliegue ni aceptación integrada",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-ingest-runtime-connection-db.test.ts tests/integration/sales-entry-session-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
           ]
         }
       ]
