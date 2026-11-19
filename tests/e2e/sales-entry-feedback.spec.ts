@@ -5,6 +5,131 @@ test.beforeAll(async () => { harness = await startSalesEntryBrowserServer(); });
 test.afterAll(async () => { await harness?.server.close(); });
 const branch = "b1000000-0000-4000-8000-000000000001";
 const csv = 'SKU,"Producto, receta",Cantidad\nABC,Plato,2';
+
+test.describe('captura manual: contrato y respuesta visible', () => {
+  let manual: Awaited<ReturnType<typeof startSalesEntryBrowserServer>>;
+  const recipe = 'd1000000-0000-4000-8000-000000000001';
+  test.beforeAll(async () => { manual = await startSalesEntryBrowserServer(undefined, 'manual'); });
+  test.afterAll(async () => { await manual?.server.close(); });
+  async function prepareManual(page: Page) {
+    page.on('pageerror', error => console.error('Manual browser:', error.message));
+    await page.route('**/api/inventory/recipes', route => route.fulfill({ json: [{ id: recipe, name: 'Platillo sintético' }] }));
+    await page.route('**/api/inventory/reports/variance?**', route => route.fulfill({ json: { report: [] } }));
+    await page.goto(manual.url);
+    await page.getByRole('combobox').click();
+    await page.getByRole('option', { name: 'Platillo sintético', exact: true }).click();
+  }
+  const save = (page: Page) => page.getByRole('button', { name: /Registrar Venta|Guardar total/, exact: true });
+  test('envía pesos sin multiplicarlos y confirma el total sin prometer otro consumo', async ({ page }) => {
+    const writes: Record<string, unknown>[] = [];
+    await page.route('**/api/inventory/sales-entry', route => {
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({ json: { inserted: 1, updated: 0, skipped: 0, revenueComplete: true } });
+    });
+    await prepareManual(page);
+    await page.locator('input[type=number]').nth(0).fill('8');
+    await page.locator('input[type=number]').nth(1).fill('80.25');
+    await save(page).click();
+    expect(writes[0]).toMatchObject({ branchId: branch, sales: [{ recipeId: recipe, quantitySold: 8, totalRevenue: 80.25 }] });
+    expect(writes[0].saleDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const result = page.getByRole('region', { name: 'Resultado de captura' });
+    await expect(result).toContainText('1 nueva');
+    await expect(result).toContainText('Ingreso completo');
+    await expect(result).not.toContainText('deconsolidación');
+    await expect(page.locator('input[type=number]').nth(0)).toHaveValue('8');
+  });
+  test('conserva cero explícito y diferencia ingreso no reportado', async ({ page }) => {
+    const writes: Record<string, unknown>[] = [];
+    await page.route('**/api/inventory/sales-entry', route => {
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({ json: { inserted: 0, updated: 1, skipped: 0, revenueComplete: writes.length === 1 } });
+    });
+    await prepareManual(page);
+    await page.locator('input[type=number]').nth(0).fill('0');
+    await page.locator('input[type=number]').nth(1).fill('0');
+    await save(page).click();
+    expect(writes[0]).toMatchObject({ sales: [{ quantitySold: 0, totalRevenue: 0 }] });
+    await expect(page.locator('input[type=number]').nth(1)).toHaveValue('0');
+    await page.locator('input[type=number]').nth(0).fill('2');
+    await page.locator('input[type=number]').nth(1).fill('');
+    await expect(page.getByRole('region', { name: 'Resultado de captura' })).toHaveCount(0);
+    await save(page).click();
+    expect(writes[1]).toMatchObject({ sales: [{ quantitySold: 2, totalRevenue: null }] });
+    await expect(page.getByRole('region', { name: 'Resultado de captura' })).toContainText('Ingreso incompleto');
+  });
+  test('error recuperable visible, controles bloqueados y reintento sin cambios', async ({ page }) => {
+    let release: (() => void) | undefined, calls = 0;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    await page.route('**/api/inventory/sales-entry', async route => {
+      calls++;
+      if (calls === 1) { await pending; return route.fulfill({ status: 409, json: { error: 'Stock insuficiente', code: 'INSUFFICIENT_STOCK' } }); }
+      return route.fulfill({ json: { inserted: 0, updated: 0, skipped: 1, revenueComplete: true } });
+    });
+    await prepareManual(page);
+    await save(page).click();
+    await expect(page.locator('input[type=number]').nth(0)).toBeDisabled();
+    await expect(page.getByRole('combobox')).toBeDisabled();
+    release!();
+    await expect(page.getByRole('alert')).toContainText('Stock insuficiente');
+    await expect(page.getByRole('combobox')).toContainText('Platillo sintético');
+    await save(page).click();
+    await expect(page.getByRole('region', { name: 'Resultado de captura' })).toContainText('1 sin cambios');
+    expect(calls).toBe(2);
+  });
+  test('fecha civil, alcance y enlace a CSV canónico en móvil', async ({ page }) => {
+    await prepareManual(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByLabel('Fecha de venta', { exact: true }).fill('2026-11-16');
+    await expect(page.getByRole('link', { name: 'Importar CSV de ventas', exact: true })).toHaveAttribute('href', '/dashboard/inventory/sales-entry');
+    expect(await page.locator('input[type=file]').count()).toBe(0);
+    await page.getByRole('button', { name: 'Seleccionar Norte', exact: true }).click();
+    await expect(page.getByRole('combobox')).not.toContainText('Platillo sintético');
+    await page.getByRole('button', { name: 'Todas las sucursales', exact: true }).click();
+    await expect(save(page)).toBeDisabled();
+    await expect(page.getByText('Selecciona una sucursal para capturar ventas.', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const help = (await page.locator('#manual-revenue-help').boundingBox())!;
+    const button = (await save(page).boundingBox())!;
+    expect(button.y - help.y - help.height).toBeGreaterThanOrEqual(12);
+    await page.screenshot({ path: '.tmp/manual-sales-mobile.png', fullPage: true });
+  });
+  test('bloquea precisión excesiva y fecha vacía antes de enviar', async ({ page }) => {
+    let calls = 0;
+    await page.route('**/api/inventory/sales-entry', route => { calls++; return route.fulfill({ json: {} }); });
+    await prepareManual(page);
+    const quantity = page.getByLabel('Cantidad', { exact: true });
+    const revenue = page.getByLabel('Ingreso Venta ($)', { exact: true });
+    await quantity.fill('1.001');
+    await save(page).click();
+    expect(await quantity.evaluate((el: HTMLInputElement) => el.validity.valid)).toBe(false);
+    await quantity.fill('1');
+    await revenue.fill('0.001');
+    await save(page).click();
+    expect(await revenue.evaluate((el: HTMLInputElement) => el.validity.valid)).toBe(false);
+    await revenue.fill('');
+    await page.getByLabel('Fecha de venta', { exact: true }).fill('');
+    await expect(save(page)).toBeDisabled();
+    expect(calls).toBe(0);
+  });
+  test('una respuesta tardía no confirma ventas de la sucursal anterior', async ({ page }) => {
+    let release: (() => void) | undefined;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    await page.route('**/api/inventory/sales-entry', async route => {
+      await pending; return route.fulfill({ json: { inserted: 1, updated: 0, skipped: 0, revenueComplete: true } });
+    });
+    await prepareManual(page);
+    await save(page).click();
+    await expect(save(page)).toBeDisabled();
+    await page.getByRole('button', { name: 'Seleccionar Norte', exact: true }).click();
+    const completed = page.waitForResponse(r => new URL(r.url()).pathname === '/api/inventory/sales-entry');
+    release!();
+    await (await completed).finished();
+    await page.getByLabel('Cantidad', { exact: true }).fill('3');
+    await expect(page.getByRole('region', { name: 'Resultado de captura' })).toHaveCount(0);
+    await expect(page.getByRole('combobox')).not.toContainText('Platillo sintético');
+    await expect(page.getByLabel('Ingreso Venta ($)', { exact: true })).toHaveValue('');
+  });
+});
 async function prepare(page: Page, text = csv) {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -32,6 +157,25 @@ test("distingue altas, correcciones y repetición sin atribuir otra salida de st
   await expect(result).not.toContainText("descontaron consumo");
   expect(writes).toMatchObject([{ mapping: { productKey: "SKU", recipeRef: "Producto, receta" } }]);
   expect(errors).toEqual([]);
+});
+
+test('el importador canónico conserva Receta/Cantidad/Total y ceros del CSV anterior', async ({ page }) => {
+  page.on('pageerror', error => console.error('CSV browser:', error.message));
+  const text = 'Receta,Cantidad,Total\nPlatillo,0,0', writes: unknown[] = [];
+  await page.route('**/api/inventory/sales-entry/bulk', route => {
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { inserted: 0, updated: 1, skipped: 0, errors: [], revenueComplete: true } });
+  });
+  await page.goto(harness.url);
+  await page.getByLabel('Sucursal destino').selectOption(branch);
+  await page.getByLabel('Archivo CSV', { exact: true }).setInputFiles({ name: 'anterior.csv', mimeType: 'text/csv', buffer: Buffer.from(text) });
+  await page.getByLabel('Producto / receta *', { exact: true }).selectOption('Receta');
+  await page.getByLabel('Cantidad vendida *', { exact: true }).selectOption('Cantidad');
+  await page.getByLabel('Ingreso $ (opcional)', { exact: true }).selectOption('Total');
+  await expect(page.getByRole('cell', { name: '$0.00', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Importar/ }).click();
+  await expect(page.getByRole('region', { name: 'Resultado de importación' })).toContainText('1 corregida');
+  expect(writes).toMatchObject([{ csvText: text, mapping: { recipeRef: 'Receta', quantitySold: 'Cantidad', totalRevenue: 'Total' } }]);
 });
 test("muestra ingreso incompleto y filas con error en vez de éxito total", async ({ page }) => {
   await page.route("**/api/inventory/sales-entry/bulk", route => route.fulfill({ json: { inserted: 1, updated: 0, skipped: 0,

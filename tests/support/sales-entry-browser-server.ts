@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 
 /** Componente y CSS reales; servidor local sin sesión, base de datos ni escrituras operativas. */
-export async function startSalesEntryBrowserServer(fixtureResponse?: Record<string, unknown>) {
+export async function startSalesEntryBrowserServer(fixtureResponse?: Record<string, unknown>, view: 'bulk' | 'manual' = 'bulk') {
   const fromVitest = createRequire(require.resolve("vitest/package.json"));
   const { createServer } = await import(pathToFileURL(fromVitest.resolve("vite")).href);
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
@@ -15,6 +15,7 @@ export async function startSalesEntryBrowserServer(fixtureResponse?: Record<stri
     : (await fromTailwind("postcss")([fromTailwind("@tailwindcss/postcss")()])
       .process(readFileSync(path.join(root, "app/globals.css"), "utf8"), { from: path.join(root, "app/globals.css") })).css;
   const virtual: Record<string, string> = {
+    '\0manual-link.tsx': `import React from 'react'; export default function Link({href, children, ...props}) {return React.createElement('a',{href,...props},children)}`,
     "\0sales-style.css": styles,
     "\0sales-entry.tsx": `import '/sales-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
       import {SalesEntryClient} from '@/app/dashboard/inventory/sales-entry/sales-entry-client';
@@ -22,13 +23,18 @@ export async function startSalesEntryBrowserServer(fixtureResponse?: Record<stri
         React.createElement('h1',{className:'mb-6 text-2xl font-semibold'},'Importación de ventas · escenario sintético'),
         React.createElement(SalesEntryClient,{branches:[{id:'b1000000-0000-4000-8000-000000000001',name:'Centro'},{id:'b2000000-0000-4000-8000-000000000002',name:'Norte'}],scopedBranchId:null})));`,
   };
-  const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", `sales-entry-vite-${process.pid}`),
+  if (view === 'manual') virtual['\0sales-entry.tsx'] = `import '/sales-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
+    import Page from '@/app/dashboard/inventory/reports/page'; import {BranchProvider,useBranch} from '@/lib/branch-context';
+    function Scope(){const {setSelectedBranchId}=useBranch(); return React.createElement('nav',{'aria-label':'Alcance sintético'},React.createElement('button',{onClick:()=>setSelectedBranchId('b2000000-0000-4000-8000-000000000002')},'Seleccionar Norte'),React.createElement('button',{onClick:()=>setSelectedBranchId(null)},'Todas las sucursales'))}
+    createRoot(document.getElementById('root')).render(React.createElement(BranchProvider,{userRole:'ADMIN',initialBranchId:'b1000000-0000-4000-8000-000000000001',initialBranches:[{id:'b1000000-0000-4000-8000-000000000001',name:'Centro'},{id:'b2000000-0000-4000-8000-000000000002',name:'Norte'}]},React.createElement(Scope),React.createElement(Page)));`;
+  const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", `sales-entry-vite-${process.pid}-${view}`),
     esbuild: { jsx: "automatic" }, css: { postcss: { plugins: [] } },
     resolve: { dedupe: ["react", "react-dom"], alias: [{ find: "@", replacement: root }] },
-    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"] },
+    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge", "zod", ...(view === 'manual' ? ['@radix-ui/react-select', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover', 'date-fns', 'recharts', 'sonner', 'next/navigation'] : [])] },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },
     plugins: [{ name: "sales-entry-browser", enforce: "pre",
       resolveId(id: string) { if (Object.hasOwn(virtual, id)) return id;
+        if (view === 'manual' && id === 'next/link') return '\0manual-link.tsx';
         if (id === "/sales-entry.tsx") return "\0sales-entry.tsx";
         if (id === "/sales-style.css") return "\0sales-style.css"; },
       load: (id: string) => virtual[id],
