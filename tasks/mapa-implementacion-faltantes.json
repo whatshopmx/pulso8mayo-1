@@ -843,7 +843,8 @@
         "INV-01.c.recovery.proposal.service",
         "INV-01.b4.coverage.cogs",
         "INV-01.b4.coverage.executive",
-        "INV-01.b4.coverage.menu"
+        "INV-01.b4.coverage.menu",
+        "INV-01.b4.manual.ui"
       ]
     },
     {
@@ -1751,16 +1752,26 @@
       "title": "Lectura mínima de mínimo/activo del catálogo para reporte ejecutivo",
       "type": "I",
       "size": "M",
-      "checks": ["V2"],
-      "dependsOn": ["INV-01.b2a", "INV-01.b4.coverage.cogs"]
+      "checks": [
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b2a",
+        "INV-01.b4.coverage.cogs"
+      ]
     },
     {
       "id": "INV-01.b4.coverage.executive.sources.rls",
       "title": "RLS y lectura mínima de conteos de inventario y merma para reporte ejecutivo",
       "type": "I",
       "size": "M",
-      "checks": ["V2"],
-      "dependsOn": ["SEC-00", "INV-01.b4.coverage.executive.catalog.rls"]
+      "checks": [
+        "V2"
+      ],
+      "dependsOn": [
+        "SEC-00",
+        "INV-01.b4.coverage.executive.catalog.rls"
+      ]
     },
     {
       "id": "INV-01.b4.coverage.menu",
@@ -1785,8 +1796,13 @@
       "title": "Lectura mínima del costo de receta bajo RLS para menú",
       "type": "I",
       "size": "M",
-      "checks": ["V2"],
-      "dependsOn": ["INV-01.b2a", "INV-01.b4b.rls"]
+      "checks": [
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.b2a",
+        "INV-01.b4b.rls"
+      ]
     },
     {
       "id": "EXC-01.rls",
@@ -1798,6 +1814,22 @@
       ],
       "dependsOn": [
         "SEC-00"
+      ]
+    },
+    {
+      "id": "INV-01.b4.manual.ui",
+      "title": "Captura manual visible: pesos, cero, fecha, feedback y migración del CSV duplicado",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b4.manual",
+        "INV-01.b4.ui"
       ]
     }
   ],
@@ -2771,7 +2803,8 @@
         "INV-01.c.recovery.historical",
         "INV-01.c.recovery.provenance",
         "INV-01.c.recovery.sources",
-        "INV-01.c.recovery.proposal.service"
+        "INV-01.c.recovery.proposal.service",
+        "INV-01.b4.manual.ui"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -4362,6 +4395,18 @@
       "state": "código implementado",
       "evidence": [
         {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.bulk/README.md",
+          "head": "07b2a69bd6ee48c6159cd8c41a3b8c8445220408",
+          "environment": "Neon aislado; HTTP y Better Auth reales; writer pulso_app dentro de rollback, sin conexión runtime independiente ni despliegue",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-entry-session-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        },
+        {
           "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
           "head": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
           "environment": "local + br-round-voice-belheola; sin despliegue; build global acreditado exit 0",
@@ -5533,7 +5578,9 @@
               "exit": 0
             }
           ],
-          "checks": ["V3"]
+          "checks": [
+            "V3"
+          ]
         },
         {
           "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/runtime.md",
@@ -5544,9 +5591,14 @@
               "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/executive-revenue-coverage-db.test.ts tests/integration/menu-revenue-coverage-db.test.ts tests/integration/cogs-revenue-coverage-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             },
-            { "command": "pnpm.cmd exec tsc --noEmit", "exit": 0 }
+            {
+              "command": "pnpm.cmd exec tsc --noEmit",
+              "exit": 0
+            }
           ],
-          "checks": ["V2"]
+          "checks": [
+            "V2"
+          ]
         },
         {
           "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/README.md",
@@ -5566,7 +5618,9 @@
               "exit": 0
             }
           ],
-          "checks": ["V1"]
+          "checks": [
+            "V1"
+          ]
         },
         {
           "file": "tasks/evidencia/2026-11-17/INV-01.b4.coverage.executive/README.md",
@@ -5605,7 +5659,9 @@
               "exit": 0
             }
           ],
-          "checks": ["V2"]
+          "checks": [
+            "V2"
+          ]
         }
       ]
     },
@@ -5622,7 +5678,9 @@
               "exit": 0
             }
           ],
-          "checks": ["V2"]
+          "checks": [
+            "V2"
+          ]
         }
       ]
     },
@@ -5639,7 +5697,9 @@
               "exit": 0
             }
           ],
-          "checks": ["V3"]
+          "checks": [
+            "V3"
+          ]
         },
         {
           "file": "tasks/evidencia/2026-11-18/INV-01.b4.coverage.menu/README.md",
@@ -5651,7 +5711,9 @@
               "exit": 0
             }
           ],
-          "checks": ["V2"]
+          "checks": [
+            "V2"
+          ]
         },
         {
           "file": "tasks/evidencia/2026-11-17/INV-01.b4.coverage.menu/README.md",
@@ -5690,7 +5752,9 @@
               "exit": 0
             }
           ],
-          "checks": ["V2"]
+          "checks": [
+            "V2"
+          ]
         }
       ]
     },
@@ -5718,6 +5782,31 @@
           "checks": [
             "V2"
           ]
+        }
+      ]
+    },
+    "INV-01.b4.manual.ui": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.ui/README.md",
+          "head": "07055084df845584047e449f24d4bb68b42dd086",
+          "environment": "Navegador sintético; Next/Better Auth/Neon aislado para denegaciones; sin aceptación ni despliegue",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts",
+              "exit": 0
+            },
+            {
+              "command": "RUN_COGS_NEXT_BROWSER=1 pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/cogs-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V3"]
         }
       ]
     }
