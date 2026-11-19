@@ -51,6 +51,8 @@ beforeAll(async () => {
       password: hash, createdAt: now, updatedAt: now });
   });
   seeded = true;
+  writeFileSync('.tmp/report-browser-fixture.json', JSON.stringify({ companyId, foreignCompanyId,
+    branchId, siblingBranchId, foreignBranchId, recipeId, actorId }));
   const serverLog = openSync('.tmp/cogs-next-server.log', 'w');
   child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', String(port)], {
     env: { ...process.env, NODE_ENV: 'development', DATABASE_URL: process.env.TEST_DATABASE_URL!, PULSO_REPORT_BROWSER_TEST: '1',
@@ -147,6 +149,13 @@ for (const report of [
       await page.getByLabel('Fecha de inicio', { exact: true }).fill('2026-11-20');
       await refresh(400);
       await browserExpect(page.getByRole('alert').filter({ hasText: 'No se pudo cargar' })).toBeVisible();
+      if (report.name === 'executive') {
+        // A failed report must leave the authorized branch selector usable.
+        await browserExpect(page.getByRole('combobox', { name: 'Sucursal del reporte' })).toBeVisible();
+        await page.getByRole('combobox', { name: 'Sucursal del reporte' }).click();
+        await page.getByRole('option', { name: 'Synthetic Next COGS branch', exact: true }).click();
+        await page.screenshot({ path: '.tmp/executive-next-query-error.png', fullPage: true });
+      }
       await page.getByLabel('Fecha de inicio', { exact: true }).fill('2026-11-17');
       await refresh();
       await browserExpect(page.getByRole('alert').filter({ hasText: 'No se pudo cargar' })).toHaveCount(0);
@@ -156,9 +165,13 @@ for (const report of [
       if (report.name === 'executive') await browserExpect(page.getByText('Cobertura Sin datos · reportado $0.00', { exact: true })).toHaveCount(0);
       else await browserExpect(page.getByText('No hay datos de ventas en el período seleccionado', { exact: true })).toHaveCount(0);
       await browserExpect(page.getByRole('alert').filter({ hasText: 'No se pudo cargar' })).toBeVisible();
+      if (report.name === 'executive')
+        await browserExpect(page.getByRole('combobox', { name: 'Sucursal del reporte' })).toHaveCount(0);
       await login();
       await refresh();
       await browserExpect(page.getByRole('alert').filter({ hasText: 'No se pudo cargar' })).toHaveCount(0);
+      if (report.name === 'executive')
+        await browserExpect(page.getByRole('combobox', { name: 'Sucursal del reporte' })).toBeVisible();
       expect(errors).toEqual([]);
       await page.setViewportSize({ width: 390, height: 844 });
       await browserExpect(page.getByLabel('Fecha de inicio', { exact: true })).toBeVisible();
@@ -195,14 +208,35 @@ afterAll(async () => {
   if (!enabled) return;
   try { await browser?.close(); }
   finally {
-    if (child && child.exitCode === null) {
-      // Next CLI owns a worker; taskkill targets only this test's process tree.
-      if (process.platform === 'win32') {
-        const stop = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
-        await once(stop, 'exit');
-      } else { child.kill('SIGTERM'); await once(child, 'exit'); }
-    }
-    if (seeded) {
+    try {
+      if (child && child.exitCode === null && child.signalCode === null) {
+        console.info('Stopping synthetic report server');
+        // Next CLI owns a worker; target only this test's process tree and
+        // bound the helper so a stalled taskkill cannot skip fixture cleanup.
+        if (process.platform === 'win32') {
+          const stop = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+            windowsHide: true, stdio: 'ignore', timeout: 15_000, killSignal: 'SIGKILL',
+          });
+          const [code] = await once(stop, 'exit');
+          // A signal-terminated child keeps exitCode=null. Wait for its exit
+          // event before deciding whether a nonzero helper result is a failure.
+          if (child.exitCode === null && child.signalCode === null) {
+            try { await once(child, 'exit', { signal: AbortSignal.timeout(15_000) }); }
+            catch { throw new Error(`Synthetic report server still running after taskkill (${code})`); }
+          }
+        } else { child.kill('SIGTERM'); await once(child, 'exit'); }
+      }
+      if (baseURL) {
+        let responding = false;
+        try { await fetch(`${baseURL}/api/auth/get-session`, { signal: AbortSignal.timeout(1500) }); responding = true; }
+        catch (error) {
+          // A timeout is not proof of shutdown: the TCP listener may be alive.
+          if ((error as { cause?: { code?: string } }).cause?.code !== 'ECONNREFUSED') throw error;
+        }
+        expect(responding, 'Synthetic report server must stop before fixture deletion').toBe(false);
+      }
+    } finally { if (seeded) {
+      console.info('Removing synthetic report fixtures');
       await db.transaction(async tx => {
         await tx.delete(sessions).where(eq(sessions.userId, actorId));
         await tx.delete(account).where(eq(account.userId, actorId));
@@ -215,7 +249,8 @@ afterAll(async () => {
       for (const id of [companyId, foreignCompanyId])
         expect(await db.select({ id: companies.id }).from(companies).where(eq(companies.id, id))).toEqual([]);
       expect(await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, actorId))).toEqual([]);
-    }
+      console.info('Synthetic report fixtures removed and verified');
+    } }
   }
 }, 180_000);
 

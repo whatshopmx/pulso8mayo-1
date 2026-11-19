@@ -25,3 +25,9 @@ El siguiente recorrido pasó datos parciales/vacíos, sucursal→consolidado, ra
 `NODE_OPTIONS='--max-old-space-size=4096' pnpm.cmd exec tsc --noEmit`: exit 0. ESLint focal de cinco archivos: exit 0, seis advertencias previas (hooks manuales, imports y any del tooltip).
 
 Después de ese 3/3 se añade verificación de teclado (Tab entre calendarios/botón, Enter/Escape en menús móviles; sucursal ajena ausente). Su reintento focal `-t partial/empty` está en curso; el primer intento de filtro con pipe fue rechazado por cmd antes de iniciar Vitest y no cuenta como ejecución. Build final también en curso. No se declara aprobación por saltarse un caso ni por éxito parcial del archivo.
+
+Actualización 2026-11-19: la corrida completa sobre `ea764e8` pasó **3/3,
+exit 0, 160.15 s**, incluidos los pasos de teclado anteriores. El estado
+«en curso» del párrafo anterior es histórico. La
+[continuación y corrección del selector](../../2026-11-19/INV-01.b4.coverage.executive/README.md)
+registra los gates nuevos sin aceptar padres ni desplegar migraciones.

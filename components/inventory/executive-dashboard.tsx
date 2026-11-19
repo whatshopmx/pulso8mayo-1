@@ -73,6 +73,7 @@ export function ExecutiveDashboard() {
     const [report, setReport] = useState<ExecutiveReport | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [branchAccessDenied, setBranchAccessDenied] = useState(false);
     const [branchOptions, setBranchOptions] = useState<ExecutiveReport['byBranch']>([]);
     const [roleView, setRoleView] = useState<string>("ADMIN");
     const [startDate, setStartDate] = useState(() => {
@@ -89,6 +90,7 @@ export function ExecutiveDashboard() {
             const params = new URLSearchParams({ startDate, endDate });
             if (branchFilter && branchFilter !== "all") params.set("branchId", branchFilter);
             const res = await fetch(`/api/inventory/reports/executive?${params}`);
+            setBranchAccessDenied(res.status === 401 || res.status === 403);
             const data = await res.json();
             if (res.ok) {
                 setReport(data);
@@ -129,7 +131,7 @@ export function ExecutiveDashboard() {
                                 <SelectItem value="GERENTE">Gerente / Compras</SelectItem>
                             </SelectContent>
                         </Select>
-                        {!loadError && branchOptions.length > 1 && (
+                        {!branchAccessDenied && branchOptions.length > 1 && (
                             <Select value={branchFilter} onValueChange={setBranchFilter} disabled={loading}>
                                 <SelectTrigger aria-label="Sucursal del reporte" className="w-44">
                                     <SelectValue placeholder="Sucursal" />
