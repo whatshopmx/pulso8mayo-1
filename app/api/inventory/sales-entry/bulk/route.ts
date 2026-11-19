@@ -12,6 +12,7 @@ import {
   SalesIngestService,
 } from "@/lib/services/sales-ingest-service";
 import { SaleConsumptionError } from "@/lib/services/sale-consumption-service";
+import { isApiError } from "@/lib/api/error";
 
 const bulkSchema = z.object({
   branchId: z.string().uuid(),
@@ -111,6 +112,9 @@ export async function POST(req: NextRequest) {
       revenueComplete: parsed.errors.length === 0 && result.revenueComplete,
     });
   } catch (error) {
+    if (isApiError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof SaleConsumptionError) {
       const status = error.code === "INVALID_INPUT" ? 400 : error.code === "INVALID_SCOPE" ? 403 : 409;
       return NextResponse.json({ error: error.message, code: error.code }, { status });

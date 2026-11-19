@@ -296,3 +296,21 @@ it('bulk HTTP: session, branch and company boundaries reject writes without cons
     expect(await state(tx, f)).toEqual(before);
   });
 }, 180_000);
+
+it('manual and bulk HTTP: configured owner runtime is rejected with 503 without falling back', async () => {
+  await probe(async (tx, f) => {
+    await f.login();
+    const before = await state(tx, f);
+    vi.stubEnv('SALES_RUNTIME_DATABASE_URL', process.env.TEST_DATABASE_URL!);
+    try {
+      const responses = [await f.post([{ recipeId: f.recipe[0], quantitySold: 1 }]),
+        await f.bulk(`SKU,Recipe,Qty,Revenue\nPOS-01,${f.recipe[0]},1,0`)];
+      for (const response of responses) {
+        expect(response.status).toBe(503);
+        expect(await response.json()).toEqual({ error: 'No se pudo habilitar el registro de ventas. Inténtalo de nuevo o contacta al administrador.' });
+      }
+      expect(await state(tx, f)).toEqual(before);
+      expect(fixture.runtimeCalls).toBe(0);
+    } finally { vi.unstubAllEnvs(); }
+  });
+}, 180_000);

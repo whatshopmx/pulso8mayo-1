@@ -4,6 +4,7 @@ import { POST } from "@/app/api/inventory/sales-entry/bulk/route";
 import { getSession } from "@/lib/auth";
 import { SalesIngestService } from "@/lib/services/sales-ingest-service";
 import { SaleConsumptionError } from "@/lib/services/sale-consumption-service";
+import { ApiError } from "@/lib/api/error";
 vi.mock("@/lib/auth", () => ({ getSession: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/services/sales-ingest-service", async () => ({
@@ -22,6 +23,12 @@ beforeEach(() => {
   vi.mocked(SalesIngestService.ingest).mockResolvedValue({ inserted: 0, updated: 1, skipped: 0, errors: [], revenueCoverage: [], revenueComplete: true });
 });
 describe("frontera bulk al writer", () => {
+  it("conserva 503 de runtime sin presentarlo como resultado de importación", async () => {
+    vi.mocked(SalesIngestService.ingest).mockRejectedValue(new ApiError('Registro de ventas temporalmente no disponible', 503));
+    const response = await request();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'Registro de ventas temporalmente no disponible' });
+  });
   it("rechaza JSON inválido o vacío antes de parsear CSV o aplicar consumo", async () => {
     for (const body of ['{', '']) {
       const response = await POST(new NextRequest('http://localhost/api/inventory/sales-entry/bulk', { method: 'POST', body }));
