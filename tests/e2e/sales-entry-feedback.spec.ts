@@ -42,6 +42,14 @@ test.describe('captura manual: contrato y respuesta visible', () => {
     const zero = page.getByRole('row').filter({ hasText: 'Ingrediente cero medido' });
     await expect(zero.getByRole('cell', { name: '0.00 KG', exact: true })).toHaveCount(3);
     await expect(zero).toContainText('Conforme');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: '.tmp/manual-sales-missing-counts-mobile.png', fullPage: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const table = page.getByRole('table', { name: 'Variaciones de insumos', exact: true });
+    await table.focus();
+    const scrollBefore = await table.locator('..').evaluate(element => element.scrollLeft);
+    await table.press(scrollBefore > 0 ? 'ArrowLeft' : 'ArrowRight');
+    await expect.poll(() => table.locator('..').evaluate(element => element.scrollLeft)).not.toBe(scrollBefore);
     expect(errors).toEqual([]);
   });
   test('envía pesos sin multiplicarlos y confirma el total sin prometer otro consumo', async ({ page }) => {

@@ -91,9 +91,9 @@ export default function InventoryReportsPage() {
                 icon={TrendingUp}
             />
 
-            <div className="grid gap-6 lg:grid-cols-3 mt-6">
+            <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3 mt-6">
                 {/* Filters, POS simulator, and CSV import */}
-                <div className="lg:col-span-1 space-y-6">
+                <div className="min-w-0 lg:col-span-1 space-y-6">
                     {/* Date Filters Card */}
                     <Card>
                         <CardHeader>
@@ -142,7 +142,7 @@ export default function InventoryReportsPage() {
                 </div>
 
                 {/* Report results & Recharts */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="min-w-0 lg:col-span-2 space-y-6">
                     {/* Visual Chart Card */}
                     {chartData.length > 0 && (
                         <Card>
@@ -196,7 +196,7 @@ export default function InventoryReportsPage() {
                                 </div>
                             ) : (
                                 <div className="border rounded-lg overflow-x-auto">
-                                    <Table>
+                                    <Table aria-label="Variaciones de insumos" tabIndex={0} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                                         <TableHeader className="bg-muted">
                                             <TableRow>
                                                 <TableHead>Insumo</TableHead>
