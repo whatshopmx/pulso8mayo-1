@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { PosUploadStep, isPosUploadStep } from '@/components/workflow/pos-upload-step';
 
 // Interface for props
 interface WorkflowStep {
@@ -28,12 +29,14 @@ interface WorkflowStep {
     description: string;
     type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO' | 'LOCATION' | 'ENTITY_SELECT' | 'STOCK_COUNT';
     config?: Record<string, unknown>;
+    smartLinkTarget?: string;
     required?: boolean;
     metadata?: Record<string, any> & { entityType?: "purchase_order" | "invoice" };
 }
 
 interface WorkflowInstance {
     id: string;
+    branchId?: string;
     status: string;
     templateId: string;
     assignedTo: string;
@@ -168,6 +171,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     const [completedCounts, setCompletedCounts] = useState<string[]>([]);
     const [evidenceUrl, setEvidenceUrl] = useState<string | string[]>("");
     const [loading, setLoading] = useState(false);
+    const [posPending, setPosPending] = useState(false);
     const [aiFeedback, setAiFeedback] = useState<{ passed: boolean; reason?: string } | null>(null);
     const [checkboxValues, setCheckboxValues] = useState<Record<string, boolean>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -195,13 +199,18 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     const currentStepDef = steps.find((s) => s.id === stepper.state.current?.data.id) || steps[0];
     const countCompleted = completedCounts.includes(currentStepDef.id) || existingSteps.some(step => step.stepId === currentStepDef.id && step.status === 'COMPLETED');
     useEffect(() => {
+        if (!isPosUploadStep(currentStepDef)) return;
+        const saved = existingSteps.find(step => step.stepId === currentStepDef.id);
+        setValue(saved?.value ?? ''); setEvidenceUrl(saved?.evidenceUrl ?? ''); setPosPending(false);
+    }, [currentStepDef, existingSteps]);
+    useEffect(() => {
         if (currentStepDef.type !== 'STOCK_COUNT') return;
         setValue(countDrafts.current[currentStepDef.id] ?? existingSteps.find(step => step.stepId === currentStepDef.id)?.value ?? "");
     }, [currentStepDef.id, currentStepDef.type, existingSteps]);
 
     // Auto-save effect
     const performAutoSave = useCallback(async () => {
-        if (!currentStepDef || currentStepDef.type === 'STOCK_COUNT' || mode !== 'execution' || !hasUnsavedChanges) return;
+        if (!currentStepDef || currentStepDef.type === 'STOCK_COUNT' || posPending || mode !== 'execution' || !hasUnsavedChanges) return;
 
         setHasUnsavedChanges(false);
         try {
@@ -242,7 +251,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
         } catch (error) {
             console.error("Auto-save failed:", error);
         }
-    }, [currentStepDef, mode, hasUnsavedChanges, value, checkboxValues, token, executionId, evidenceUrl]);
+    }, [currentStepDef, mode, hasUnsavedChanges, value, checkboxValues, token, executionId, evidenceUrl, posPending]);
 
     useEffect(() => {
         if (mode !== 'execution') return;
@@ -314,6 +323,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     // Validation: can the current step be submitted?
     const canSubmit = useMemo(() => {
         if (!currentStepDef) return false;
+        if (isPosUploadStep(currentStepDef)) return mode === 'preview' || (!posPending && (!currentStepDef.required || !!evidenceUrl));
         const type = currentStepDef.type;
         if (type === 'STOCK_COUNT') {
             if (mode === 'preview' || countCompleted) return true;
@@ -329,11 +339,12 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
             return Array.isArray(evidenceUrl) ? evidenceUrl.length > 0 : !!evidenceUrl;
         }
         return !!value || !!evidenceUrl;
-    }, [currentStepDef, value, evidenceUrl, checkboxValues, mode, countCompleted]);
+    }, [currentStepDef, value, evidenceUrl, checkboxValues, mode, countCompleted, posPending]);
 
     // Validation function
     const validateCurrentStep = () => {
         if (!currentStepDef) return false;
+        if (isPosUploadStep(currentStepDef)) return canSubmit;
         if (currentStepDef.type === 'STOCK_COUNT') return canSubmit;
         if (!currentStepDef.required) return true;
         
@@ -702,6 +713,11 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <Separator />
+                    {isPosUploadStep(currentStepDef) && <PosUploadStep key={currentStepDef.id}
+                        branchId={instance.branchId} workflowInstanceId={instance.id} disabled={loading || mode === 'preview'}
+                        savedValue={existingSteps.find(step => step.stepId === currentStepDef.id)?.value}
+                        savedReference={existingSteps.find(step => step.stepId === currentStepDef.id)?.evidenceUrl}
+                        onPendingChange={setPosPending} onChange={(next, reference) => { setValue(next); setEvidenceUrl(reference); setHasUnsavedChanges(true); }} />}
                     {currentStepDef.type === 'STOCK_COUNT' && <StockCountGrid
                         key={currentStepDef.id} ref={countGridRef}
                         rows={currentStepDef.config?.rows as StockCountRow[] || []} value={value}
@@ -717,7 +733,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                     />}
 
                     {/* ===== TEXT ===== */}
-                    {currentStepDef.type === 'TEXT' && (
+                    {currentStepDef.type === 'TEXT' && !isPosUploadStep(currentStepDef) && (
                         <div className="space-y-2">
                             <Label>Tu Respuesta</Label>
                             <Textarea value={value} onChange={e => setValue(e.target.value)} placeholder="Escribe aquí..." rows={4} />
@@ -1155,7 +1171,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
 
                 </CardContent>
                 <CardFooter className="flex justify-between gap-3">
-                    <Button variant="ghost" onClick={async () => { try { await countGridRef.current?.flush(); stepper.navigation.prev(); } catch { toast.error('Guarda el borrador antes de cambiar de categoría'); } }} disabled={loading || stepper.state.isFirst}>
+                    <Button variant="ghost" onClick={async () => { try { await countGridRef.current?.flush(); stepper.navigation.prev(); } catch { toast.error('Guarda el borrador antes de cambiar de categoría'); } }} disabled={loading || posPending || stepper.state.isFirst}>
                         Atrás
                     </Button>
                     <Button onClick={handleNext} disabled={loading || !canSubmit} className="flex-1">

@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 
 /** Componente y CSS reales; servidor local sin sesión, base de datos ni escrituras operativas. */
-export async function startSalesEntryBrowserServer(fixtureResponse?: Record<string, unknown>, view: 'bulk' | 'manual' = 'bulk') {
+export async function startSalesEntryBrowserServer(fixtureResponse?: Record<string, unknown>, view: 'bulk' | 'manual' | 'pos' = 'bulk') {
   const fromVitest = createRequire(require.resolve("vitest/package.json"));
   const { createServer } = await import(pathToFileURL(fromVitest.resolve("vite")).href);
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
@@ -27,10 +27,19 @@ export async function startSalesEntryBrowserServer(fixtureResponse?: Record<stri
     import Page from '@/app/dashboard/inventory/reports/page'; import {BranchProvider,useBranch} from '@/lib/branch-context';
     function Scope(){const {setSelectedBranchId}=useBranch(); return React.createElement('nav',{'aria-label':'Alcance sintético'},React.createElement('button',{onClick:()=>setSelectedBranchId('b2000000-0000-4000-8000-000000000002')},'Seleccionar Norte'),React.createElement('button',{onClick:()=>setSelectedBranchId(null)},'Todas las sucursales'))}
     createRoot(document.getElementById('root')).render(React.createElement(BranchProvider,{userRole:'ADMIN',initialBranchId:'b1000000-0000-4000-8000-000000000001',initialBranches:[{id:'b1000000-0000-4000-8000-000000000001',name:'Centro'},{id:'b2000000-0000-4000-8000-000000000002',name:'Norte'}]},React.createElement(Scope),React.createElement(Page)));`;
+  if (view === 'pos') virtual['\0sales-entry.tsx'] = `import '/sales-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
+    import {WorkflowStepper} from '@/components/execution/workflow-stepper';
+    const query=new URLSearchParams(location.search), legacy=query.has('legacy');
+    createRoot(document.getElementById('root')).render(React.createElement(WorkflowStepper,{
+      instance:{id:'e1000000-0000-4000-8000-000000000001',branchId:query.has('noBranch')?undefined:'b1000000-0000-4000-8000-000000000001',status:'IN_PROGRESS'},
+      executionId:'e1000000-0000-4000-8000-000000000001',mode:query.has('preview')?'preview':'execution',existingSteps:[],
+      steps:[{id:'pos',title:'Subir archivo del POS',description:'Escenario sintético de cierre',type:legacy?'smart_link':'TEXT',required:true,
+        ...(legacy?{smartLinkTarget:'/api/workflows/smart-links/upload-pos'}:{config:{posUpload:true}})},
+        {id:'review',title:'Revisión final',type:'INFO',required:false}]}));`;
   const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", `sales-entry-vite-${process.pid}-${view}`),
     esbuild: { jsx: "automatic" }, css: { postcss: { plugins: [] } },
     resolve: { dedupe: ["react", "react-dom"], alias: [{ find: "@", replacement: root }] },
-    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge", "zod", ...(view === 'manual' ? ['@radix-ui/react-select', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover', 'date-fns', 'recharts', 'sonner', 'next/navigation'] : [])] },
+    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge", "zod", ...(view === 'manual' ? ['@radix-ui/react-select', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover', 'date-fns', 'recharts', 'sonner', 'next/navigation'] : []), ...(view === 'pos' ? ['@stepperize/react','sonner','@radix-ui/react-select','@radix-ui/react-progress','@radix-ui/react-checkbox','@radix-ui/react-radio-group','@radix-ui/react-separator'] : [])] },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },
     plugins: [{ name: "sales-entry-browser", enforce: "pre",
       resolveId(id: string) { if (Object.hasOwn(virtual, id)) return id;
@@ -43,7 +52,7 @@ export async function startSalesEntryBrowserServer(fixtureResponse?: Record<stri
           if (req.url === "/api/inventory/sales-entry/bulk" && fixtureResponse) {
             res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(fixtureResponse)); return;
           }
-          if (req.url !== "/") return next();
+          if (req.url.split('?')[0] !== "/") return next();
           res.setHeader("Content-Type", "text/html");
           res.end('<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Importación sintética</title></head><body><div id="root"></div><script type="module" src="/sales-entry.tsx"></script></body></html>');
         });
