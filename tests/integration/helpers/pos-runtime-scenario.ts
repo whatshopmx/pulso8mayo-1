@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { chromium } from '@playwright/test';
+import { chromium, expect as browserExpect } from '@playwright/test';
 import { expect } from 'vitest';
 import { dailySalesCuts } from '@/lib/db/schema';
 import type { createSalesRuntimeDatabase } from './sales-runtime-database';
 import { startSalesRuntimeNextServer } from './sales-runtime-next-server';
 import { seedCsvRuntimeScenario } from './csv-runtime-scenario';
+import { seedPosWorkflow } from './pos-workflow-fixture';
 
 export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<typeof createSalesRuntimeDatabase>>) {
   config({ path: '.env', quiet: true }); // Completes R2 credentials; does not override test DATABASE_URL.
@@ -24,23 +25,37 @@ export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<type
   try {
     await database.owner.insert(dailySalesCuts).values({ id: cutId, companyId: scenario.companyId, branchId: scenario.branchId,
       businessDate: day, shift: 'COMPLETO', channel: 'TOTAL', totalSales: 0, source: 'MANUAL_FORM', status: 'VALIDATED' });
+    const workflow = await seedPosWorkflow(database, scenario);
     server = await startSalesRuntimeNextServer(database);
     browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ baseURL: server.baseURL });
+    const context = await browser.newContext({ baseURL: server.baseURL, timezoneId: 'America/Mexico_City', viewport: { width: 1440, height: 1000 } });
     try {
       expect((await context.request.post('/api/auth/sign-in/email', { headers: { origin: server.baseURL },
         data: { email: `${scenario.actorId}@example.invalid`, password: scenario.password } })).status()).toBe(200);
+      await context.addCookies([{ name: 'pulso_selected_branch', value: scenario.branchId, url: server.baseURL }]);
+      const page = await context.newPage(), errors: string[] = [];
+      page.on('pageerror', failure => errors.push(failure.message));
+      await page.goto(`/dashboard/workflows/${workflow.instanceId}/execute`, { timeout: 90_000 });
+      await browserExpect(page.getByLabel('Día del corte', { exact: true })).not.toHaveValue(''); // Client effect proves hydration.
       const mapping = { recipeRef: 'Producto', quantitySold: 'Cantidad', productKey: 'SKU', totalRevenue: 'Ingreso' };
       const csv = (quantity: number, revenue = '') => `SKU,Producto,Cantidad,Ingreso\nPOS-01,"${scenario.recipeNames[0]}",${quantity},${revenue}`;
       const upload = async (quantity: number, revenue: string, name: string, expected: object) => {
         const bytes = Buffer.from(csv(quantity, revenue));
-        const response = await context.request.post('/api/workflows/smart-links/upload-pos', { multipart: {
-          branchId: scenario.branchId, businessDate: day, mapping: JSON.stringify(mapping),
-          file: { name, mimeType: 'text/csv', buffer: bytes },
-        } });
+        await page.getByLabel('Archivo del POS', { exact: true }).setInputFiles({ name, mimeType: 'text/csv', buffer: bytes });
+        await browserExpect(page.getByLabel('Clave del producto', { exact: true })).toHaveValue('SKU');
+        await page.getByLabel('Día del corte', { exact: true }).fill(day);
+        await browserExpect(page.getByRole('region', { name: 'Resultado del archivo POS', exact: true })).toHaveCount(0);
+        const received = page.waitForResponse(response => new URL(response.url()).pathname === '/api/workflows/smart-links/upload-pos' && response.request().method() === 'POST', { timeout: 90_000 });
+        await page.getByRole('button', { name: 'Guardar archivo POS', exact: true }).click();
+        const response = await received;
         expect(response.status()).toBe(200);
         const body = (await response.json()).data;
         expect(body).toMatchObject({ durable: true, matchedCount: 1, sales: expected });
+        const result = page.getByRole('region', { name: 'Resultado del archivo POS', exact: true });
+        await browserExpect(result).toBeVisible();
+        await browserExpect(result).toContainText(`${body.sales.inserted} nuevas · ${body.sales.updated} corregidas · ${body.sales.skipped} sin cambios`);
+        await browserExpect(result).toContainText(body.sales.revenueComplete ? 'Ingreso completo' : 'Ingreso incompleto');
+        for (const failure of body.sales.errors) await browserExpect(result).toContainText(`Fila ${failure.rowNumber}: ${failure.message}`);
         expect(body.fileUrl.startsWith(prefix)).toBe(true);
         expect((await r2.getFromR2(body.fileUrl))?.equals(bytes)).toBe(true);
         const [cut] = await database.owner.select({ key: dailySalesCuts.rawFileUrl }).from(dailySalesCuts).where(eq(dailySalesCuts.id, cutId));
@@ -89,7 +104,7 @@ export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<type
       expect(await scenario.state()).toEqual(completed);
       const [relinked] = await database.owner.select({ key: dailySalesCuts.rawFileUrl }).from(dailySalesCuts).where(eq(dailySalesCuts.id, cutId));
       expect(relinked.key).toBe(first.fileUrl);
-      await upload(0, '0', 'cancelacion.csv', { inserted: 0, updated: 1, skipped: 0, revenueComplete: true, errors: [] });
+      const last = await upload(0, '0', 'cancelacion.csv', { inserted: 0, updated: 1, skipped: 0, revenueComplete: true, errors: [] });
       const cancelled = await scenario.state();
       expect(cancelled.batches.map(batch => batch.quantity)).toEqual(['20.0000', '20.0000']);
       expect(cancelled.identities).toEqual(initial.identities);
@@ -97,6 +112,22 @@ export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<type
       expect(cancelled.revisions).toHaveLength(5);
       expect(cancelled.sales[0]).toMatchObject({ quantity: '0.00', revenue: 0 });
       expect((await list()).Contents).toHaveLength(6);
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: '.tmp/pos-workflow-next-mobile.png', fullPage: true });
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.screenshot({ path: '.tmp/pos-workflow-next-desktop.png', fullPage: true });
+      const persisted = page.waitForResponse(response => new URL(response.url()).pathname === `/api/workflows/executions/${workflow.instanceId}/steps/pos` && response.request().method() === 'PATCH', { timeout: 90_000 });
+      await page.getByRole('button', { name: 'Siguiente Paso' }).click();
+      expect((await persisted).status()).toBe(200);
+      await browserExpect(page.getByText('Revisión final sintética', { exact: true })).toBeVisible();
+      const saved = await workflow.state();
+      expect(saved.step).toMatchObject({ status: 'COMPLETED', evidenceUrl: last.fileUrl, completedBy: scenario.actorId });
+      expect(saved.step.value).toMatchObject({ businessDate: day, fileName: 'cancelacion.csv',
+        sales: { inserted: 0, updated: 1, skipped: 0, revenueComplete: true, errors: [] } });
+      expect(saved.instance.status).toBe('IN_PROGRESS');
+      expect(await scenario.state()).toEqual(cancelled);
+      expect(errors).toEqual([]);
       expect((await context.request.post('/api/auth/sign-out', { headers: { origin: server.baseURL }, data: {} })).status()).toBe(200);
       expect((await context.request.get(`/api/sales/cuts/${cutId}/pos-file`)).status()).toBe(401);
       const rejected = await context.request.post('/api/workflows/smart-links/upload-pos', { multipart: {
