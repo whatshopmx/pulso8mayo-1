@@ -8,6 +8,7 @@ import { account, users, companies, branches, recipes, recipeItems, inventoryIte
 import { createSalesRuntimeDatabase } from './helpers/sales-runtime-database';
 import { startSalesRuntimeNextServer } from './helpers/sales-runtime-next-server';
 import { seedCsvRuntimeScenario } from './helpers/csv-runtime-scenario';
+import { verifyPosRuntimeScenario } from './helpers/pos-runtime-scenario';
 
 const enabled = process.env.RUN_SALES_RUNTIME_NEXT_BROWSER === '1';
 // All cases use one disposable copy; writing scenarios use disjoint tenants.
@@ -15,6 +16,10 @@ const enabled = process.env.RUN_SALES_RUNTIME_NEXT_BROWSER === '1';
 let fixture: Awaited<ReturnType<typeof createSalesRuntimeDatabase>> | undefined;
 beforeAll(async () => { if (enabled) fixture = await createSalesRuntimeDatabase(); }, 150_000);
 afterAll(async () => { await fixture?.close(); }, 90_000);
+
+it.skipIf(!enabled || process.env.RUN_SALES_RUNTIME_POS !== '1')('Next HTTP + R2 + real writer runtime: POS ingestion and evidence', async () => {
+  await verifyPosRuntimeScenario(fixture!);
+}, 300_000);
 
 it.skipIf(!enabled)('disposable sales database copies RLS and immutable triggers and cleans up', async () => {
     const count = (await fixture!.owner.execute(sql`SELECT count(*)::int AS n FROM pg_tables WHERE schemaname='public'`)).rows[0];
