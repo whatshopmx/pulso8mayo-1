@@ -73,6 +73,11 @@ insuficiencia sin efectos y recuperación, NULL/cero, móvil y teclado, más
 limpieza de servidor/base/rol. Se activa con `RUN_SALES_RUNTIME_NEXT_BROWSER=1`
 tras construir el producto; requiere CREATEROLE/CREATEDB solo en el dueño
 del arnés y un origen temporalmente sin clientes. No termina sesiones del
-origen para copiarlo. Esa prueba no sustituye la aceptación de CSV/cierre,
+origen para copiarlo. El mismo arnés cubre CSV desde el input real: SKU
+estable al renombrar archivo, correcciones e ingreso sin otro movimiento,
+sesión/reintento, grupos inválidos sin subtotales, insuficiencia, grupos
+independientes y cancelación cero; oráculos SQL, móvil y teclado. La suite
+ampliada pasa 4/4; [evidencia CSV](../tasks/evidencia/2026-11-19/INV-01.b4.ui.next/README.md).
+Esa prueba no sustituye la aceptación de dependencias/cierre POS,
 otros dominios o el despliegue. No se han configurado secretos de despliegue
 ni modificado producción.

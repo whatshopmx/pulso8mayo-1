@@ -846,7 +846,8 @@
         "INV-01.b4.coverage.menu",
         "INV-01.b4.manual.ui",
         "INV-01.b4.runtime.config",
-        "INV-01.b4.manual.next"
+        "INV-01.b4.manual.next",
+        "INV-01.b4.ui.next"
       ]
     },
     {
@@ -1268,7 +1269,8 @@
         "INV-01.b4.ui",
         "INV-01.b4.coverage",
         "INV-01.b4.runtime.config",
-        "INV-01.b4.manual.next"
+        "INV-01.b4.manual.next",
+        "INV-01.b4.ui.next"
       ],
       "checks": [
         "V1",
@@ -1868,6 +1870,24 @@
         "INV-01.b4b",
         "INV-01.b4.runtime.config",
         "INV-01.b4.manual.ui"
+      ]
+    },
+    {
+      "id": "INV-01.b4.ui.next",
+      "title": "Verificar importación CSV Next con SKU estable, runtime y stock reales",
+      "parent": "INV-01.b",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b",
+        "INV-01.b4.runtime.config",
+        "INV-01.b4.ui"
       ]
     }
   ],
@@ -2844,7 +2864,8 @@
         "INV-01.c.recovery.proposal.service",
         "INV-01.b4.manual.ui",
         "INV-01.b4.runtime.config",
-        "INV-01.b4.manual.next"
+        "INV-01.b4.manual.next",
+        "INV-01.b4.ui.next"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -4586,6 +4607,20 @@
           "checks": [
             "V1"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.ui.next/README.md",
+          "head": "3f8b002",
+          "environment": "Next producción/Chromium/Better Auth/Neon aislado sin mocks; writer con login mínimo y copia/rol efímeros retirados; sin aceptación ni despliegue",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V3"
+          ]
         }
       ]
     },
@@ -5961,6 +5996,26 @@
           "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
           "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
           "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2",
+            "V3"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.ui.next": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-19/INV-01.b4.ui.next/README.md",
+          "head": "3f8b002",
+          "environment": "Next producción/Chromium/Better Auth/Neon aislado sin mocks; writer con login mínimo y copia/rol efímeros retirados; sin aceptación ni despliegue",
           "commands": [
             {
               "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
