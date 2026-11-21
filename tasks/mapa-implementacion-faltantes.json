@@ -847,7 +847,8 @@
         "INV-01.b4.manual.ui",
         "INV-01.b4.runtime.config",
         "INV-01.b4.manual.next",
-        "INV-01.b4.ui.next"
+        "INV-01.b4.ui.next",
+        "INV-01.b4.smartlink.next"
       ]
     },
     {
@@ -1270,7 +1271,8 @@
         "INV-01.b4.coverage",
         "INV-01.b4.runtime.config",
         "INV-01.b4.manual.next",
-        "INV-01.b4.ui.next"
+        "INV-01.b4.ui.next",
+        "INV-01.b4.smartlink.next"
       ],
       "checks": [
         "V1",
@@ -1888,6 +1890,24 @@
         "INV-01.b4b",
         "INV-01.b4.runtime.config",
         "INV-01.b4.ui"
+      ]
+    },
+    {
+      "id": "INV-01.b4.smartlink.next",
+      "title": "Verificar frontera POS Next con R2 y writer runtime independiente",
+      "parent": "INV-01.b",
+      "type": "A",
+      "size": "M",
+      "checks": [
+        "V2"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b",
+        "INV-01.b4.runtime.config",
+        "INV-01.b4.smartlink",
+        "INV-01.b4.storage"
       ]
     }
   ],
@@ -2865,7 +2885,8 @@
         "INV-01.b4.manual.ui",
         "INV-01.b4.runtime.config",
         "INV-01.b4.manual.next",
-        "INV-01.b4.ui.next"
+        "INV-01.b4.ui.next",
+        "INV-01.b4.smartlink.next"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -4576,6 +4597,20 @@
           "checks": [
             "V1"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.next/README.md",
+          "head": "d184a88",
+          "environment": "Next HTTP/R2/Better Auth/Neon aislado sin mocks; writer independiente y objetos/base/rol/proceso retirados; enlace/auth con dueño; sin UI ni aceptación",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; $env:RUN_SALES_RUNTIME_POS='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
         }
       ]
     },
@@ -6025,6 +6060,25 @@
           "checks": [
             "V2",
             "V3"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.smartlink.next": {
+      "state": "código implementado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.next/README.md",
+          "head": "d184a88",
+          "environment": "Next HTTP/R2/Better Auth/Neon aislado sin mocks; writer independiente y objetos/base/rol/proceso retirados; enlace/auth con dueño; sin UI ni aceptación",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; $env:RUN_SALES_RUNTIME_POS='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
           ]
         }
       ]
