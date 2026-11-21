@@ -111,8 +111,9 @@
       "id": "paso-upload-pos",
       "type": "smart_link",
       "titulo": "Subir Archivo del POS",
-      "descripcion": "Sube el reporte de ventas del sistema POS (CSV, Excel o PDF). Si tu POS envía el reporte por correo automáticamente, el sistema lo detectará y este paso se completará solo.",
+      "descripcion": "Sube el archivo del POS de esta sucursal (CSV, texto, Excel o JSON) y revisa el resultado antes de continuar. Un CSV con producto y cantidad permite registrar ventas; guardar evidencia y completar el paso son acciones separadas.",
       "obligatorio": false,
+      "config": { "posUpload": true },
       "smartLinkTarget": "/api/workflows/smart-links/upload-pos"
     }
   ],
