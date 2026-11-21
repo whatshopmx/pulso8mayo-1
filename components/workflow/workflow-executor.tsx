@@ -22,6 +22,7 @@ import { CameraCapture } from "@/components/shared/camera-capture";
 import { usePhotoUpload } from "@/components/shared/use-photo-upload";
 import { StockCountGrid, type StockCountGridHandle } from "@/components/inventory/stock-count-grid";
 import { normalizeStockCount, type StockCountRow } from "@/lib/workflows/stock-count-grid";
+import { PosUploadStep, isPosUploadStep } from "@/components/workflow/pos-upload-step";
 
 function StockCountConfirmSummary({ steps, onConfirm, value, blindCount }: { steps: WorkflowStepData[]; onConfirm: (val: string) => void; value: string; blindCount?: boolean }) {
   const countSteps = steps.filter(s => s.stepId.startsWith("count-") && s.value);
@@ -141,6 +142,7 @@ export interface WorkflowStepData {
 
 export interface WorkflowExecutionData {
   id: string;
+  branchId?: string;
   workflowTemplateId: string;
   status: string;
   currentStepId: string | null;
@@ -178,6 +180,10 @@ export function WorkflowExecutor({
    const countGridRef = React.useRef<StockCountGridHandle>(null);
    const [completedCounts, setCompletedCounts] = React.useState<string[]>([]);
   const [stepData, setStepData] = React.useState<Record<string, any>>({});
+  const [posReferences, setPosReferences] = React.useState<Record<string, string>>({});
+  const [posPending, setPosPending] = React.useState(false);
+  const [posStepError, setPosStepError] = React.useState<string | null>(null);
+  const submitFlight = React.useRef(false);
   const [evidenceFiles, setEvidenceFiles] = React.useState<File[]>([]);
   const [uploading, setUploading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -207,6 +213,7 @@ export function WorkflowExecutor({
   };
 
   const handlePrevious = async () => {
+    if (posPending || submitting || skipping) return;
     try { await countGridRef.current?.flush(); } catch { toast.error('Guarda el borrador antes de cambiar de categoría'); return; }
     if (currentStepIndex > 0) {
       setCurrentStepIndex(currentStepIndex - 1);
@@ -239,7 +246,7 @@ export function WorkflowExecutor({
   };
 
   const handleExecuteSkip = async (justification?: string) => {
-    if (!currentStep) return;
+    if (!currentStep || posPending || submitting || skipping) return;
 
     setSkipping(true);
     try {
@@ -280,16 +287,20 @@ export function WorkflowExecutor({
   };
 
   const handleSubmitStep = async () => {
-    if (!currentStep) return;
+    if (!currentStep || !isStepCompleteable() || submitFlight.current || skipping) return;
 
+    submitFlight.current = true;
+    setPosStepError(null);
     setSubmitting(true);
     try {
       await countGridRef.current?.flush();
-      let evidenceUrl = currentStepInstance?.evidenceUrl || null;
+      let evidenceUrl = isPosUploadStep(currentStep)
+        ? posReferences[currentStep.id] ?? currentStepInstance?.evidenceUrl ?? null
+        : currentStepInstance?.evidenceUrl || null;
       const value = stepData[currentStep.id] ?? currentStepInstance?.value ?? null;
 
       // Upload files if present
-      if (evidenceFiles.length > 0) {
+      if (!isPosUploadStep(currentStep) && evidenceFiles.length > 0) {
         setUploading(true);
         const uploads = await uploadFiles(evidenceFiles);
         const urls = uploads.map(u => u.url);
@@ -348,23 +359,39 @@ export function WorkflowExecutor({
 
       // Auto-advance to next step or complete
       if (currentStepIndex < steps.length - 1) {
-        setTimeout(() => {
+        if (isPosUploadStep(currentStep)) handleNext();
+        else setTimeout(() => {
           handleNext();
         }, 1000);
       } else {
         if (!onStepComplete) onComplete?.();
       }
     } catch (error: unknown) {
+      if (isPosUploadStep(currentStep)) setPosStepError(error instanceof Error ? error.message : 'No se pudo completar el paso. Vuelve a intentar.');
       toast.error('Error al completar el paso', {
         description: error instanceof Error ? error.message : 'Error desconocido',
       });
     } finally {
+      submitFlight.current = false;
       setSubmitting(false);
     }
   };
 
   const renderStepInput = (step: WorkflowStep) => {
     const stepValue = stepData[step.id] || currentStepInstance?.value;
+
+    if (isPosUploadStep(step)) {
+      const saved = stepData[step.id] ?? currentStepInstance?.value;
+      return <PosUploadStep key={`${execution.id}:${step.id}`} branchId={execution.branchId} workflowInstanceId={execution.id}
+        disabled={submitting || skipping}
+        savedValue={typeof saved === 'string' ? saved : saved == null ? undefined : JSON.stringify(saved)}
+        savedReference={posReferences[step.id] ?? currentStepInstance?.evidenceUrl ?? undefined}
+        onPendingChange={setPosPending}
+        onChange={(value, reference) => {
+          setStepData(previous => ({ ...previous, [step.id]: value }));
+          setPosReferences(previous => ({ ...previous, [step.id]: reference }));
+        }} />;
+    }
 
     switch (step.type) {
       case 'STOCK_COUNT': {
@@ -764,6 +791,10 @@ const getStepIcon = (type: string) => {
 
   const isStepCompleteable = () => {
     if (!currentStep) return false;
+    if (isPosUploadStep(currentStep)) {
+      if (posPending || !execution.branchId) return false;
+      return !currentStep.required || !!(posReferences[currentStep.id] ?? currentStepInstance?.evidenceUrl);
+    }
     if (currentStep.type === 'STOCK_COUNT') {
       if (completedCounts.includes(currentStep.id) || currentStepInstance?.status === 'COMPLETED') return false;
       try { normalizeStockCount(currentStep.config?.rows as StockCountRow[] || [], stepData[currentStep.id] ?? currentStepInstance?.value, true); return true; } catch { return false; }
@@ -898,7 +929,7 @@ const getStepIcon = (type: string) => {
               return (
                 <button
                   key={step.id}
-                  disabled={submitting}
+                  disabled={submitting || skipping || posPending}
                   onClick={async () => {
                     try { await countGridRef.current?.flush(); } catch { toast.error('Guarda el borrador antes de cambiar de categoría'); return; }
                     setCurrentStepIndex(index);
@@ -956,6 +987,7 @@ const getStepIcon = (type: string) => {
           <Separator />
 
           {renderStepInput(currentStep)}
+          {isPosUploadStep(currentStep) && posStepError && <p role="alert" className="text-sm text-destructive">{posStepError}</p>}
 
           {/* AI Verification Status */}
           {aiVerification && (
@@ -966,7 +998,7 @@ const getStepIcon = (type: string) => {
           <Button
             variant="outline"
             onClick={handlePrevious}
-            disabled={currentStepIndex === 0 || submitting || skipping}
+            disabled={currentStepIndex === 0 || submitting || skipping || posPending}
           >
             <ChevronLeft className="h-4 w-4 mr-2" />
             Anterior
@@ -981,7 +1013,7 @@ const getStepIcon = (type: string) => {
                 setSkipJustification('');
                 setSkipDialogOpen(true);
               }}
-              disabled={submitting || uploading || skipping}
+              disabled={submitting || uploading || skipping || posPending}
             >
               Omitir paso
             </Button>
