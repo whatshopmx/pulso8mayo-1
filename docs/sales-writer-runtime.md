@@ -78,12 +78,18 @@ estable al renombrar archivo, correcciones e ingreso sin otro movimiento,
 sesión/reintento, grupos inválidos sin subtotales, insuficiencia, grupos
 independientes y cancelación cero; oráculos SQL, móvil y teclado. La suite
 ampliada pasa 4/4; [evidencia CSV](../tasks/evidencia/2026-11-19/INV-01.b4.ui.next/README.md).
-Con `RUN_SALES_RUNTIME_POS=1` adicional exige R2 real y pasa 5/5: upload-pos
+Con `RUN_SALES_RUNTIME_POS=1` adicional exige R2 real. La prueba HTTP previa
+pasó 5/5: upload-pos
 comparte SKU con bulk, conserva evidencia ante error de stock y JSON solo
 enlaza; verifica bytes/lectura firmada y retira los objetos sintéticos.
 [Evidencia POS HTTP](../tasks/evidencia/2026-11-21/INV-01.b4.smartlink.next/README.md).
-Este caso no recorre la UI del workflow ni separa el login del enlace de
-cortes; esa conexión sigue siendo dueña, igual que auth/lookup.
+La ampliación del caso recorre seis cargas desde el stepper principal y
+persiste key/resumen al avanzar sin otra ingestión: 1/1 focal final, más
+cuatro regresiones reales verdes del mismo build, 27 controladas y 61 unitarias.
+[Evidencia UI/Next](../tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/README.md).
+El segundo executor/configuración instalada siguen pendientes. El login del
+enlace de cortes sigue siendo dueño, igual que auth/lookup; solo el writer
+usa la conexión mínima.
 Esa prueba no sustituye la aceptación de dependencias/cierre POS,
 otros dominios o el despliegue. No se han configurado secretos de despliegue
 ni modificado producción.

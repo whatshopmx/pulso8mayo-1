@@ -848,7 +848,8 @@
         "INV-01.b4.runtime.config",
         "INV-01.b4.manual.next",
         "INV-01.b4.ui.next",
-        "INV-01.b4.smartlink.next"
+        "INV-01.b4.smartlink.next",
+        "INV-01.b4.smartlink.ui"
       ]
     },
     {
@@ -1272,7 +1273,8 @@
         "INV-01.b4.runtime.config",
         "INV-01.b4.manual.next",
         "INV-01.b4.ui.next",
-        "INV-01.b4.smartlink.next"
+        "INV-01.b4.smartlink.next",
+        "INV-01.b4.smartlink.ui"
       ],
       "checks": [
         "V1",
@@ -1907,6 +1909,25 @@
         "INV-01.b4b",
         "INV-01.b4.runtime.config",
         "INV-01.b4.smartlink",
+        "INV-01.b4.storage"
+      ]
+    },
+    {
+      "id": "INV-01.b4.smartlink.ui",
+      "title": "Conectar captura POS al paso de cierre y feedback",
+      "parent": "INV-01.b",
+      "type": "I",
+      "size": "M",
+      "checks": [
+        "V1",
+        "V3"
+      ],
+      "dependsOn": [
+        "INV-01.a",
+        "INV-01.b3",
+        "INV-01.b4b",
+        "INV-01.b4.smartlink",
+        "INV-01.b4.smartlink.next",
         "INV-01.b4.storage"
       ]
     }
@@ -2886,7 +2907,8 @@
         "INV-01.b4.runtime.config",
         "INV-01.b4.manual.next",
         "INV-01.b4.ui.next",
-        "INV-01.b4.smartlink.next"
+        "INV-01.b4.smartlink.next",
+        "INV-01.b4.smartlink.ui"
       ],
       "acceptance": "VAL-01.M01-M17.M11"
     },
@@ -6079,6 +6101,48 @@
           ],
           "checks": [
             "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.b4.smartlink.ui": {
+      "state": "en curso",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/README.md",
+          "head": "0105111",
+          "environment": "Stepper principal y UI controlada; build producción completo, visual ship; segundo executor/configuración instalada pendientes, sin aceptación",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/faltantes-traceability.test.ts tests/unit/workflows/step-contract.test.ts tests/unit/workflows/step-access.test.ts tests/unit/workflows/stock-count-step.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; pnpm.cmd run build",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V3"
+          ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/README.md",
+          "head": "6edbb31",
+          "environment": "Stepper Next de producción/Chromium/Better Auth/R2 y writer independiente sin mocks; copia/rol/objetos/proceso retirados; sin segundo executor ni aceptación",
+          "commands": [
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; $env:RUN_SALES_RUNTIME_POS='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads -t 'POS ingestion and evidence'",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V3"
           ]
         }
       ]
