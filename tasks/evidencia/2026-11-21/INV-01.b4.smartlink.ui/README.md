@@ -1,5 +1,9 @@
 # Captura POS desde el paso de cierre
 
+Continuación posterior sobre `7a2c5e6`: [segundo ejecutor y contrato de plantilla](alternate-executor.md).
+Prevalece para los avances y límites de esa continuación; los resultados
+anteriores de este documento se conservan como evidencia del stepper.
+
 Base `009e351`, árbol limpio al comenzar. Primer incremento probado `0105111`: componente
 compartido, WorkflowStepper, harness, spec y configuración de navegador.
 V1/V3 controladas previstas, sin sustituir Next/R2/runtime reales. La ruta
