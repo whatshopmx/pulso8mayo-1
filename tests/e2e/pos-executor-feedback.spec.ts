@@ -108,13 +108,17 @@ test('executor muestra fallo de guardado del paso y reintenta sin subir otra vez
 
 test('executor POS móvil permite teclado y no desborda', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 358, height: 844 });
   await page.route('**/api/workflows/smart-links/upload-pos', route => route.fulfill({ json: { data: outcome } }));
   await select(page);
   await page.getByLabel('Clave del producto', { exact: true }).focus(); await page.keyboard.press('Tab');
   await expect(page.getByLabel('Ingreso', { exact: true })).toBeFocused();
   await save(page).click(); await expect(result(page)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await next(page).evaluate(button => {
+    const card = button.closest('[data-slot="card"]')!;
+    return button.getBoundingClientRect().right <= card.getBoundingClientRect().right;
+  })).toBe(true);
   await page.screenshot({ path: '.tmp/pos-executor-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: '.tmp/pos-executor-desktop.png', fullPage: true });
