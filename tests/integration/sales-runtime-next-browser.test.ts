@@ -1,25 +1,47 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { hashPassword } from 'better-auth/crypto';
-import { chromium, expect as browserExpect, type Browser } from '@playwright/test';
+import type { Browser } from '@playwright/test';
 import { account, users, companies, branches, recipes, recipeItems, inventoryItems, inventoryBatches,
   inventoryMovements, salesEntries, salesConsumptionRevisions } from '@/lib/db/schema';
 import { createSalesRuntimeDatabase } from './helpers/sales-runtime-database';
 import { startSalesRuntimeNextServer } from './helpers/sales-runtime-next-server';
-import { seedCsvRuntimeScenario } from './helpers/csv-runtime-scenario';
-import { verifyPosRuntimeScenario } from './helpers/pos-runtime-scenario';
 
 const enabled = process.env.RUN_SALES_RUNTIME_NEXT_BROWSER === '1';
 // All cases use one disposable copy; writing scenarios use disjoint tenants.
 // Avoid repeatedly contending for the shared source database's template lock.
 let fixture: Awaited<ReturnType<typeof createSalesRuntimeDatabase>> | undefined;
-beforeAll(async () => { if (enabled) fixture = await createSalesRuntimeDatabase(); }, 150_000);
-afterAll(async () => { await fixture?.close(); }, 90_000);
+const originalDatabaseUrl = process.env.DATABASE_URL;
+beforeAll(async () => {
+  if (enabled) {
+    fixture = await createSalesRuntimeDatabase();
+    // Application helpers and their host-process dependencies use the copy,
+    // never the shared source database, and load only after it exists.
+    process.env.DATABASE_URL = fixture.ownerUrl;
+  }
+}, 150_000);
+afterAll(async () => {
+  try { await fixture?.close(); }
+  finally {
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+}, 90_000);
 
 it.skipIf(!enabled || process.env.RUN_SALES_RUNTIME_POS !== '1')('Next HTTP + R2 + real writer runtime: POS ingestion and evidence', async () => {
+  const { verifyPosRuntimeScenario } = await import('./helpers/pos-runtime-scenario');
   await verifyPosRuntimeScenario(fixture!);
 }, 300_000);
+
+it.skipIf(!enabled || process.env.RUN_SALES_RUNTIME_POS !== '1')('Next HTTP + R2 + real writer runtime: POS alternate executor', async () => {
+  const { verifyPosRuntimeScenario } = await import('./helpers/pos-runtime-scenario');
+  await verifyPosRuntimeScenario(fixture!, 'alternate');
+}, 300_000);
+
+it.skipIf(!enabled || process.env.RUN_SALES_RUNTIME_POS !== '1')('Next + Chromium + real session: POS library installation and editor persistence', async () => {
+  const { verifyPosTemplateInstallation } = await import('./helpers/pos-template-runtime-scenario');
+  await verifyPosTemplateInstallation(fixture!);
+}, 180_000);
 
 it.skipIf(!enabled)('disposable sales database copies RLS and immutable triggers and cleans up', async () => {
     const count = (await fixture!.owner.execute(sql`SELECT count(*)::int AS n FROM pg_tables WHERE schemaname='public'`)).rows[0];
@@ -47,6 +69,8 @@ it.skipIf(!enabled)('production Next starts with separate owner/runtime secrets 
 }, 150_000);
 
 it.skipIf(!enabled)('Next + Chromium + real runtime: rejects owner fallback, then saves/corrects/repeats/completes/cancels manual sales', async () => {
+  const { hashPassword } = await import('better-auth/crypto');
+  const { chromium, expect: browserExpect } = await import('@playwright/test');
   const database = fixture!;
   let server: Awaited<ReturnType<typeof startSalesRuntimeNextServer>> | undefined;
   let browser: Browser | undefined;
@@ -176,6 +200,8 @@ it.skipIf(!enabled)('Next + Chromium + real runtime: rejects owner fallback, the
 }, 300_000);
 
 it.skipIf(!enabled)('Next + Chromium + real runtime: CSV SKU survives rename, correction and revenue completion', async () => {
+  const { chromium, expect: browserExpect } = await import('@playwright/test');
+  const { seedCsvRuntimeScenario } = await import('./helpers/csv-runtime-scenario');
   const database = fixture!, scenario = await seedCsvRuntimeScenario(database);
   let server: Awaited<ReturnType<typeof startSalesRuntimeNextServer>> | undefined, browser: Browser | undefined;
   try {

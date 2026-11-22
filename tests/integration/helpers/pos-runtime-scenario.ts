@@ -10,7 +10,7 @@ import { startSalesRuntimeNextServer } from './sales-runtime-next-server';
 import { seedCsvRuntimeScenario } from './csv-runtime-scenario';
 import { seedPosWorkflow } from './pos-workflow-fixture';
 
-export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<typeof createSalesRuntimeDatabase>>) {
+export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<typeof createSalesRuntimeDatabase>>, executor: 'stepper' | 'alternate' = 'stepper') {
   config({ path: '.env', quiet: true }); // Completes R2 credentials; does not override test DATABASE_URL.
   const r2 = await import('@/lib/storage/r2-client');
   expect(r2.isR2Configured(), 'POS runtime verification requires real R2').toBe(true);
@@ -35,7 +35,17 @@ export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<type
       await context.addCookies([{ name: 'pulso_selected_branch', value: scenario.branchId, url: server.baseURL }]);
       const page = await context.newPage(), errors: string[] = [];
       page.on('pageerror', failure => errors.push(failure.message));
-      await page.goto(`/dashboard/workflows/${workflow.instanceId}/execute`, { timeout: 90_000 });
+      if (executor === 'alternate') {
+        const [loaded] = await Promise.all([
+          page.waitForResponse(response => new URL(response.url()).pathname === `/api/workflows/executions/${workflow.instanceId}`
+            && response.request().method() === 'GET', { timeout: 90_000 }),
+          page.goto(`/dashboard/workflows/execute/${workflow.instanceId}`, { timeout: 90_000 }),
+        ]);
+        expect(loaded.status()).toBe(200);
+        const execution = await loaded.json();
+        expect(execution).toMatchObject({ id: workflow.instanceId, branchId: scenario.branchId });
+        expect(execution.template.steps.find((step: { id: string }) => step.id === 'pos')?.config?.posUpload).toBe(true);
+      } else await page.goto(`/dashboard/workflows/${workflow.instanceId}/execute`, { timeout: 90_000 });
       await browserExpect(page.getByLabel('Día del corte', { exact: true })).not.toHaveValue(''); // Client effect proves hydration.
       const mapping = { recipeRef: 'Producto', quantitySold: 'Cantidad', productKey: 'SKU', totalRevenue: 'Ingreso' };
       const csv = (quantity: number, revenue = '') => `SKU,Producto,Cantidad,Ingreso\nPOS-01,"${scenario.recipeNames[0]}",${quantity},${revenue}`;
@@ -114,13 +124,14 @@ export async function verifyPosRuntimeScenario(database: Awaited<ReturnType<type
       expect((await list()).Contents).toHaveLength(6);
       await page.setViewportSize({ width: 390, height: 844 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.screenshot({ path: '.tmp/pos-workflow-next-mobile.png', fullPage: true });
+      await page.screenshot({ path: `.tmp/pos-workflow-${executor}-next-mobile.png`, fullPage: true });
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.screenshot({ path: '.tmp/pos-workflow-next-desktop.png', fullPage: true });
+      await page.screenshot({ path: `.tmp/pos-workflow-${executor}-next-desktop.png`, fullPage: true });
       const persisted = page.waitForResponse(response => new URL(response.url()).pathname === `/api/workflows/executions/${workflow.instanceId}/steps/pos` && response.request().method() === 'PATCH', { timeout: 90_000 });
-      await page.getByRole('button', { name: 'Siguiente Paso' }).click();
+      await page.getByRole('button', { name: executor === 'alternate' ? 'Siguiente' : 'Siguiente Paso', exact: true }).click();
       expect((await persisted).status()).toBe(200);
-      await browserExpect(page.getByText('Revisión final sintética', { exact: true })).toBeVisible();
+      if (executor === 'alternate') await browserExpect(page.getByText('Paso 2 de 2', { exact: true })).toBeVisible();
+      else await browserExpect(page.getByText('Revisión final sintética', { exact: true })).toBeVisible();
       const saved = await workflow.state();
       expect(saved.step).toMatchObject({ status: 'COMPLETED', evidenceUrl: last.fileUrl, completedBy: scenario.actorId });
       expect(saved.step.value).toMatchObject({ businessDate: day, fileName: 'cancelacion.csv',

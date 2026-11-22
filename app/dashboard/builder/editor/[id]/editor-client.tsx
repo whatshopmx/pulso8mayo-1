@@ -59,39 +59,9 @@ function EditorHeader({ id, initialTitle, initialSettings, canEditPrivileged }: 
         return () => window.removeEventListener("beforeunload", handler);
     }, [checkDirty]);
 
-    // Idle-based autosave: saves after 3 seconds of inactivity when dirty
-    const autosaveRef = useRef<NodeJS.Timeout | null>(null);
-    useEffect(() => {
-        if (autosaveRef.current) clearTimeout(autosaveRef.current);
-        if (!isDirty) return;
-        autosaveRef.current = setTimeout(() => {
-            handleSave(true);
-        }, 3000);
-        return () => { if (autosaveRef.current) clearTimeout(autosaveRef.current); };
-    }, [steps, title, isDirty]);
-
-    // Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z / Ctrl+Y (redo), Ctrl+S (save)
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            const isCtrl = e.ctrlKey || e.metaKey;
-            if (!isCtrl) return;
-
-            if (e.key === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                undo();
-            } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
-                e.preventDefault();
-                redo();
-            } else if (e.key === 's') {
-                e.preventDefault();
-                if (isDirty && !isSaving) handleSave(false);
-            }
-        };
-        window.addEventListener("keydown", handler);
-        return () => window.removeEventListener("keydown", handler);
-    }, [undo, redo, isDirty, isSaving]);
-
-    const handleSave = async (isAutosave = false) => {
+    // Keyboard and autosave must share the current title and steps, including
+    // edits made while the template is already dirty.
+    const handleSave = useCallback(async (isAutosave = false) => {
         setIsSaving(true);
         try {
             const response = await fetch(`/api/templates/${id}`, {
@@ -114,7 +84,39 @@ function EditorHeader({ id, initialTitle, initialSettings, canEditPrivileged }: 
         } finally {
             setIsSaving(false);
         }
-    };
+    }, [id, title, steps]);
+
+    // Idle-based autosave: saves after 3 seconds of inactivity when dirty
+    const autosaveRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+        if (autosaveRef.current) clearTimeout(autosaveRef.current);
+        if (!isDirty) return;
+        autosaveRef.current = setTimeout(() => {
+            handleSave(true);
+        }, 3000);
+        return () => { if (autosaveRef.current) clearTimeout(autosaveRef.current); };
+    }, [isDirty, handleSave]);
+
+    // Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z / Ctrl+Y (redo), Ctrl+S (save)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            const isCtrl = e.ctrlKey || e.metaKey;
+            if (!isCtrl) return;
+
+            if (e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+                e.preventDefault();
+                redo();
+            } else if (e.key === 's') {
+                e.preventDefault();
+                if (isDirty && !isSaving) handleSave(false);
+            }
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [undo, redo, isDirty, isSaving, handleSave]);
 
     const handleBackClick = (e: React.MouseEvent) => {
         if (isDirty) {
