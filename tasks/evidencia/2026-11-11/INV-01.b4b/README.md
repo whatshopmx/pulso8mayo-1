@@ -1,5 +1,10 @@
 # INV-01.b4b — Importación mediante writer atómico
 
+Actualización 2026-11-22: **solo `INV-01.b4b.rls` queda aceptado V1/V2** con
+login independiente, privilegios mínimos y copia desechable; [aceptación y
+límites](../../2026-11-22/INV-01.b4b.rls/README.md). `INV-01.b4b` y los padres
+siguen pendientes. Las restricciones históricas siguientes describen su fecha.
+
 Continuación 2026-11-12. Base `2be55da631e34203b9f3dc5f9b8c1296751ca1ca`, árbol inicialmente limpio. Estado: código implementado; 109 unitarias focales, 15 pruebas Postgres aisladas y build global aprobados. No se acepta todavía el ticket ni la fila 11.11: dependencias/checkpoint y propagación visible siguen pendientes.
 
 Implementación en cuatro archivos: `lib/services/sales-ingest-service.ts`, `lib/services/sale-consumption-service.ts`, `lib/services/__tests__/sales-ingest-service.test.ts`, `tests/integration/sale-consumption-application-db.test.ts`.

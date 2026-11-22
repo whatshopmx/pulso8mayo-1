@@ -4451,27 +4451,32 @@
       ]
     },
     "INV-01.b4b.rls": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-11/INV-01.b4b/README.md",
-          "head": "2be55da631e34203b9f3dc5f9b8c1296751ca1ca",
-          "environment": "local + br-round-voice-belheola; 0141 probada con rollback, sin despliegue; build global acreditado exit 0 con heap 4 GB",
+          "file": "tasks/evidencia/2026-11-22/INV-01.b4b.rls/README.md",
+          "head": "9137b9be135f3bb8c9fb05f150465e07609facc8",
+          "environment": "Copia de base aislada y LOGIN efímero NOBYPASSRLS/NOSUPERUSER sin membresías; SQL 0141 real, mínimos por columna, RLS dos empresas/tres sucursales y DML denegado. Snapshot/journal auditados; base/rol retirados. Build de aplicación vigente reutilizado, sin aplicación a main ni aceptación de ingestión/padres",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads (NODE_OPTIONS=--use-system-ca)",
+              "command": "node .tmp/pos-next-verify.cjs catalog",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd run build",
-              "exit": 1
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/migration-manifest.test.ts tests/unit/faltantes-traceability.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
             },
             {
-              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "command": "pnpm.cmd exec eslint tests/integration/sales-import-catalog-runtime-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node .tmp/catalog-manifest-audit.cjs",
               "exit": 0
             }
           ],
           "checks": [
+            "V1",
             "V2"
           ]
         }
