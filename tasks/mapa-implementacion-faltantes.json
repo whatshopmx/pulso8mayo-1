@@ -6106,7 +6106,7 @@
       ]
     },
     "INV-01.b4.smartlink.ui": {
-      "state": "en curso",
+      "state": "código implementado",
       "evidence": [
         {
           "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/README.md",
@@ -6144,6 +6144,54 @@
           "checks": [
             "V3"
           ]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/alternate-executor.md",
+          "head": "61ffe7a",
+          "environment": "Segundo executor con HTTP sintético y plantilla normalizada; tipos 4096 MB y build Webpack 455 páginas correctos; Next alternativo/instalación en ejecución, sin aceptación",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts tests/e2e/pos-executor-feedback.spec.ts tests/e2e/pos-workflow-feedback.spec.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle tests/unit/workflows/pos-template.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "exit": 0
+            },
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; pnpm.cmd run build --webpack",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V3"]
+        },
+        {
+          "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/alternate-executor.md",
+          "head": "d34759c",
+          "environment": "Build final con tipos/455 páginas exit 0; 2/2 Next/Chromium/Better Auth/Neon/R2 reales, executor alternativo y copia instalada/editada desde catálogo. Stock/revisiones/key y Ctrl+S acreditados; limpieza base/rol/R2/procesos verificada. Sin aceptación de dependencias, copias históricas ni despliegue",
+          "commands": [
+            {
+              "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts tests/e2e/pos-executor-feedback.spec.ts",
+              "exit": 0
+            },
+            {
+              "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; pnpm.cmd run build --webpack",
+              "exit": 0
+            },
+            {
+              "command": "node .tmp/pos-next-verify.cjs",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V3"]
         }
       ]
     }
