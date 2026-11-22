@@ -1,5 +1,7 @@
 # INV-01.b4b — Importación mediante writer atómico
 
+Continuación 2026-11-22: [cuatro pruebas con commits/login independiente y diagnóstico](../../2026-11-22/INV-01.b4b/runtime-db.md). 109 unitarias correctas; integración nueva no ejecutada por un worker TimescaleDB que aparece durante la clonación. Sin nueva V2 ni aceptación de b4b.
+
 Actualización 2026-11-22: **solo `INV-01.b4b.rls` queda aceptado V1/V2** con
 login independiente, privilegios mínimos y copia desechable; [aceptación y
 límites](../../2026-11-22/INV-01.b4b.rls/README.md). `INV-01.b4b` y los padres

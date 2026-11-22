@@ -10,6 +10,8 @@ Continuación 2026-11-11: [mapa ejecutable de 239 filas](mapa-implementacion-fal
 
 ## Estado vigente de consolidación (2026-11-16)
 
+Continuación de ingesta 2026-11-22: cuatro pruebas nuevas con commits y login independiente preparadas; **109/109 unitarias y lint correctos**. Integración nueva sin ejecutar: clonación 55006, worker interno TimescaleDB capturado durante CREATE DATABASE; no se intervino el origen. Sin nueva V2 ni aceptaciones. [Diagnóstico y siguiente paso](evidencia/2026-11-22/INV-01.b4b/runtime-db.md).
+
 Aceptación de prerrequisito 2026-11-22: **INV-01.b4b.rls aceptado V1/V2 en copia aislada**, 3/3 SQL con LOGIN nuevo sin bypass/membresías, 20/20 unitarias, lint y auditoría de journal/snapshot correctos. SELECT(name) sin SELECT general/DML; RLS entre dos empresas/tres sucursales y escrituras 42501 comprobadas; base/rol retirados. [Evidencia](evidencia/2026-11-22/INV-01.b4b.rls/README.md). **25 registros aceptados**, sin aceptar ingestión/padres ni aplicar 0141 a main.
 
 Continuación 2026-11-22: **2/2 Next de producción/Chromium/Better Auth/Neon/R2 reales** sobre build final exit 0 (tipos y 455 páginas): executor alternativo con stock/revisiones/paso sin reingestión y clonación/edición Ctrl+S desde catálogo, con flag POS persistido tras recargar. Limpieza SQL/R2/procesos comprobada; móvil sin salir de la tarjeta (9/9 controladas a 358 px). Commits `7d5f2c7`/`d34759c`. `INV-01.b4.smartlink.ui` pasa a **código implementado**, con V1/V3 acreditadas; dependencias, copias históricas sin flag y runtime de enlace/storage siguen pendientes. [Evidencia](evidencia/2026-11-21/INV-01.b4.smartlink.ui/alternate-executor.md). Sin nuevas aceptaciones ni despliegue.

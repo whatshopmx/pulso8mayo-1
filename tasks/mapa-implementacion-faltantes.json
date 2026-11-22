@@ -4409,6 +4409,26 @@
       "state": "código implementado",
       "evidence": [
         {
+          "file": "tasks/evidencia/2026-11-22/INV-01.b4b/runtime-db.md",
+          "head": "b1b791e6252e90f83b3f45c4bca91fe35fb29cea",
+          "environment": "Copia aislada solicitada con LOGIN independiente; 0/4 casos nuevos ejecutados por 55006 en clonación. Worker TimescaleDB observado durante CREATE DATABASE; no se cambió configuración ni se terminaron clientes del origen. 109 unitarias y lint correctos; sin nueva V2 ni aceptación",
+          "commands": [
+            {
+              "command": "node .tmp/pos-next-verify.cjs ingest",
+              "exit": 1
+            },
+            {
+              "command": "pnpm.cmd exec eslint tests/integration/sales-ingest-runtime-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sales-ingest-service.test.ts lib/services/__tests__/sales-ingest-revisions.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts tests/unit/faltantes-traceability.test.ts tests/unit/migration-manifest.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1"]
+        },
+        {
           "file": "tasks/evidencia/2026-11-11/INV-01.b4b/README.md",
           "head": "2be55da631e34203b9f3dc5f9b8c1296751ca1ca",
           "environment": "local + br-round-voice-belheola; 0141 probada con rollback, sin despliegue; build global acreditado exit 0 con heap 4 GB",
