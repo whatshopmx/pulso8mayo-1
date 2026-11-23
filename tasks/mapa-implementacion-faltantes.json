@@ -6,7 +6,31 @@
       "type": "I",
       "size": "M",
       "checks": ["V1", "V2", "V3"],
+      "dependsOn": ["NOM-02.a", "SEC-00", "NOM-02.c1.http.rls", "NOM-02.c1.http.runtime"]
+    },
+    {
+      "id": "NOM-02.c1.http.rls",
+      "title": "Preparar RLS y privilegios de solicitudes de vacaciones por actor, empresa y sucursal",
+      "type": "I",
+      "size": "M",
+      "checks": ["V1", "V2"],
       "dependsOn": ["NOM-02.a", "SEC-00"]
+    },
+    {
+      "id": "NOM-02.c1.http.runtime",
+      "title": "Conectar solicitudes de vacaciones a LOGIN dedicado, contexto transaccional y rechazo sin fallback",
+      "type": "I",
+      "size": "M",
+      "checks": ["V1", "V2"],
+      "dependsOn": ["NOM-02.a", "SEC-00", "NOM-02.c1.http.rls", "SEC-00.db-pool-logs"]
+    },
+    {
+      "id": "SEC-00.db-pool-logs",
+      "title": "Impedir que eventos del pool vuelquen credenciales y objetos del driver en logs",
+      "type": "I",
+      "size": "S",
+      "checks": ["V1"],
+      "dependsOn": ["SEC-00"]
     },
     {
       "id": "SEC-05.resto.recetas",
@@ -771,6 +795,8 @@
         "NOM-02.a",
         "NOM-02.c1",
         "NOM-02.c1.http",
+        "NOM-02.c1.http.rls",
+        "NOM-02.c1.http.runtime",
         "NOM-02.c2"
       ]
     },
@@ -793,6 +819,8 @@
         "NOM-02.b",
         "NOM-02.c1",
         "NOM-02.c1.http",
+        "NOM-02.c1.http.rls",
+        "NOM-02.c1.http.runtime",
         "NOM-02.c2",
         "NOM-02.d1",
         "NOM-02.d2",
@@ -2740,6 +2768,8 @@
       "tasks": [
         "NOM-02.c1",
         "NOM-02.c1.http",
+        "NOM-02.c1.http.rls",
+        "NOM-02.c1.http.runtime",
         "VAL-01.M01-M17.M09"
       ],
       "acceptance": "VAL-01.M01-M17.M09"
@@ -2819,6 +2849,8 @@
       "tasks": [
         "NOM-02.c1",
         "NOM-02.c1.http",
+        "NOM-02.c1.http.rls",
+        "NOM-02.c1.http.runtime",
         "VAL-01.M01-M17.M10"
       ],
       "acceptance": "VAL-01.M01-M17.M10"
@@ -5300,9 +5332,47 @@
         }
       ]
     },
-    "NOM-02.c1.http": {
-      "state": "código implementado",
+    "SEC-00.db-pool-logs": {
+      "state": "aceptado",
       "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md",
+        "head": "b236e1f257965d2ffd5b7856934e01514f2d5b9f",
+        "environment": "Windows local; evento real reproducido con payload sintético, sin inspección de logs operativos",
+        "commands": [{ "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/db/pool-logging.test.ts tests/unit/payroll/vacation-runtime-rls-db.test.ts tests/unit/payroll/vacation-routes-scope-db.test.ts tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts", "exit": 0 }],
+        "checks": ["V1"]
+      }]
+    },
+    "NOM-02.c1.http.rls": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md",
+        "head": "b236e1f257965d2ffd5b7856934e01514f2d5b9f",
+        "environment": "Windows/PGlite y Neon desechable baseline 0158 + candidata 0163; LOGIN independiente sin bypass, sin adopción operativa",
+        "commands": [{ "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/db/pool-logging.test.ts tests/unit/payroll/vacation-runtime-rls-db.test.ts tests/unit/payroll/vacation-routes-scope-db.test.ts tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-runtime-db.test.ts", "exit": 0 }],
+        "checks": ["V1", "V2"]
+      }]
+    },
+    "NOM-02.c1.http.runtime": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md",
+        "head": "b236e1f257965d2ffd5b7856934e01514f2d5b9f",
+        "environment": "Neon desechable con rol LOGIN mínimo; handlers y SQL reales, auth/dispatcher simulados, barrera sobre lecturas reales y dos PIDs; sin V3 ni despliegue",
+        "commands": [{ "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-runtime-db.test.ts", "exit": 0 },
+          { "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false", "exit": 0 }],
+        "checks": ["V1", "V2"]
+      }]
+    },
+    "NOM-02.c1.http": {
+      "state": "V2",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md",
+        "head": "b236e1f257965d2ffd5b7856934e01514f2d5b9f",
+        "environment": "V2 de handlers/SQL con LOGIN independiente y dos PIDs; auth/dispatcher simulados, sin V3 Next/Better Auth/navegador",
+        "commands": [{ "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-runtime-db.test.ts", "exit": 0 }],
+        "checks": ["V1", "V2"]
+      }, {
         "file": "tasks/evidencia/2026-11-22/NOM-02.c1-http-scope/README.md",
         "head": "a6e103db2d7452dce9c228b1a22c35026b28da7a",
         "environment": "Windows local; PGlite con SQL/handlers reales, sesión y dispatcher simulados; sin runtime NOBYPASSRLS ni aceptación V2/V3",
