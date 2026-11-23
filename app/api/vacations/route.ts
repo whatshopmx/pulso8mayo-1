@@ -1,13 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { vacationRequests, users, branches, notifications, notificationPreferences } from "@/lib/db/schema";
-import { eq, and, gte, lte, or } from "drizzle-orm";
+import { vacationRequests, vacationStatusEnum, users, branches, notifications, notificationPreferences } from "@/lib/db/schema";
+import { eq, and, gte, lte, lt, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
-import { differenceInDays, parseISO } from "date-fns";
+import { addDays, differenceInDays, parseISO } from "date-fns";
+import { z } from "zod";
+import { isApiError, ApiError } from "@/lib/api/error";
+import { targetInScope } from "@/lib/rbac/resource-scope";
+import { resolveVacationScope, vacationScopeCondition, assertVacationUserPermission } from "@/lib/services/vacation-access";
+
+const createSchema = z.object({
+    userId: z.string().min(1).max(128), companyId: z.uuid().optional(), branchId: z.uuid().nullish(),
+    startDate: z.iso.date(), endDate: z.iso.date(), reason: z.string().trim().max(2000).optional(),
+}).refine(value => value.startDate <= value.endDate);
+const listSchema = z.object({
+    userId: z.string().min(1).max(128).optional(), companyId: z.uuid().optional(), branchId: z.uuid().optional(),
+    status: z.enum(vacationStatusEnum.enumValues).optional(), startDate: z.iso.date().optional(), endDate: z.iso.date().optional(),
+}).refine(value => (!value.startDate && !value.endDate) ||
+    Boolean(value.startDate && value.endDate && value.startDate <= value.endDate));
 
 async function notifyManagersOfNewRequest(
     vacationId: string,
     userId: string,
+    companyId: string,
     branchId: string | null,
     startDate: Date,
     endDate: Date
@@ -15,13 +30,16 @@ async function notifyManagersOfNewRequest(
     try {
         // Get managers for the branch (users with ADMIN or GERENTE role)
         const managers = await db.query.users.findMany({
-            where: branchId 
-                ? and(eq(users.branchId, branchId), or(eq(users.role, "ADMIN"), eq(users.role, "GERENTE")))
-                : or(eq(users.role, "ADMIN"), eq(users.role, "GERENTE"))
+            columns: { id: true },
+            where: and(eq(users.companyId, companyId), or(
+                eq(users.role, "ADMIN"), eq(users.role, "OWNER"), eq(users.role, "SUPER_ADMIN"),
+                branchId ? and(eq(users.role, "GERENTE"), eq(users.branchId, branchId)) : undefined
+            ))
         });
 
         const employee = await db.query.users.findFirst({
-            where: eq(users.id, userId)
+            columns: { name: true },
+            where: and(eq(users.id, userId), eq(users.companyId, companyId))
         });
 
         for (const manager of managers) {
@@ -70,15 +88,14 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const { searchParams } = new URL(req.url);
-        const userId = searchParams.get("userId");
-        const branchId = searchParams.get("branchId");
-        const status = searchParams.get("status");
-        const startDate = searchParams.get("startDate");
-        const endDate = searchParams.get("endDate");
+        const parsed = listSchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+        if (!parsed.success) return NextResponse.json({ error: "Filtros de vacaciones inválidos" }, { status: 400 });
+        const { userId, branchId, status, startDate, endDate, companyId } = parsed.data;
+        const scope = await resolveVacationScope(session.user, "read", branchId);
+        if (companyId && companyId !== scope.companyId) throw ApiError.forbidden("Empresa fuera de tu alcance");
 
         // Build conditions
-        const conditions = [];
+        const conditions = [vacationScopeCondition(scope)];
 
         // Filter by user if provided (or use current user)
         if (userId) {
@@ -92,22 +109,14 @@ export async function GET(req: NextRequest) {
 
         // Filter by status if provided
         if (status) {
-            conditions.push(eq(vacationRequests.status, status as any));
+            conditions.push(eq(vacationRequests.status, status));
         }
 
         // Filter by date range
         if (startDate && endDate) {
             conditions.push(
-                or(
-                    and(
-                        gte(vacationRequests.startDate, new Date(startDate)),
-                        lte(vacationRequests.startDate, new Date(endDate))
-                    ),
-                    and(
-                        gte(vacationRequests.endDate, new Date(startDate)),
-                        lte(vacationRequests.endDate, new Date(endDate))
-                    )
-                )
+                and(gte(vacationRequests.endDate, parseISO(startDate)),
+                    lt(vacationRequests.startDate, addDays(parseISO(endDate), 1)))
             );
         }
 
@@ -133,8 +142,8 @@ export async function GET(req: NextRequest) {
                 approvedBy: vacationRequests.approvedBy
             })
             .from(vacationRequests)
-            .leftJoin(users, eq(vacationRequests.userId, users.id))
-            .leftJoin(branches, eq(vacationRequests.branchId, branches.id))
+            .leftJoin(users, and(eq(vacationRequests.userId, users.id), eq(users.companyId, scope.companyId)))
+            .leftJoin(branches, and(eq(vacationRequests.branchId, branches.id), eq(branches.companyId, scope.companyId)))
             .where(conditions.length > 0 ? and(...conditions) : undefined)
             .orderBy(vacationRequests.requestedAt);
 
@@ -143,6 +152,7 @@ export async function GET(req: NextRequest) {
             total: requests.length
         });
     } catch (error) {
+        if (isApiError(error)) return NextResponse.json({ error: error.message }, { status: error.statusCode });
         console.error("Error fetching vacation requests:", error);
         return NextResponse.json(
             { error: "Error interno del servidor" },
@@ -161,23 +171,23 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const body = await req.json();
-        const {
-            userId,
-            companyId,
-            branchId,
-            startDate,
-            endDate,
-            reason
-        } = body;
-
-        // Validate required fields
-        if (!userId || !companyId || !startDate || !endDate) {
-            return NextResponse.json(
-                { error: "Campos requeridos: userId, companyId, startDate, endDate" },
-                { status: 400 }
-            );
-        }
+        const parsed = createSchema.safeParse(await req.json().catch(() => null));
+        if (!parsed.success) return NextResponse.json({ error: "Solicitud de vacaciones inválida" }, { status: 400 });
+        const { userId, startDate, endDate, reason } = parsed.data;
+        const scope = await resolveVacationScope(session.user, "write", parsed.data.branchId);
+        if (parsed.data.companyId && parsed.data.companyId !== scope.companyId) throw ApiError.forbidden("Empresa fuera de tu alcance");
+        assertVacationUserPermission(session.user, userId);
+        const employee = await db.query.users.findFirst({
+            columns: { id: true, companyId: true, branchId: true },
+            where: and(eq(users.id, userId), eq(users.companyId, scope.companyId)),
+        });
+        if (!employee || !targetInScope(scope, { ...employee, userId: employee.id })) throw ApiError.notFound("Empleado no encontrado");
+        const companyId = scope.companyId;
+        const branchId = employee.branchId;
+        if (parsed.data.branchId && parsed.data.branchId !== branchId) throw ApiError.forbidden("La sucursal no corresponde al empleado");
+        if (branchId && !await db.query.branches.findFirst({
+            columns: { id: true }, where: and(eq(branches.id, branchId), eq(branches.companyId, companyId)),
+        })) throw ApiError.forbidden("La sucursal del empleado no pertenece a la empresa");
 
         // Calculate total days
         const start = parseISO(startDate);
@@ -195,17 +205,10 @@ export async function POST(req: NextRequest) {
         const overlapping = await db.query.vacationRequests.findFirst({
             where: and(
                 eq(vacationRequests.userId, userId),
+                eq(vacationRequests.companyId, companyId),
                 eq(vacationRequests.status, "APPROVED"),
-                or(
-                    and(
-                        gte(vacationRequests.startDate, start),
-                        lte(vacationRequests.startDate, end)
-                    ),
-                    and(
-                        gte(vacationRequests.endDate, start),
-                        lte(vacationRequests.endDate, end)
-                    )
-                )
+                lte(vacationRequests.startDate, end),
+                gte(vacationRequests.endDate, start)
             )
         });
 
@@ -232,6 +235,7 @@ export async function POST(req: NextRequest) {
         await notifyManagersOfNewRequest(
             newRequest.id,
             userId,
+            companyId,
             branchId,
             start,
             end
@@ -243,6 +247,7 @@ export async function POST(req: NextRequest) {
             message: "Solicitud de vacaciones creada exitosamente"
         });
     } catch (error) {
+        if (isApiError(error)) return NextResponse.json({ error: error.message }, { status: error.statusCode });
         console.error("Error creating vacation request:", error);
         return NextResponse.json(
             { error: "Error interno del servidor" },
@@ -261,19 +266,20 @@ export async function DELETE(req: NextRequest) {
             );
         }
 
+        const scope = await resolveVacationScope(session.user, "write");
         const { searchParams } = new URL(req.url);
-        const id = searchParams.get("id");
-
-        if (!id) {
+        const parsedId = z.uuid().safeParse(searchParams.get("id"));
+        if (!parsedId.success) {
             return NextResponse.json(
                 { error: "ID de solicitud requerido" },
                 { status: 400 }
             );
         }
+        const id = parsedId.data;
 
         // Get the vacation request
         const request = await db.query.vacationRequests.findFirst({
-            where: eq(vacationRequests.id, id)
+            where: and(eq(vacationRequests.id, id), vacationScopeCondition(scope))
         });
 
         if (!request) {
@@ -282,20 +288,22 @@ export async function DELETE(req: NextRequest) {
                 { status: 404 }
             );
         }
+        assertVacationUserPermission(session.user, request.userId);
 
         // Only allow cancellation if pending or approved by the same user
         if (request.status !== "PENDING" && request.status !== "APPROVED") {
             return NextResponse.json(
                 { error: "Solo se pueden cancelar solicitudes pendientes o aprobadas" },
-                { status: 400 }
+                { status: 409 }
             );
         }
 
         // Update to cancelled
         const [updated] = await db.update(vacationRequests).set({
             status: "CANCELLED",
-            cancelledAt: new Date()
-        }).where(eq(vacationRequests.id, id)).returning();
+            cancelledAt: new Date(), updatedAt: new Date(),
+        }).where(and(eq(vacationRequests.id, id), vacationScopeCondition(scope), eq(vacationRequests.status, request.status))).returning();
+        if (!updated) throw ApiError.conflict("La solicitud cambió; actualiza antes de cancelar");
 
         return NextResponse.json({
             success: true,
@@ -303,6 +311,7 @@ export async function DELETE(req: NextRequest) {
             message: "Solicitud de vacaciones cancelada"
         });
     } catch (error) {
+        if (isApiError(error)) return NextResponse.json({ error: error.message }, { status: error.statusCode });
         console.error("Error deleting vacation request:", error);
         return NextResponse.json(
             { error: "Error interno del servidor" },

@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { vacationRequests, users, notificationPreferences, notifications } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
+import { z } from "zod";
+import { isApiError } from "@/lib/api/error";
+import { resolveVacationScope, vacationScopeCondition } from "@/lib/services/vacation-access";
+
+const decisionSchema = z.object({
+    id: z.uuid(), action: z.enum(["APPROVED", "REJECTED"]),
+    managerComments: z.string().trim().max(2000).optional(),
+    rejectionReason: z.string().trim().max(2000).optional(),
+});
 
 async function createNotification(
     userId: string,
@@ -61,26 +70,14 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const body = await req.json();
-        const { id, action, managerComments, rejectionReason } = body;
-
-        if (!id || !action) {
-            return NextResponse.json(
-                { error: "ID y acción requeridos" },
-                { status: 400 }
-            );
-        }
-
-        if (!["APPROVED", "REJECTED"].includes(action)) {
-            return NextResponse.json(
-                { error: "Acción inválida. Debe ser APPROVED o REJECTED" },
-                { status: 400 }
-            );
-        }
+        const scope = await resolveVacationScope(session.user, "decide");
+        const parsed = decisionSchema.safeParse(await req.json().catch(() => null));
+        if (!parsed.success) return NextResponse.json({ error: "Solicitud de decisión inválida" }, { status: 400 });
+        const { id, action, managerComments, rejectionReason } = parsed.data;
 
         // Get the vacation request
         const request = await db.query.vacationRequests.findFirst({
-            where: eq(vacationRequests.id, id)
+            where: and(eq(vacationRequests.id, id), vacationScopeCondition(scope))
         });
 
         if (!request) {
@@ -93,18 +90,19 @@ export async function POST(req: NextRequest) {
         if (request.status !== "PENDING") {
             return NextResponse.json(
                 { error: "Solo se pueden aprobar/rechazar solicitudes pendientes" },
-                { status: 400 }
+                { status: 409 }
             );
         }
 
         // Update based on action
-        const updateData: any = {
-            status: action as "APPROVED" | "REJECTED",
-            approvedBy: session.user.id,
-            approvedAt: new Date()
+        const updateData: Partial<typeof vacationRequests.$inferInsert> = {
+            status: action,
+            updatedAt: new Date(),
         };
 
         if (action === "APPROVED") {
+            updateData.approvedBy = session.user.id;
+            updateData.approvedAt = new Date();
             updateData.managerComments = managerComments || null;
         } else if (action === "REJECTED") {
             updateData.rejectionReason = rejectionReason || null;
@@ -112,7 +110,10 @@ export async function POST(req: NextRequest) {
             updateData.rejectedAt = new Date();
         }
 
-        const [updated] = await db.update(vacationRequests).set(updateData).where(eq(vacationRequests.id, id)).returning();
+        const [updated] = await db.update(vacationRequests).set(updateData).where(and(
+            eq(vacationRequests.id, id), vacationScopeCondition(scope), eq(vacationRequests.status, "PENDING")
+        )).returning();
+        if (!updated) return NextResponse.json({ error: "La solicitud cambió; actualiza antes de decidir" }, { status: 409 });
 
         // Send notification to employee
         if (action === "APPROVED") {
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
             message: `Solicitud ${action === "APPROVED" ? "aprobada" : "rechazada"} exitosamente`
         });
     } catch (error) {
+        if (isApiError(error)) return NextResponse.json({ error: error.message }, { status: error.statusCode });
         console.error("Error processing vacation request:", error);
         return NextResponse.json(
             { error: "Error interno del servidor" },
