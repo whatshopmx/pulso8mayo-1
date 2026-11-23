@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { vacationCivilDay } from "./vacation-dates";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { ApiError } from "@/lib/api/error";
 import { 
@@ -1490,7 +1491,6 @@ export async function resolveVacationsForPeriod(
     companyId,
     dailySalaryCents,
     vacationBonusPercent = 25,
-    timezone = "America/Mexico_City",
     vacationRequests: preloadedVacations,
     vacationAccruals: preloadedAccruals,
     leaveBalances: preloadedLeaveBalances,
@@ -1498,14 +1498,6 @@ export async function resolveVacationsForPeriod(
   } = input;
 
   const bonusPercent = Math.max(25, vacationBonusPercent ?? 25);
-
-  const localCivilDate = (d: Date | string): string => {
-    try {
-      return diaCivilEnZona(typeof d === "string" ? new Date(d) : d, timezone);
-    } catch {
-      return typeof d === "string" ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10);
-    }
-  };
 
   // 1. Obtener solicitudes de vacaciones
   let vacationRequestsStatus: "AVAILABLE" | "QUERY_ERROR" = "AVAILABLE";
@@ -1570,8 +1562,8 @@ export async function resolveVacationsForPeriod(
     const status = (req.status || "").toUpperCase();
     if (status !== "APPROVED") continue;
 
-    const vStart = typeof req.startDate === "string" ? req.startDate.slice(0, 10) : localCivilDate(req.startDate);
-    const vEnd = typeof req.endDate === "string" ? req.endDate.slice(0, 10) : localCivilDate(req.endDate);
+    const vStart = vacationCivilDay(req.startDate);
+    const vEnd = vacationCivilDay(req.endDate);
 
     const cur = parseISO(vStart > startDate ? vStart : startDate);
     const limit = parseISO(vEnd < endDate ? vEnd : endDate);

@@ -3,12 +3,12 @@ import { db } from "@/lib/db";
 import { vacationRequests, vacationStatusEnum, users, branches, notifications, notificationPreferences } from "@/lib/db/schema";
 import { eq, and, gte, lte, lt, or, inArray, isNull, type SQL } from "drizzle-orm";
 import { auth } from "@/lib/auth";
-import { addDays, differenceInDays, parseISO } from "date-fns";
 import { z } from "zod";
 import { isApiError, ApiError } from "@/lib/api/error";
 import { targetInScope } from "@/lib/rbac/resource-scope";
 import { resolveVacationScope, vacationScopeCondition, assertVacationUserPermission } from "@/lib/services/vacation-access";
 import { withVacationTransaction } from "@/lib/db/vacation-runtime";
+import { serializeVacationDates, vacationDate } from "@/lib/services/vacation-dates";
 
 const createSchema = z.object({
     userId: z.string().min(1).max(128), companyId: z.uuid().optional(), branchId: z.uuid().nullish(),
@@ -25,8 +25,8 @@ async function notifyManagersOfNewRequest(
     userId: string,
     companyId: string,
     branchId: string | null,
-    startDate: Date,
-    endDate: Date
+    startDate: string,
+    endDate: string
 ) {
     try {
         // Get managers for the branch (users with ADMIN or GERENTE role)
@@ -48,7 +48,7 @@ async function notifyManagersOfNewRequest(
             await db.insert(notifications).values({
                 userId: manager.id,
                 title: "📋 Nueva Solicitud de Vacaciones",
-                message: `${employee?.name || "Un empleado"} ha solicitado vacaciones del ${startDate.toLocaleDateString()} al ${endDate.toLocaleDateString()}`,
+                message: `${employee?.name || "Un empleado"} ha solicitado vacaciones del ${startDate} al ${endDate}`,
                 type: "warning",
                 actionUrl: `/dashboard/labor/vacations?id=${vacationId}`,
                 actionLabel: "Revisar solicitud"
@@ -116,8 +116,8 @@ export async function GET(req: NextRequest) {
         // Filter by date range
         if (startDate && endDate) {
             conditions.push(
-                and(gte(vacationRequests.endDate, parseISO(startDate)),
-                    lt(vacationRequests.startDate, addDays(parseISO(endDate), 1)))
+                and(gte(vacationRequests.endDate, vacationDate(startDate)),
+                    lt(vacationRequests.startDate, new Date(vacationDate(endDate).getTime() + 86_400_000)))
             );
         }
 
@@ -158,7 +158,7 @@ export async function GET(req: NextRequest) {
         const locations = new Map(branchNames.map(location => [location.id, location.name]));
 
         return NextResponse.json({
-            data: requests.map(request => ({ ...request, userName: people.get(request.userId)?.name,
+            data: requests.map(request => ({ ...serializeVacationDates(request), userName: people.get(request.userId)?.name,
                 userEmail: people.get(request.userId)?.email, branchName: locations.get(request.branchId) })),
             total: requests.length
         });
@@ -201,9 +201,9 @@ export async function POST(req: NextRequest) {
         })) throw ApiError.forbidden("La sucursal del empleado no pertenece a la empresa");
 
         // Calculate total days
-        const start = parseISO(startDate);
-        const end = parseISO(endDate);
-        const totalDays = differenceInDays(end, start) + 1;
+        const start = vacationDate(startDate);
+        const end = vacationDate(endDate);
+        const totalDays = (end.getTime() - start.getTime()) / 86_400_000 + 1;
 
         if (totalDays <= 0) {
             return NextResponse.json(
@@ -249,13 +249,13 @@ export async function POST(req: NextRequest) {
             userId,
             companyId,
             branchId,
-            start,
-            end
+            startDate,
+            endDate
         );
 
         return NextResponse.json({
             success: true,
-            data: newRequest,
+            data: serializeVacationDates(newRequest),
             message: "Solicitud de vacaciones creada exitosamente"
         });
     } catch (error) {
@@ -316,7 +316,7 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: updated,
+            data: serializeVacationDates(updated),
             message: "Solicitud de vacaciones cancelada"
         });
     } catch (error) {

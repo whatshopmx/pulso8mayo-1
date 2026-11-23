@@ -8,6 +8,7 @@ import { z } from "zod";
 import { ApiError, isApiError } from "@/lib/api/error";
 import { resolveVacationScope, vacationScopeCondition } from "@/lib/services/vacation-access";
 import { withVacationTransaction } from "@/lib/db/vacation-runtime";
+import { serializeVacationDates, vacationCivilDay } from "@/lib/services/vacation-dates";
 
 const decisionSchema = z.object({
     id: z.uuid(), action: z.enum(["APPROVED", "REJECTED"]),
@@ -118,21 +119,21 @@ export async function POST(req: NextRequest) {
             await sendVacationNotification(
                 updated.userId,
                 "✅ Vacaciones Aprobadas",
-                `Tu solicitud de vacaciones del ${new Date(updated.startDate).toLocaleDateString()} al ${new Date(updated.endDate).toLocaleDateString()} ha sido aprobada.${managerComments ? " Comentarios: " + managerComments : ""}`,
+                `Tu solicitud de vacaciones del ${vacationCivilDay(updated.startDate)} al ${vacationCivilDay(updated.endDate)} ha sido aprobada.${managerComments ? " Comentarios: " + managerComments : ""}`,
                 id
             );
         } else {
             await sendVacationNotification(
                 updated.userId,
                 "❌ Vacaciones Rechazadas",
-                `Tu solicitud de vacaciones del ${new Date(updated.startDate).toLocaleDateString()} al ${new Date(updated.endDate).toLocaleDateString()} ha sido rechazada.${rejectionReason ? " Motivo: " + rejectionReason : ""}`,
+                `Tu solicitud de vacaciones del ${vacationCivilDay(updated.startDate)} al ${vacationCivilDay(updated.endDate)} ha sido rechazada.${rejectionReason ? " Motivo: " + rejectionReason : ""}`,
                 id
             );
         }
 
         return NextResponse.json({
             success: true,
-            data: updated,
+            data: serializeVacationDates(updated),
             message: `Solicitud ${action === "APPROVED" ? "aprobada" : "rechazada"} exitosamente`
         });
     } catch (error) {
