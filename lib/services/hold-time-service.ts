@@ -27,6 +27,8 @@ import {
     users,
     shiftSessions,
     inventoryWaste,
+    inventoryBatches,
+    inventoryItems,
 } from "@/lib/db/schema";
 import { and, eq, isNull, isNotNull, inArray, or, sql } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
@@ -110,6 +112,16 @@ export interface HoldTimeBoardLine {
     notified: boolean;
     /** Pérdida si se tira completa, en centavos (null sin costo de insumos). */
     estimatedLossCents: number | null;
+    /** PROD-02: lote terminado vinculado (saldo, caducidad y procedencia) cuando la receta produce stock. */
+    finishedBatch?: {
+        id: string;
+        lotNumber: string | null;
+        currentQuantity: string;
+        unit: string;
+        expirationDate: string | null;
+        origin: string | null;
+        parentBatchCount: number;
+    } | null;
 }
 
 export class HoldTimeService {
@@ -511,9 +523,18 @@ export class HoldTimeService {
                 expiresAt: productionResults.expiresAt,
                 notifiedAt: productionResults.holdAlertNotifiedAt,
                 holdTimeMinutes: recipes.holdTimeMinutes,
+                finishedBatchId: inventoryBatches.id,
+                finishedLotNumber: inventoryBatches.lotNumber,
+                finishedCurrentQuantity: inventoryBatches.currentQuantity,
+                finishedExpirationDate: inventoryBatches.expirationDate,
+                finishedOrigin: inventoryBatches.origin,
+                finishedParentBatchIds: inventoryBatches.parentBatchIds,
+                finishedItemUnit: inventoryItems.unit,
             })
             .from(productionResults)
             .innerJoin(recipes, eq(productionResults.recipeId, recipes.id))
+            .leftJoin(inventoryBatches, eq(productionResults.finishedBatchId, inventoryBatches.id))
+            .leftJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
             .where(
                 and(
                     eq(productionResults.companyId, params.companyId),
@@ -550,6 +571,17 @@ export class HoldTimeService {
                     producedQuantity,
                     discardedQuantity: producedQuantity,
                 }).totalLossCents,
+                finishedBatch: r.finishedBatchId
+                    ? {
+                        id: r.finishedBatchId,
+                        lotNumber: r.finishedLotNumber,
+                        currentQuantity: String(r.finishedCurrentQuantity ?? "0"),
+                        unit: r.finishedItemUnit ?? r.unit,
+                        expirationDate: r.finishedExpirationDate ? r.finishedExpirationDate.toISOString() : null,
+                        origin: r.finishedOrigin,
+                        parentBatchCount: Array.isArray(r.finishedParentBatchIds) ? r.finishedParentBatchIds.length : 0,
+                    }
+                    : null,
             };
 
             if (status === "EXPIRED") expired.push(line);

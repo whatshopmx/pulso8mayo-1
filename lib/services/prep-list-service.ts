@@ -400,6 +400,7 @@ export class PrepListService {
             return {
                 orderId: order.id,
                 resultId: outcome.resultId,
+                finishedBatchId: outcome.finishedBatchId,
                 producedQuantity: outcome.producedQuantity,
                 ingredientCost: outcome.ingredientCost,
                 shortfalls: outcome.shortfalls,

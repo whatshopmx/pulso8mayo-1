@@ -6023,6 +6023,38 @@
           ]
         }
       ]
+    },
+    "PROD-02": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-22/PROD-02/accepted.md",
+          "head": "04d3fa6ab50486f2960d5303dad5f6e4022c7beb",
+          "environment": "V2 PostgreSQL nativo Neon desechable baseline 0158 + 0159-0162 (1/1 prep list + órdenes + hold time) + V3 Chromium Playwright controlado (1/1 Completar Lote con orderId + saldo/caducidad/procedencia visibles) + 72/72 V1 + ESLint exit 0. Sin despliegue operativo.",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/production-unified-flow-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/@playwright/test/cli.js test --config tests/playwright-sales-entry.config.ts tests/e2e/production-unified.spec.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle tests/unit/inventory/production-scope.test.ts tests/unit/inventory/production-fefo-db.test.ts tests/unit/inventory/production-finished-batch-db.test.ts lib/inventory/__tests__/prep-list.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/recipe-production.ts lib/services/prep-list-service.ts lib/services/production-service.ts lib/services/hold-time-service.ts app/api/inventory/production/route.ts app/dashboard/inventory/production/production-client.tsx components/inventory/hold-time-board.tsx tests/integration/production-unified-flow-db.test.ts tests/e2e/production-unified.spec.ts tests/support/sales-entry-browser-server.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2",
+            "V3"
+          ]
+        }
+      ]
     }
   }
 }

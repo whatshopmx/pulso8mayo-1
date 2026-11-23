@@ -254,6 +254,7 @@ export async function POST(req: NextRequest) {
                 success: true,
                 result: {
                     id: outcome.resultId,
+                    finishedBatchId: outcome.finishedBatchId,
                     producedQuantity: outcome.producedQuantity,
                     ingredientCost: outcome.ingredientCost,
                     shortfalls: outcome.shortfalls,

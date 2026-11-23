@@ -20,6 +20,19 @@ interface Recipe {
     unit: string;
 }
 
+interface FinishedBatchSummary {
+    id: string;
+    resultId?: string;
+    itemName: string;
+    lotNumber: string | null;
+    currentQuantity: string;
+    initialQuantity: string;
+    unit: string;
+    expirationDate: string | null;
+    origin: string | null;
+    parentBatchCount: number;
+}
+
 interface ProductionOrder {
     id: string;
     plannedQuantity: number;
@@ -28,6 +41,7 @@ interface ProductionOrder {
     status: string;
     notes: string | null;
     recipe: { id: string; name: string } | null;
+    finishedBatch?: FinishedBatchSummary | null;
 }
 
 interface Suggestion {
@@ -80,6 +94,7 @@ export function ProductionClient({
     const [orderNotes, setOrderNotes] = useState("");
 
     // Record form state with live FEFO preview
+    const [recordOrderId, setRecordOrderId] = useState<string | null>(null);
     const [recordRecipeId, setRecordRecipeId] = useState("");
     const [producedQty, setProducedQty] = useState(1);
     const [recordNotes, setRecordNotes] = useState("");
@@ -94,7 +109,7 @@ export function ProductionClient({
                 const rawOrders = data.orders || [];
                 const normalized: ProductionOrder[] = rawOrders.map((item: any) =>
                     item.order
-                        ? { ...item.order, recipe: item.recipe }
+                        ? { ...item.order, recipe: item.recipe, finishedBatch: item.finishedBatch ?? null }
                         : item
                 );
                 setOrders(normalized);
@@ -230,6 +245,7 @@ export function ProductionClient({
                 body: JSON.stringify({
                     action: "record",
                     branchId,
+                    ...(recordOrderId ? { orderId: recordOrderId } : {}),
                     recipeId: recordRecipeId,
                     producedQuantity: producedQty,
                     unit: selectedRecipe?.unit || "PORTION",
@@ -240,13 +256,11 @@ export function ProductionClient({
             if (res.ok && data.success) {
                 const cost = data.result?.ingredientCost;
                 const costStr = cost ? ` ($${(cost / 100).toFixed(2)})` : "";
-                toast.success(`Producción registrada con éxito por FEFO${costStr}`);
-
-                if (data.result?.shortfalls?.length > 0) {
-                    toast.warning("Algunos insumos tuvieron faltante de lote y se registraron en merma");
-                }
+                const batchStr = data.result?.finishedBatchId ? " · Lote terminado creado" : "";
+                toast.success(`Producción registrada con éxito por FEFO${costStr}${batchStr}`);
 
                 setIsRecordOpen(false);
+                setRecordOrderId(null);
                 setRecordRecipeId("");
                 setProducedQty(1);
                 setRecordNotes("");
@@ -311,24 +325,40 @@ export function ProductionClient({
                             </SelectContent>
                         </Select>
                     )}
-                    <Dialog open={isRecordOpen} onOpenChange={setIsRecordOpen}>
+                    <Dialog
+                        open={isRecordOpen}
+                        onOpenChange={(open) => {
+                            setIsRecordOpen(open);
+                            if (!open) setRecordOrderId(null);
+                        }}
+                    >
                         <DialogTrigger asChild>
-                            <Button variant="outline" className="gap-2">
+                            <Button
+                                variant="outline"
+                                className="gap-2"
+                                onClick={() => {
+                                    setRecordOrderId(null);
+                                    setRecordRecipeId("");
+                                    setProducedQty(1);
+                                }}
+                            >
                                 <Package className="w-4 h-4" />
                                 Producción Extraordinaria
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
-                                <DialogTitle>Producción Extraordinaria</DialogTitle>
+                                <DialogTitle>{recordOrderId ? "Completar Orden de Producción" : "Producción Extraordinaria"}</DialogTitle>
                                 <DialogDescription>
-                                    Registra un batch fuera de la prep list programada descontando automáticamente los insumos por fecha de caducidad (FEFO).
+                                    {recordOrderId
+                                        ? "Cierra esta orden descontando insumos por FEFO y registrando el lote terminado vinculado."
+                                        : "Registra un batch fuera de la prep list programada descontando automáticamente los insumos por fecha de caducidad (FEFO)."}
                                 </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleRecordProduction} className="space-y-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="recipe-select">Receta *</Label>
-                                    <Select value={recordRecipeId} onValueChange={setRecordRecipeId}>
+                                    <Select value={recordRecipeId} onValueChange={setRecordRecipeId} disabled={Boolean(recordOrderId)}>
                                         <SelectTrigger id="recipe-select">
                                             <SelectValue placeholder="Seleccionar receta" />
                                         </SelectTrigger>
@@ -405,7 +435,7 @@ export function ProductionClient({
                                                         {item.shortfall > 0 && (
                                                             <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium pt-0.5">
                                                                 <AlertTriangle className="size-3 shrink-0" />
-                                                                <span>Faltan {item.shortfall.toFixed(2)} {item.unit} (se registrará merma auditada)</span>
+                                                                <span>Faltan {item.shortfall.toFixed(2)} {item.unit} (bloquea el cierre hasta reponer stock)</span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -582,6 +612,7 @@ export function ProductionClient({
                                                         size="sm"
                                                         className="text-xs h-7 gap-1"
                                                         onClick={() => {
+                                                            setRecordOrderId(order.id);
                                                             setRecordRecipeId(order.recipe!.id);
                                                             setProducedQty(order.plannedQuantity);
                                                             setIsRecordOpen(true);
@@ -612,6 +643,7 @@ export function ProductionClient({
                                                     size="sm"
                                                     className="text-xs h-7 gap-1"
                                                     onClick={() => {
+                                                        setRecordOrderId(order.id);
                                                         setRecordRecipeId(order.recipe!.id);
                                                         setProducedQty(order.plannedQuantity);
                                                         setIsRecordOpen(true);
@@ -637,9 +669,26 @@ export function ProductionClient({
                                     )}
 
                                     {order.status === "COMPLETED" && (
-                                        <span className="text-xs text-muted-foreground font-mono ml-auto">
-                                            ✓ Lote producido y descontado
-                                        </span>
+                                        <div className="w-full space-y-1 text-xs">
+                                            <div className="flex items-center justify-between text-muted-foreground font-mono">
+                                                <span>✓ Lote producido y descontado</span>
+                                                {order.finishedBatch && (
+                                                    <span>
+                                                        Saldo: {Number(order.finishedBatch.currentQuantity).toFixed(2)}/{Number(order.finishedBatch.initialQuantity).toFixed(2)} {order.finishedBatch.unit}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {order.finishedBatch && (
+                                                <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-muted-foreground">
+                                                    <span>
+                                                        Procedencia: {order.finishedBatch.origin === "PRODUCTION" ? "Producción" : (order.finishedBatch.origin || "Producción")} · {order.finishedBatch.parentBatchCount} lote(s) de insumo
+                                                    </span>
+                                                    <span>
+                                                        Caducidad: {order.finishedBatch.expirationDate ? new Date(order.finishedBatch.expirationDate).toLocaleDateString() : "Sin caducidad"}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </Card>

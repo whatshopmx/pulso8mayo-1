@@ -147,6 +147,7 @@ export type ProduceWithFefoOutcome =
     | {
         status: "produced";
         resultId: string;
+        finishedBatchId: string | null;
         producedQuantity: number;
         ingredientCost: number;
         /** Siempre vacío: desde FEFO-04B-3 un faltante rechaza la producción. */
@@ -211,6 +212,7 @@ export async function produceRecipeWithFefo(
     return {
         status: "produced",
         resultId: result.id,
+        finishedBatchId: result.finishedBatchId ?? null,
         producedQuantity,
         ingredientCost: result.ingredientCost,
         shortfalls: [],

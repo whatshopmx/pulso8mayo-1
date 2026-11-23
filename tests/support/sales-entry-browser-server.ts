@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 
 /** Componente y CSS reales; servidor local sin sesión, base de datos ni escrituras operativas. */
-export async function startSalesEntryBrowserServer(fixtureResponse?: Record<string, unknown>, view: 'bulk' | 'manual' | 'pos' = 'bulk') {
+export async function startSalesEntryBrowserServer(fixtureResponse?: Record<string, unknown>, view: 'bulk' | 'manual' | 'pos' | 'production' = 'bulk') {
   const fromVitest = createRequire(require.resolve("vitest/package.json"));
   const { createServer } = await import(pathToFileURL(fromVitest.resolve("vite")).href);
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
@@ -41,10 +41,14 @@ export async function startSalesEntryBrowserServer(fixtureResponse?: Record<stri
       instance:{id:'e1000000-0000-4000-8000-000000000001',branchId:query.has('noBranch')?undefined:'b1000000-0000-4000-8000-000000000001',status:'IN_PROGRESS'},
       executionId:'e1000000-0000-4000-8000-000000000001',mode:query.has('preview')?'preview':'execution',existingSteps:[],
       steps}));`;
+  if (view === 'production') virtual['\0sales-entry.tsx'] = `import '/sales-style.css'; import React from 'react'; import {createRoot} from 'react-dom/client';
+    import {ProductionClient} from '@/app/dashboard/inventory/production/production-client';
+    createRoot(document.getElementById('root')).render(React.createElement('main',{className:'mx-auto max-w-6xl p-4'},
+      React.createElement(ProductionClient,{branchId:'b1000000-0000-4000-8000-000000000001',branches:[{id:'b1000000-0000-4000-8000-000000000001',name:'Norte'}]})));`;
   const server = await createServer({ configFile: false, root, cacheDir: path.join(root, ".tmp", `sales-entry-vite-${process.pid}-${view}`),
     esbuild: { jsx: "automatic" }, css: { postcss: { plugins: [] } },
     resolve: { dedupe: ["react", "react-dom"], alias: [{ find: "@", replacement: root }] },
-    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge", "zod", ...(view === 'manual' ? ['@radix-ui/react-select', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover', 'date-fns', 'recharts', 'sonner', 'next/navigation'] : []), ...(view === 'pos' ? ['@stepperize/react','@shivantra/react-web-camera','sonner','@radix-ui/react-select','@radix-ui/react-progress','@radix-ui/react-checkbox','@radix-ui/react-radio-group','@radix-ui/react-separator'] : [])] },
+    optimizeDeps: { entries: [], include: ["react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "lucide-react", "radix-ui", "@radix-ui/react-dialog", "@radix-ui/react-label", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge", "zod", ...(view === 'manual' ? ['@radix-ui/react-select', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover', 'date-fns', 'recharts', 'sonner', 'next/navigation'] : []), ...(view === 'pos' ? ['@stepperize/react','@shivantra/react-web-camera','sonner','@radix-ui/react-select','@radix-ui/react-progress','@radix-ui/react-checkbox','@radix-ui/react-radio-group','@radix-ui/react-separator'] : []), ...(view === 'production' ? ['@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-checkbox', 'sonner'] : [])] },
     server: { host: "127.0.0.1", port: 0, watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] } },
     plugins: [{ name: "sales-entry-browser", enforce: "pre",
       resolveId(id: string) { if (Object.hasOwn(virtual, id)) return id;

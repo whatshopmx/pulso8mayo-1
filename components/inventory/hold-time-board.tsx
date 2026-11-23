@@ -36,6 +36,15 @@ interface BoardLine {
     minutesRemaining: number;
     notified: boolean;
     estimatedLossCents: number | null;
+    finishedBatch?: {
+        id: string;
+        lotNumber: string | null;
+        currentQuantity: string;
+        unit: string;
+        expirationDate: string | null;
+        origin: string | null;
+        parentBatchCount: number;
+    } | null;
 }
 
 const formatMXN = (cents: number) =>
@@ -183,6 +192,9 @@ export function HoldTimeBoard({ branchId }: { branchId: string }) {
                                         {line.estimatedLossCents != null
                                             ? ` · ${formatMXN(line.estimatedLossCents)} en riesgo`
                                             : ""}
+                                        {line.finishedBatch
+                                            ? ` · Saldo ${Number(line.finishedBatch.currentQuantity).toFixed(2)} ${line.finishedBatch.unit} · Procedencia: Producción (${line.finishedBatch.parentBatchCount} insumos)`
+                                            : ""}
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
@@ -220,6 +232,9 @@ export function HoldTimeBoard({ branchId }: { branchId: string }) {
                                     <CardDescription>
                                         {line.producedQuantity} {line.unit}
                                         {line.holdTimeMinutes ? ` · ventana ${line.holdTimeMinutes} min` : ""}
+                                        {line.finishedBatch
+                                            ? ` · Saldo ${Number(line.finishedBatch.currentQuantity).toFixed(2)} ${line.finishedBatch.unit} · Procedencia: Producción (${line.finishedBatch.parentBatchCount} insumos)`
+                                            : ""}
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="pt-0">

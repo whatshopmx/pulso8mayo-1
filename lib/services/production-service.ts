@@ -72,7 +72,7 @@ export class ProductionService {
     }
 
     static async getOrders(companyId: string, branchId: string) {
-        return db.select({
+        const rows = await db.select({
             order: productionOrders,
             recipe: {
                 id: recipes.id,
@@ -86,6 +86,56 @@ export class ProductionService {
                 eq(productionOrders.branchId, branchId),
             ))
             .orderBy(desc(productionOrders.plannedDate));
+
+        if (rows.length === 0) return [];
+
+        const orderIds = rows.map(r => r.order.id);
+        const batchRows = await db.select({
+            orderId: productionResults.orderId,
+            resultId: productionResults.id,
+            batchId: inventoryBatches.id,
+            itemName: inventoryItems.name,
+            unit: inventoryItems.unit,
+            lotNumber: inventoryBatches.lotNumber,
+            currentQuantity: inventoryBatches.currentQuantity,
+            initialQuantity: inventoryBatches.initialQuantity,
+            expirationDate: inventoryBatches.expirationDate,
+            origin: inventoryBatches.origin,
+            parentBatchIds: inventoryBatches.parentBatchIds,
+        })
+            .from(productionResults)
+            .innerJoin(inventoryBatches, eq(productionResults.finishedBatchId, inventoryBatches.id))
+            .innerJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
+            .where(and(
+                eq(productionResults.companyId, companyId),
+                eq(productionResults.branchId, branchId),
+                inArray(productionResults.orderId, orderIds),
+            ));
+
+        const batchByOrderId = new Map(
+            batchRows
+                .filter((row): row is typeof row & { orderId: string } => Boolean(row.orderId))
+                .map(row => [
+                    row.orderId,
+                    {
+                        id: row.batchId,
+                        resultId: row.resultId,
+                        itemName: row.itemName,
+                        lotNumber: row.lotNumber,
+                        currentQuantity: String(row.currentQuantity),
+                        initialQuantity: String(row.initialQuantity),
+                        unit: row.unit,
+                        expirationDate: row.expirationDate ? row.expirationDate.toISOString() : null,
+                        origin: row.origin,
+                        parentBatchCount: Array.isArray(row.parentBatchIds) ? row.parentBatchIds.length : 0,
+                    },
+                ])
+        );
+
+        return rows.map(row => ({
+            ...row,
+            finishedBatch: batchByOrderId.get(row.order.id) ?? null,
+        }));
     }
 
     /**
