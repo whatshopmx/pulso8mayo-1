@@ -4,7 +4,7 @@
  * All tables will be moved to domain-specific modules in lib/db/schema/
  */
 
-import { pgTable, pgPolicy, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index, unique, check } from "drizzle-orm/pg-core";
+import { pgTable, pgPolicy, text, timestamp, time, date, boolean, uuid, jsonb, integer, bigint, uniqueIndex, foreignKey, pgEnum, numeric, index, unique, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AguinaldoSnapshotCabecera, AguinaldoEmpleadoSnapshot } from "../services/aguinaldo-snapshot";
 import type { AppliedSaleAllocation, SaleConsumptionMovement, SaleRecipeSnapshot } from "../services/sale-consumption-contract";
@@ -2528,6 +2528,74 @@ export const leaveRequests = pgTable("leave_requests", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Immutable vacation-history openings. Corrections append a successor stream.
+export const vacationHistoryStreams = pgTable("vacation_history_streams", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    userId: text("user_id").notNull().references(() => users.id),
+    predecessorId: uuid("predecessor_id"),
+    coverageFrom: date("coverage_from").notNull(),
+    coverageThrough: date("coverage_through").notNull(),
+    sourceReference: text("source_reference").notNull(),
+    reason: text("reason").notNull(),
+    actorId: text("actor_id").notNull().references(() => users.id),
+    idempotencyKey: text("idempotency_key").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+    recordVersion: bigint("record_version", { mode: "bigint" }).default(sql`0`).notNull(),
+}, t => [
+    unique("vacation_history_stream_identity").on(t.id, t.companyId, t.userId),
+    uniqueIndex("vacation_history_stream_key").on(t.companyId, t.userId, t.idempotencyKey),
+    uniqueIndex("vacation_history_stream_root").on(t.companyId, t.userId).where(sql`${t.predecessorId} IS NULL`),
+    uniqueIndex("vacation_history_stream_successor").on(t.predecessorId).where(sql`${t.predecessorId} IS NOT NULL`),
+    foreignKey({ name: "vacation_history_stream_predecessor", columns: [t.predecessorId, t.companyId, t.userId],
+        foreignColumns: [t.id, t.companyId, t.userId] }),
+    check("vacation_history_stream_dates", sql`isfinite(${t.coverageFrom}) AND isfinite(${t.coverageThrough}) AND ${t.coverageFrom} <= ${t.coverageThrough}`),
+    check("vacation_history_stream_source", sql`length(btrim(${t.sourceReference})) BETWEEN 1 AND 1000 AND length(btrim(${t.reason})) BETWEEN 1 AND 2000 AND length(btrim(${t.idempotencyKey})) BETWEEN 1 AND 128`),
+    pgPolicy("vacation_history_stream_read", { for: "select", to: "public", using: sql`public.vacation_history_scope(${t.companyId},${t.userId},'read')` }),
+    pgPolicy("vacation_history_stream_insert", { for: "insert", to: "public", withCheck: sql`public.vacation_history_scope(${t.companyId},${t.userId},'grant') AND ${t.actorId}=nullif(current_setting('app.current_actor_id',true),'')` }),
+]).enableRLS();
+
+export const vacationHistoryEvents = pgTable("vacation_history_events", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    streamId: uuid("stream_id").notNull(),
+    companyId: uuid("company_id").notNull(),
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull(),
+    validFrom: date("valid_from"),
+    validThrough: date("valid_through"),
+    days: integer("days"),
+    vacationRequestId: uuid("vacation_request_id").references(() => vacationRequests.id),
+    leaveRequestId: uuid("leave_request_id").references(() => leaveRequests.id),
+    reversesEventId: uuid("reverses_event_id"),
+    sourceReference: text("source_reference").notNull(),
+    reason: text("reason").notNull(),
+    actorId: text("actor_id").notNull().references(() => users.id),
+    idempotencyKey: text("idempotency_key").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+    recordVersion: bigint("record_version", { mode: "bigint" }).default(sql`0`).notNull(),
+}, t => [
+    unique("vacation_history_event_identity").on(t.id, t.streamId, t.companyId, t.userId),
+    foreignKey({ name: "vacation_history_event_stream", columns: [t.streamId, t.companyId, t.userId],
+        foreignColumns: [vacationHistoryStreams.id, vacationHistoryStreams.companyId, vacationHistoryStreams.userId] }),
+    foreignKey({ name: "vacation_history_event_reversal", columns: [t.reversesEventId, t.streamId, t.companyId, t.userId],
+        foreignColumns: [t.id, t.streamId, t.companyId, t.userId] }),
+    uniqueIndex("vacation_history_event_key").on(t.streamId, t.idempotencyKey),
+    uniqueIndex("vacation_history_event_reversed_once").on(t.reversesEventId).where(sql`${t.reversesEventId} IS NOT NULL`),
+    uniqueIndex("vacation_history_vacation_approved_once").on(t.streamId, t.vacationRequestId).where(sql`${t.kind}='APPROVE_REQUEST' AND ${t.vacationRequestId} IS NOT NULL`),
+    uniqueIndex("vacation_history_leave_approved_once").on(t.streamId, t.leaveRequestId).where(sql`${t.kind}='APPROVE_REQUEST' AND ${t.leaveRequestId} IS NOT NULL`),
+    index("vacation_history_event_cutoff").on(t.companyId, t.userId, t.recordVersion),
+    check("vacation_history_event_source", sql`length(btrim(${t.sourceReference})) BETWEEN 1 AND 1000 AND length(btrim(${t.reason})) BETWEEN 1 AND 2000 AND length(btrim(${t.idempotencyKey})) BETWEEN 1 AND 128`),
+    check("vacation_history_event_dates", sql`(${t.validFrom} IS NULL AND ${t.validThrough} IS NULL) OR (${t.validFrom} IS NOT NULL AND ${t.validThrough} IS NOT NULL AND isfinite(${t.validFrom}) AND isfinite(${t.validThrough}) AND ${t.validFrom} <= ${t.validThrough})`),
+    check("vacation_history_event_shape", sql`
+        (${t.kind}='COVERAGE' AND ${t.validFrom} IS NOT NULL AND ${t.days} IS NULL AND ${t.vacationRequestId} IS NULL AND ${t.leaveRequestId} IS NULL AND ${t.reversesEventId} IS NULL) OR
+        (${t.kind}='GRANT' AND ${t.validFrom} IS NOT NULL AND ${t.days} IS NOT NULL AND ${t.days}>=0 AND ${t.vacationRequestId} IS NULL AND ${t.leaveRequestId} IS NULL AND ${t.reversesEventId} IS NULL) OR
+        (${t.kind}='REVOKE_GRANT' AND ${t.validFrom} IS NULL AND ${t.days} IS NULL AND ${t.vacationRequestId} IS NULL AND ${t.leaveRequestId} IS NULL AND ${t.reversesEventId} IS NOT NULL) OR
+        (${t.kind}='APPROVE_REQUEST' AND ${t.validFrom} IS NOT NULL AND ${t.days} IS NOT NULL AND ${t.days}>0 AND ${t.days}=(${t.validThrough}-${t.validFrom}+1) AND ((${t.vacationRequestId} IS NOT NULL)::int+(${t.leaveRequestId} IS NOT NULL)::int)=1 AND ${t.reversesEventId} IS NULL) OR
+        (${t.kind}='CANCEL_REQUEST' AND ${t.validFrom} IS NULL AND ${t.days} IS NULL AND ((${t.vacationRequestId} IS NOT NULL)::int+(${t.leaveRequestId} IS NOT NULL)::int)=1 AND ${t.reversesEventId} IS NOT NULL)`),
+    pgPolicy("vacation_history_event_read", { for: "select", to: "public", using: sql`public.vacation_history_scope(${t.companyId},${t.userId},'read')` }),
+    pgPolicy("vacation_history_event_insert", { for: "insert", to: "public", withCheck: sql`public.vacation_history_scope(${t.companyId},${t.userId},CASE WHEN ${t.kind} IN ('COVERAGE','GRANT','REVOKE_GRANT') THEN 'grant' ELSE 'decision' END) AND ${t.actorId}=nullif(current_setting('app.current_actor_id',true),'')` }),
+]).enableRLS();
 
 // Leave Balances Table
 export const leaveBalances = pgTable("leave_balances", {
