@@ -21,7 +21,7 @@ beforeAll(async () => {
   if (!enabled) return;
   fixture = await createSalesRuntimeDatabase({ baseline: '0158' });
   await fixture.owner.transaction(async tx => {
-    for (const file of ['0159_inv02_consumption_policy.sql', '0160_inv02_policy_publication_access.sql']) {
+    for (const file of ['0159_inv02_consumption_policy.sql', '0160_inv02_policy_publication_access.sql', '0162_prod01b_finished_consumption_grants.sql']) {
       for (const statement of readFileSync(`drizzle/${file}`, 'utf8').split('--> statement-breakpoint').filter(value => value.trim())) {
         // Only the newly generated role, never the shared pulso_app role.
         await tx.execute(sql.raw(statement.replaceAll('pulso_app', fixture!.roleName)));
@@ -233,6 +233,6 @@ it.skipIf(!enabled)('INV-02 runtime: frozen subrecipe protects retroactivity and
     inventoryItemId: finished.id, unit: 'KG' });
   const blocked = await sale(s, 1, { saleDay: '2026-12-02' });
   expect(blocked).toMatchObject({ inserted: 0, errors: [{ rowNumber: 2 }] });
-  expect(blocked.errors[0].message).toContain('PROD-01');
+  expect(blocked.errors[0].message).toContain('Stock de lote terminado de producción insuficiente');
   expect(await s.state()).toEqual(before);
 }, 90_000);

@@ -51,7 +51,7 @@ beforeAll(async () => {
   }
   await db.execute(sql`CREATE ROLE pulso_app NOSUPERUSER NOBYPASSRLS`);
   await db.execute(sql`CREATE UNIQUE INDEX sale_policy_test_projection ON sales_entries (company_id, branch_id, sale_date, recipe_id)`);
-  for (const number of ['0137', '0138', '0139', '0141', '0159', '0160']) {
+  for (const number of ['0137', '0138', '0139', '0141', '0159', '0160', '0162']) {
     const file = readdirSync('drizzle').find(name => name.startsWith(`${number}_`) && name.endsWith('.sql'))!;
     for (const statement of readFileSync(`drizzle/${file}`, 'utf8').split('--> statement-breakpoint').filter(s => s.trim())) {
       await db.execute(sql.raw(statement));
@@ -208,9 +208,9 @@ describe('INV-02.apply: escritor con políticas publicadas', () => {
     expect(await db.select().from(tables.salesEntries)).toHaveLength(0);
     expect(await db.select().from(tables.inventoryMovements)).toHaveLength(0);
   });
-  it('no permite consumir elaborado antes de PROD-01 aunque haya stock del SKU', async () => {
+  it('no consume lotes de compra como elaborado si falta lote de producción con genealogía', async () => {
     await publish({ mode: 'FINISHED_PRODUCT_ON_SALE', inventoryItemId: itemA, unit: 'KG' });
-    await expect(write('1')).rejects.toMatchObject({ code: 'PENDING_RECOVERY' });
+    await expect(write('1')).rejects.toMatchObject({ code: 'INSUFFICIENT_STOCK' });
     expect(await stock()).toBe('20.0000'); expect(await heads()).toHaveLength(0);
     expect(await db.select().from(tables.salesConsumptionIdentities)).toHaveLength(0);
     expect(await db.select().from(tables.inventoryMovements)).toHaveLength(0);
@@ -236,7 +236,7 @@ describe('INV-02.apply: escritor con políticas publicadas', () => {
     expect(await policies()).toHaveLength(2);
     await publish({ recipeId: child, recipeVersionId: nextVersion, effectiveFrom: '2026-12-02',
       mode: 'FINISHED_PRODUCT_ON_SALE', inventoryItemId: itemA, unit: 'KG' });
-    await expect(write('1', { saleDay: '2026-12-02' })).rejects.toMatchObject({ code: 'PENDING_RECOVERY' });
+    await expect(write('1', { saleDay: '2026-12-02' })).rejects.toMatchObject({ code: 'INSUFFICIENT_STOCK' });
     expect(await stock()).toBe('19.0000');
   });
   it('también protege la venta legacy del padre que depende de una subreceta', async () => {

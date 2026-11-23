@@ -33,7 +33,7 @@ export interface FefoAllocation {
   unitCost: number | null;
 }
 
-export type ScopedAllocationRequest = Pick<AllocationRequest, 'companyId' | 'branchId' | 'itemId' | 'quantity' | 'batchId'>;
+export type ScopedAllocationRequest = Pick<AllocationRequest, 'companyId' | 'branchId' | 'itemId' | 'quantity' | 'batchId' | 'requiredOrigin'>;
 
 /**
  * FEFO-04B-1: consulta común con alcance explícito y política del servidor.
@@ -43,23 +43,31 @@ export type ScopedAllocationRequest = Pick<AllocationRequest, 'companyId' | 'bra
  * exige fecha y usa FEFO. El faltante se devuelve separado, sin escrituras.
  */
 export async function allocateScopedBatches(executor: DbExecutor, request: ScopedAllocationRequest): Promise<BatchAllocationPlan> {
-  const { companyId, branchId, itemId, quantity, batchId } = request;
-  const scope = { companyId, branchId, itemId, quantity, batchId };
+  const { companyId, branchId, itemId, quantity, batchId, requiredOrigin } = request;
+  const scope = { companyId, branchId, itemId, quantity, batchId, requiredOrigin };
   // Validar la cantidad/alcance antes de consultar o tomar locks.
   allocateEligibleBatches([], { ...scope, now: new Date() });
-  const batches = await executor.select({
+  const requireProductionGenealogy = requiredOrigin === 'PRODUCTION';
+  const baseSelection = {
     id: inventoryBatches.id, companyId: inventoryItems.companyId,
     branchId: inventoryBatches.branchId, itemId: inventoryBatches.itemId,
     status: inventoryBatches.status, currentQuantity: inventoryBatches.currentQuantity,
     unitCost: inventoryBatches.unitCost, expirationDate: inventoryBatches.expirationDate,
     receivedAt: inventoryBatches.receivedAt, createdAt: inventoryBatches.createdAt,
-  }).from(inventoryBatches)
+  };
+  const batches = await executor.select(
+    requiredOrigin !== undefined ? { ...baseSelection, origin: inventoryBatches.origin } : baseSelection
+  ).from(inventoryBatches)
     .innerJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
     .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
     .where(and(eq(inventoryItems.companyId, companyId), eq(branches.companyId, companyId),
       eq(inventoryBatches.branchId, branchId), eq(inventoryBatches.itemId, itemId),
       eq(inventoryBatches.status, 'AVAILABLE'), sql`${inventoryBatches.currentQuantity} > 0`,
-      batchId !== undefined ? eq(inventoryBatches.id, batchId) : undefined))
+      batchId !== undefined ? eq(inventoryBatches.id, batchId) : undefined,
+      requiredOrigin !== undefined ? eq(inventoryBatches.origin, requiredOrigin) : undefined,
+      requireProductionGenealogy
+        ? sql`jsonb_typeof(${inventoryBatches.parentBatchIds}) = 'array' AND jsonb_array_length(${inventoryBatches.parentBatchIds}) > 0`
+        : undefined))
     // Tomar locks en orden estable; el motor ordena después por FEFO.
     .orderBy(inventoryBatches.id)
     .for('update', { of: inventoryBatches });

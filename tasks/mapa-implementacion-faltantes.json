@@ -5992,6 +5992,37 @@
           ]
         }
       ]
+    },
+    "PROD-01.b": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-22/PROD-01.b/accepted.md",
+          "head": "50d7e64a08e60339bff0120bc27f40b176ff9def",
+          "environment": "V2 PostgreSQL nativo Neon desechable baseline 0158 + 0159/0160/0161/0162 con rol LOGIN independiente (1/1 PROD-01.b + 8/8 regresión INV-02) + V1 PGlite (46/46) + ESLint exit 0. Sin despliegue ni aplicación operativa de 0161/0162.",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/production-finished-consumption-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle tests/unit/inventory/recipe-policy-publication-service-db.test.ts tests/unit/inventory/production-finished-batch-db.test.ts lib/services/__tests__/batch-allocation-policy.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/batch-allocation-policy.ts lib/services/fefo-allocator.ts lib/services/sale-consumption-service.ts tests/unit/inventory/recipe-policy-publication-service-db.test.ts tests/integration/recipe-policy-runtime-db.test.ts tests/integration/production-finished-consumption-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V2"
+          ]
+        }
+      ]
     }
   }
 }

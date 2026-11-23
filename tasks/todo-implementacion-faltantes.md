@@ -221,8 +221,8 @@ Ver [evidencia y límites](evidencia/2026-11-16/CONSOLIDACION/README.md). Se man
 
 - [x] **PROD-00** [R/S] Rastrear modelos y consumidores de producción — aceptado D con `INV-02` cerrado y 67/67 pruebas focales de producción/prep-list. [Evidencia](evidencia/2026-11-22/PROD-00/README.md).
 - [x] **PROD-01.a** [I/M] Crear lote de producto terminado — aceptado V1/V2 (`0161`, alta atómica con costo/caducidad/genealogía/vínculo único, 5/5 PGlite + 67/67 regresión + 1/1 Neon nativo + ESLint). [Evidencia](evidencia/2026-11-22/PROD-01.a/accepted.md).
-- [ ] **PROD-01.b** [I/M] Consumir elaborado sin descontar dos veces
-- [ ] **Checkpoint 5.1** — revisar los últimos 2–3 hijos ejecutados: pruebas del recorrido, tipos/lint, evidencia y regresión aplicable.
+- [x] **PROD-01.b** [I/M] Consumir elaborado sin descontar dos veces — aceptado V2 (`0162`, consumo FEFO exclusivo de lotes `PRODUCTION` con genealogía `parent_batch_ids`, 1/1 Neon PROD-01.b + 8/8 Neon INV-02 + 46/46 V1 + ESLint). [Evidencia](evidencia/2026-11-22/PROD-01.b/accepted.md).
+- [x] **Checkpoint 5.1** — `PROD-00` (D), `PROD-01.a` (V1/V2) y `PROD-01.b` (V2) aceptados con regresión focal, ESLint y trazabilidad en verde (`74` aceptadas, `0` errores).
 - [ ] **PROD-02** [I/M] Unificar planificación y ejecución visible
 - [ ] **REC-03A** [R/M] Revalidar lotes con anomalía histórica
 - [ ] **REC-03B** [A/M] Aceptar protocolo de corrección histórica

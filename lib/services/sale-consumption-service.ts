@@ -169,9 +169,11 @@ async function applyRevision(tx: Tx, input: ApplySaleConsumptionInput) {
     : await newSnapshot(tx, identity, recipeId, head);
   if (input.recipeVersionKey !== undefined && input.recipeVersionKey !== snapshot.versionKey) throw new SaleConsumptionError("RECIPE_VERSION_CONFLICT", "La definición de receta cambió; recarga su versión");
   const target = saleSnapshotDemand(snapshot, quantity);
-  if (ticks(quantity, 2) > zero && snapshotPublications(snapshot).some(publication => publication.policy?.mode === 'FINISHED_PRODUCT_ON_SALE')) {
-    pending('El consumo de producto elaborado requiere el recorrido de producción e inventario PROD-01');
-  }
+  const finishedItemIds = new Set(
+    snapshotPublications(snapshot).flatMap(publication =>
+      publication.policy?.mode === 'FINISHED_PRODUCT_ON_SALE' ? [publication.policy.inventoryItemId] : []
+    )
+  );
   if (head && head.quantitySold === quantity && head.totalRevenue === input.totalRevenueCents && head.recipeId === recipeId && head.recipeSnapshot.versionKey === snapshot.versionKey) return { identityId: key.id, revision: head.revision, applied: false, created: false, movementIds: [] as string[], revenueComplete: [...totals.values()].every(total => total.unknownRevenue === 0) };
   const next = nextSaleConsumptionRevision(head ?? null, quantity);
   const delta = planSaleConsumptionDelta(head?.allocations ?? [], target, !!head && head.recipeSnapshot.versionKey !== snapshot.versionKey);
@@ -202,8 +204,22 @@ async function applyRevision(tx: Tx, input: ApplySaleConsumptionInput) {
   }
   for (const row of delta.returns) await move(row.itemId, row.batchId, row.unit, ticks(row.quantity), row.movementId);
   for (const row of delta.consume.sort((a, b) => a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0)) {
-    const plan = await allocateScopedBatches(tx, { companyId: identity.companyId, branchId: identity.branchId, itemId: row.itemId, quantity: row.quantity });
-    if (plan.shortfallQuantity > 0) throw new SaleConsumptionError("INSUFFICIENT_STOCK", "Stock elegible insuficiente; no se aplicó la revisión");
+    const isFinishedProduct = finishedItemIds.has(row.itemId);
+    const plan = await allocateScopedBatches(tx, {
+      companyId: identity.companyId,
+      branchId: identity.branchId,
+      itemId: row.itemId,
+      quantity: row.quantity,
+      ...(isFinishedProduct ? { requiredOrigin: 'PRODUCTION' } : {}),
+    });
+    if (plan.shortfallQuantity > 0) {
+      throw new SaleConsumptionError(
+        "INSUFFICIENT_STOCK",
+        isFinishedProduct
+          ? "Stock de lote terminado de producción insuficiente; no se aplicó la revisión"
+          : "Stock elegible insuficiente; no se aplicó la revisión"
+      );
+    }
     for (const allocation of plan.allocations) {
       const amount = allocation.quantity.toFixed(4);
       const movementId = await move(row.itemId, allocation.batchId, row.unit, -ticks(amount), null);

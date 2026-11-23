@@ -15,6 +15,7 @@ export interface BatchCandidate {
   expirationDate: Date | null;
   receivedAt: Date | null;
   createdAt: Date | null;
+  origin?: string | null;
 }
 
 export interface AllocationRequest {
@@ -27,6 +28,8 @@ export interface AllocationRequest {
   policy?: { strategy: 'FEFO' | 'FIFO'; expiration: 'REQUIRED' | 'NONE' | 'UNKNOWN' };
   /** Selección explícita: nunca sustituir este ID por otro lote. */
   batchId?: string;
+  /** Origen requerido del lote (p. ej. 'PRODUCTION' para elaborados FINISHED_PRODUCT_ON_SALE). */
+  requiredOrigin?: string;
 }
 
 export interface BatchAllocationPlan {
@@ -86,7 +89,8 @@ export function allocateEligibleBatches(batches: readonly BatchCandidate[], requ
     if (seen.has(batch.id)) throw new Error('Candidatos de lote duplicados');
     seen.add(batch.id);
     if (batch.companyId !== request.companyId || batch.branchId !== request.branchId || batch.itemId !== request.itemId
-      || batch.status !== 'AVAILABLE' || (request.batchId !== undefined && batch.id !== request.batchId)) continue;
+      || batch.status !== 'AVAILABLE' || (request.batchId !== undefined && batch.id !== request.batchId)
+      || (request.requiredOrigin !== undefined && batch.origin !== request.requiredOrigin)) continue;
     if (![batch.expirationDate, batch.receivedAt, batch.createdAt].every(validDate)) continue;
     if (batch.expirationDate === null ? expiration !== 'NONE' : batch.expirationDate.getTime() <= request.now.getTime()) continue;
     const quantity = scaledQuantity(batch.currentQuantity);
