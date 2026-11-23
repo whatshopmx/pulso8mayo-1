@@ -2,6 +2,8 @@
 
 Base: `b132eade8c2bcf3145ae53859752bdd51ac32864` más árbol local compartido; código/especificación final en `bc225f37adf7bfbb2bbd3e284c78776dff81bdd5`. `NOM-02.c1.history.contract` llega a V1; no se acepta el historial ni NOM-02.c1. El módulo no está seleccionado por el lector de nómina y no modifica saldos o solicitudes.
 
+Checkpoint posterior: el componente `history.contract` queda aceptado **solo V1**, tras revisar su compatibilidad con la persistencia y repetir sus regresiones. El [checkpoint de schema](../NOM-02.c1.history-schema/README.md) mantiene abiertos escritores, lector y padre de historia; no equivale a aceptar el historial integrado.
+
 ## Problema y contrato
 
 El lector actual suma `days_balance` y usa `leave_balances.balance` como fallback. Aunque filtra anualidades futuras, esas columnas mutables no conservan cuánto quedaba antes de consumos o correcciones posteriores. Las rutas de permisos también modifican balances, y `leave/balances` permite enviar importes del propio usuario sin una capacidad administrativa explícita; `withTenantAuth` solo exige sesión/empresa. Estas rutas no constituyen por sí mismas una fuente histórica verificada.

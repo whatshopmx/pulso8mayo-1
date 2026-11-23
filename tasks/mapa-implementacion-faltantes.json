@@ -5464,8 +5464,20 @@
         "checks": ["V1", "V2", "V3"]
       }]
     },
+    "NOM-02.c1.history.schema": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history-schema/README.md",
+        "head": "8fc8236635e612c18125894f2b7c7db9b3506cdc",
+        "environment": "Windows; candidata 0164 solo en PGlite y Neon desechable baseline0158+0163, LOGIN mínimo y dos PIDs, carreras y enlace real a solicitudes; build con tipos/455 páginas; sin escritores/lector HTTP ni despliegue",
+        "commands": [{ "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-history-schema-db.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-history-db.test.ts", "exit": 0 },
+          { "command": "pnpm.cmd exec drizzle-kit check", "exit": 0 }, { "command": "pnpm.cmd run build", "exit": 0 }],
+        "checks": ["V1", "V2"]
+      }]
+    },
     "NOM-02.c1.history.contract": {
-      "state": "V1",
+      "state": "aceptado",
       "evidence": [{
         "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history-contract/README.md",
         "head": "bc225f37adf7bfbb2bbd3e284c78776dff81bdd5",
