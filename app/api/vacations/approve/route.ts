@@ -9,6 +9,7 @@ import { ApiError, isApiError } from "@/lib/api/error";
 import { resolveVacationScope, vacationScopeCondition } from "@/lib/services/vacation-access";
 import { withVacationTransaction } from "@/lib/db/vacation-runtime";
 import { serializeVacationDates, vacationCivilDay } from "@/lib/services/vacation-dates";
+import { recordVacationApprovalEvent } from "@/lib/services/vacation-history-decisions";
 
 const decisionSchema = z.object({
     id: z.uuid(), action: z.enum(["APPROVED", "REJECTED"]),
@@ -111,6 +112,18 @@ export async function POST(req: NextRequest) {
                 eq(vacationRequests.id, id), vacationScopeCondition(scope, runtime), eq(vacationRequests.status, "PENDING")
             )).returning();
             if (!decided) throw ApiError.conflict("La solicitud cambió; actualiza antes de decidir");
+            if (action === "APPROVED") {
+                await recordVacationApprovalEvent(tx, {
+                    companyId: decided.companyId,
+                    userId: decided.userId,
+                    actorId: session.user.id,
+                    vacationRequestId: decided.id,
+                    startDate: decided.startDate,
+                    endDate: decided.endDate,
+                    totalDays: decided.totalDays,
+                    reason: managerComments,
+                });
+            }
             return decided;
         });
 

@@ -65,6 +65,8 @@ export const CRITICAL_AUDIT_CATALOG: readonly CriticalAuditDescriptor[] = [
   { domain: 'INVENTORY', entityType: 'SALE_VOID', action: 'CREATE', description: 'Anulación de venta y reversa de consumo de stock', reasonRequired: true, transactionRequired: true },
 
   // Frente B / Laboral y Nómina
+  { domain: 'LABOR', entityType: 'LEAVE_ENTITLEMENT', action: 'CREATE', description: 'Asignación administrativa de derechos de permiso', reasonRequired: true, transactionRequired: true },
+  { domain: 'LABOR', entityType: 'LEAVE_ENTITLEMENT', action: 'UPDATE', description: 'Corrección administrativa de derechos de permiso', reasonRequired: true, transactionRequired: true },
   { domain: 'LABOR', entityType: 'SALARY', action: 'CREATE', description: 'Asignación de salario o contrato salarial', reasonRequired: true, transactionRequired: true },
   { domain: 'LABOR', entityType: 'SALARY', action: 'UPDATE', description: 'Modificación de salario o deducciones (NOM-01)', reasonRequired: true, transactionRequired: true },
   { domain: 'LABOR', entityType: 'SALARY', action: 'DELETE', description: 'Baja o anulación de esquema salarial', reasonRequired: true, transactionRequired: true },

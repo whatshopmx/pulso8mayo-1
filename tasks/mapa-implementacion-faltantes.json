@@ -5486,6 +5486,87 @@
         "checks": ["V1"]
       }]
     },
+    "NOM-02.c1.history.grants": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history/README.md",
+        "head": "6aed025883380095ab4247b56476ab224829decf",
+        "environment": "Windows + PGlite + Neon desechable baseline0158+0163+0164 con LOGIN mínimo sin BYPASSRLS; /api/leave/balances y /api/vacations/history",
+        "commands": [
+          { "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-history-grants-db.test.ts tests/unit/payroll/leave-balances-scope-db.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/leave-balances-db.test.ts tests/integration/vacation-history-grants-db.test.ts", "exit": 0 },
+          { "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false", "exit": 0 }
+        ],
+        "checks": ["V1", "V2", "V3"]
+      }]
+    },
+    "NOM-02.c1.history.decisions": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history/README.md",
+        "head": "6aed025883380095ab4247b56476ab224829decf",
+        "environment": "Windows + PGlite + Neon desechable baseline0158+0163+0164 con LOGIN mínimo sin BYPASSRLS; aprobación y cancelación atómicas",
+        "commands": [
+          { "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-history-decisions-db.test.ts tests/unit/payroll/vacation-routes-scope-db.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-history-decisions-db.test.ts", "exit": 0 },
+          { "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false", "exit": 0 }
+        ],
+        "checks": ["V1", "V2", "V3"]
+      }]
+    },
+    "NOM-02.c1.history.leave": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history/README.md",
+        "head": "6aed025883380095ab4247b56476ab224829decf",
+        "environment": "Windows + PGlite + Neon desechable baseline0158+0163+0164; cierre PATCH genérico, días civiles/año período y puente VACATION atómico",
+        "commands": [
+          { "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-history-leave-db.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-history-leave-db.test.ts", "exit": 0 },
+          { "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false", "exit": 0 }
+        ],
+        "checks": ["V1", "V2", "V3"]
+      }]
+    },
+    "NOM-02.c1.history.reader": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history/README.md",
+        "head": "6aed025883380095ab4247b56476ab224829decf",
+        "environment": "Windows + PGlite + Neon desechable baseline0158+0163+0164; lector al corte sin fallback mutable conectado a resolveVacationsForPeriod",
+        "commands": [
+          { "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-history-reader-db.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-history-acceptance-db.test.ts", "exit": 0 },
+          { "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false", "exit": 0 }
+        ],
+        "checks": ["V1", "V2"]
+      }]
+    },
+    "NOM-02.c1.history.acceptance": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history/README.md",
+        "head": "6aed025883380095ab4247b56476ab224829decf",
+        "environment": "Neon desechable baseline0158+0163+0164; dos empresas, LOGIN mínimo, grants+vacaciones+leave+nómina al corte+corrección+replay y limpieza verificada",
+        "commands": [
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-history-acceptance-db.test.ts", "exit": 0 },
+          { "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false", "exit": 0 }
+        ],
+        "checks": ["V2", "V3"]
+      }]
+    },
+    "NOM-02.c1.history": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history/README.md",
+        "head": "6aed025883380095ab4247b56476ab224829decf",
+        "environment": "Entorno aislado con 7/7 hijos acreditados (108/108 PGlite/unitarias + 28/28 alcance + 7/7 Neon V2 + tsc --noEmit); sin migración operativa ni cierre de NOM-02.c1/filas 09.11 y 10.05",
+        "commands": [
+          { "command": "node node_modules/tsx/dist/cli.mjs scripts/validate-faltantes.ts", "exit": 0 }
+        ],
+        "checks": ["V1", "V2", "V3"]
+      }]
+    },
     "NOM-02.c1.http": {
       "state": "aceptado",
       "evidence": [{

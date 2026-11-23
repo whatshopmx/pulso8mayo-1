@@ -9,6 +9,7 @@ import { targetInScope } from "@/lib/rbac/resource-scope";
 import { resolveVacationScope, vacationScopeCondition, assertVacationUserPermission } from "@/lib/services/vacation-access";
 import { withVacationTransaction } from "@/lib/db/vacation-runtime";
 import { serializeVacationDates, vacationDate } from "@/lib/services/vacation-dates";
+import { recordVacationCancellationEvent } from "@/lib/services/vacation-history-decisions";
 
 const createSchema = z.object({
     userId: z.string().min(1).max(128), companyId: z.uuid().optional(), branchId: z.uuid().nullish(),
@@ -311,6 +312,14 @@ export async function DELETE(req: NextRequest) {
                 cancelledAt: new Date(), updatedAt: new Date(),
             }).where(and(eq(vacationRequests.id, id), vacationScopeCondition(scope, runtime), eq(vacationRequests.status, request.status))).returning();
             if (!cancelled) throw ApiError.conflict("La solicitud cambió; actualiza antes de cancelar");
+            if (request.status === "APPROVED") {
+                await recordVacationCancellationEvent(tx, {
+                    companyId: cancelled.companyId,
+                    userId: cancelled.userId,
+                    actorId: session.user.id,
+                    vacationRequestId: cancelled.id,
+                });
+            }
             return cancelled;
         });
 

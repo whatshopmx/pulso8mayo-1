@@ -1,426 +1,105 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { leaveRequests, leaveBalances, leaveTypes, users, branches } from '@/lib/db/schema';
-import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
-import { z } from 'zod';
-import { withTenantAuth } from '@/lib/api/with-auth';
+import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
+import { isApiError } from "@/lib/api/error";
+import { withTenantAuth } from "@/lib/api/with-auth";
+import {
+  cancelLeaveRequest,
+  createLeaveRequest,
+  decideLeaveRequest,
+  listLeaveRequests,
+  listLeaveRequestsQuerySchema,
+} from "@/lib/services/leave-request-service";
 
-const APPROVER_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
+function failure(error: unknown) {
+  if (isApiError(error)) return NextResponse.json({ error: error.message }, { status: error.statusCode });
+  if (error instanceof ZodError || error instanceof SyntaxError) {
+    return NextResponse.json({ error: "Entrada inválida para la solicitud de permiso." }, { status: 400 });
+  }
+  const pgCode = (error as { code?: string; cause?: { code?: string } })?.cause?.code
+    ?? (error as { code?: string })?.code;
+  if (pgCode === "42501") return NextResponse.json({ error: "Operación no autorizada." }, { status: 403 });
+  if (pgCode === "23514" || pgCode === "23505") {
+    return NextResponse.json({ error: "Conflicto de estado en la solicitud de permiso." }, { status: 409 });
+  }
+  console.error("[leave-requests] No se pudo completar la operación.");
+  return NextResponse.json({ error: "No se pudo completar la operación de permisos." }, { status: 500 });
+}
 
-// Validation schemas — userId and companyId come from session, not body
-const createLeaveRequestSchema = z.object({
-  branchId: z.string().uuid().optional(),
-  leaveTypeId: z.string().uuid(),
-  startDate: z.string(),
-  endDate: z.string(),
-  totalDays: z.number().min(1),
-  reason: z.string().min(1),
-  supportingDocumentId: z.string().uuid().optional(),
-});
-
-const rejectLeaveRequestSchema = z.object({
-  rejectionReason: z.string().min(1),
-});
-
-// GET - List leave requests
 export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const leaveTypeId = searchParams.get('leaveTypeId');
-    const status = searchParams.get('status');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-    const parsed = z.object({
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(100).default(20),
-      startDate: z.iso.date().optional(),
-      endDate: z.iso.date().optional(),
-    }).safeParse({
-      page: searchParams.get('page') ?? undefined,
-      limit: searchParams.get('limit') ?? undefined,
-      startDate: startDate ?? undefined,
-      endDate: endDate ?? undefined,
-    });
-    if (!parsed.success || (startDate && endDate && startDate > endDate)) {
-      return NextResponse.json({ error: 'Revisa las fechas y la página solicitada' }, { status: 400 });
+    const params = new URL(request.url).searchParams;
+    if (params.has("companyId") && params.get("companyId") !== auth.tenantId) {
+      return NextResponse.json({ error: "Empresa fuera de alcance." }, { status: 403 });
     }
-    const { page, limit } = parsed.data;
-
-    const conditions = [eq(leaveRequests.companyId, auth.tenantId)];
-
-    if (userId) conditions.push(eq(leaveRequests.userId, userId));
-    if (leaveTypeId) conditions.push(eq(leaveRequests.leaveTypeId, leaveTypeId));
-    if (status) conditions.push(eq(leaveRequests.status, status as any));
-    // Include any request overlapping the visible interval, including cross-month leave.
-    if (startDate) conditions.push(gte(leaveRequests.endDate, new Date(`${startDate}T00:00:00.000Z`)));
-    if (endDate) conditions.push(lte(leaveRequests.startDate, new Date(`${endDate}T23:59:59.999Z`)));
-
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(leaveRequests)
-      .where(and(...conditions));
-
-    const requests = await db
-      .select({
-        id: leaveRequests.id,
-        userId: leaveRequests.userId,
-        companyId: leaveRequests.companyId,
-        branchId: leaveRequests.branchId,
-        branchName: branches.name,
-        leaveTypeId: leaveRequests.leaveTypeId,
-        startDate: leaveRequests.startDate,
-        endDate: leaveRequests.endDate,
-        totalDays: leaveRequests.totalDays,
-        reason: leaveRequests.reason,
-        status: leaveRequests.status,
-        requestedAt: leaveRequests.requestedAt,
-        approvedBy: leaveRequests.approvedBy,
-        approvedAt: leaveRequests.approvedAt,
-        rejectedBy: leaveRequests.rejectedBy,
-        rejectedAt: leaveRequests.rejectedAt,
-        rejectionReason: leaveRequests.rejectionReason,
-        createdAt: leaveRequests.createdAt,
-        userName: users.name,
-        userPhoto: users.image,
-        leaveTypeName: leaveTypes.name,
-      })
-      .from(leaveRequests)
-      .leftJoin(users, eq(leaveRequests.userId, users.id))
-      .leftJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
-      .leftJoin(branches, and(eq(leaveRequests.branchId, branches.id), eq(branches.companyId, auth.tenantId)))
-      .where(and(...conditions))
-      .orderBy(desc(leaveRequests.requestedAt))
-      .limit(limit)
-      .offset((page - 1) * limit);
-
-    return NextResponse.json({
-      requests,
-      pagination: {
-        page,
-        limit,
-        total: count,
-        totalPages: Math.ceil(count / limit),
-      },
+    const query = listLeaveRequestsQuerySchema.parse({
+      userId: params.get("userId") ?? undefined,
+      leaveTypeId: params.get("leaveTypeId") ?? undefined,
+      status: params.get("status") ?? undefined,
+      startDate: params.get("startDate") ?? undefined,
+      endDate: params.get("endDate") ?? undefined,
+      page: params.get("page") ?? undefined,
+      limit: params.get("limit") ?? undefined,
     });
+    const result = await listLeaveRequests({ userId: auth.user.id, companyId: auth.tenantId }, query);
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching leave requests:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch leave requests' },
-      { status: 500 }
-    );
+    return failure(error);
   }
 });
 
-// POST - Create a new leave request
 export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
-    const validated = createLeaveRequestSchema.safeParse(body);
-
-  if (!validated.success) {
+    const created = await createLeaveRequest({ userId: auth.user.id, companyId: auth.tenantId }, body);
     return NextResponse.json(
-      { error: 'Invalid input', details: validated.error.issues },
-      { status: 400 }
-    );
-  }
-
-  const data = validated.data;
-
-  if (new Date(data.endDate) < new Date(data.startDate)) {
-    return NextResponse.json(
-      { error: 'La fecha de fin debe ser igual o posterior a la fecha de inicio' },
-      { status: 400 }
-    );
-  }
-
-  // Check leave balance
-    const [balance] = await db
-      .select()
-      .from(leaveBalances)
-      .where(
-        and(
-          eq(leaveBalances.userId, auth.user.id),
-          eq(leaveBalances.leaveTypeId, data.leaveTypeId),
-          eq(leaveBalances.year, new Date().getFullYear())
-        )
-      );
-
-    if (balance && balance.balance < data.totalDays) {
-      return NextResponse.json(
-        { error: 'Insufficient leave balance', balance: balance.balance, requested: data.totalDays },
-        { status: 400 }
-      );
-    }
-
-    const [newRequest] = await db
-      .insert(leaveRequests)
-      .values({
-        ...data,
-        userId: auth.user.id,
-        companyId: auth.tenantId,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        status: 'PENDING',
-        createdBy: auth.user.id,
-      })
-      .returning();
-
-    // Update pending balance if exists
-    if (balance) {
-      await db
-        .update(leaveBalances)
-        .set({
-          pending: balance.pending + data.totalDays,
-          updatedAt: new Date(),
-        })
-        .where(eq(leaveBalances.id, balance.id));
-    }
-
-    return NextResponse.json(
-      { request: newRequest, message: 'Leave request created successfully' },
-      { status: 201 }
+      { request: created, message: "Solicitud de permiso creada exitosamente" },
+      { status: 201 },
     );
   } catch (error) {
-    console.error('Error creating leave request:', error);
-    return NextResponse.json(
-      { error: 'Failed to create leave request' },
-      { status: 500 }
-    );
+    return failure(error);
   }
 });
 
-// PATCH - Update leave request (approve/reject)
 export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const requestId = searchParams.get('id');
-    const action = searchParams.get('action'); // 'approve' or 'reject'
-
-    if (!requestId) {
+    const requestId = searchParams.get("id");
+    const action = searchParams.get("action");
+    if (!requestId || (action !== "approve" && action !== "reject")) {
       return NextResponse.json(
-        { error: 'Request ID is required' },
-        { status: 400 }
+        { error: "Se requiere id y una acción válida (approve o reject)." },
+        { status: 400 },
       );
     }
-
-    if ((action === 'approve' || action === 'reject') && !APPROVER_ROLES.has(auth.user.role)) {
-      return NextResponse.json(
-        { error: 'No tienes permisos para autorizar o rechazar solicitudes' },
-        { status: 403 }
-      );
-    }
-
-    const [existingRequest] = await db
-      .select()
-      .from(leaveRequests)
-      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)));
-
-    if (!existingRequest) {
-      return NextResponse.json(
-        { error: 'Leave request not found' },
-        { status: 404 }
-      );
-    }
-
-    if ((action === 'approve' || action === 'reject') && existingRequest.status !== 'PENDING') {
-      return NextResponse.json(
-        { error: 'Solo se pueden procesar solicitudes pendientes' },
-        { status: 400 }
-      );
-    }
-
-    const body = await request.json();
-
-    let updateData: any = {
-      updatedAt: new Date(),
-    };
-
-  if (action === 'approve') {
-    updateData = {
-        ...updateData,
-        status: 'APPROVED',
-        approvedBy: auth.user.id, // ALWAYS from session
-        approvedAt: new Date(),
-      };
-  } else if (action === 'reject') {
-    const validated = rejectLeaveRequestSchema.safeParse(body);
-    if (!validated.success) {
-      return NextResponse.json(
-        { error: 'Invalid input', details: validated.error.issues },
-        { status: 400 }
-      );
-    }
-
-    updateData = {
-        ...updateData,
-        status: 'REJECTED',
-        rejectedBy: auth.user.id, // ALWAYS from session
-        rejectedAt: new Date(),
-        rejectionReason: validated.data.rejectionReason,
-      };
-    } else {
-      // Generic update
-      updateData = { ...body, updatedAt: new Date() };
-    }
-
-    const [updatedRequest] = await db
-      .update(leaveRequests)
-      .set(updateData)
-      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)))
-      .returning();
-
-    if (!updatedRequest) {
-      return NextResponse.json(
-        { error: 'Leave request not found' },
-        { status: 404 }
-      );
-    }
-
-    // If approved, update balance
-    if (action === 'approve') {
-      const [balance] = await db
-        .select()
-        .from(leaveBalances)
-        .where(
-          and(
-            eq(leaveBalances.userId, updatedRequest.userId),
-            eq(leaveBalances.leaveTypeId, updatedRequest.leaveTypeId),
-            eq(leaveBalances.year, new Date().getFullYear())
-          )
-        );
-
-      if (balance) {
-        await db
-          .update(leaveBalances)
-          .set({
-            used: balance.used + updatedRequest.totalDays,
-            pending: Math.max(0, balance.pending - updatedRequest.totalDays),
-            balance: balance.balance - updatedRequest.totalDays,
-            updatedAt: new Date(),
-          })
-          .where(eq(leaveBalances.id, balance.id));
-      }
-    }
-
-    // If rejected, reduce pending
-    if (action === 'reject') {
-      const [balance] = await db
-        .select()
-        .from(leaveBalances)
-        .where(
-          and(
-            eq(leaveBalances.userId, updatedRequest.userId),
-            eq(leaveBalances.leaveTypeId, updatedRequest.leaveTypeId),
-            eq(leaveBalances.year, new Date().getFullYear())
-          )
-        );
-
-      if (balance) {
-        await db
-          .update(leaveBalances)
-          .set({
-            pending: Math.max(0, balance.pending - updatedRequest.totalDays),
-            updatedAt: new Date(),
-          })
-          .where(eq(leaveBalances.id, balance.id));
-      }
-    }
-
+    const rawBody = await request.json().catch(() => ({}));
+    const updated = await decideLeaveRequest(
+      { userId: auth.user.id, companyId: auth.tenantId },
+      requestId,
+      action,
+      rawBody,
+    );
     return NextResponse.json({
-      request: updatedRequest,
-      message: action === 'approve' ? 'Leave request approved' : action === 'reject' ? 'Leave request rejected' : 'Leave request updated successfully',
+      request: updated,
+      message: action === "approve" ? "Solicitud de permiso aprobada" : "Solicitud de permiso rechazada",
     });
   } catch (error) {
-    console.error('Error updating leave request:', error);
-    return NextResponse.json(
-      { error: 'Failed to update leave request' },
-      { status: 500 }
-    );
+    return failure(error);
   }
 });
 
-// DELETE - Cancel a leave request
 export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const requestId = searchParams.get('id');
-
+    const requestId = searchParams.get("id");
     if (!requestId) {
-      return NextResponse.json(
-        { error: 'Request ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "ID de solicitud requerido." }, { status: 400 });
     }
-
-    const userId = auth.user.id;
-
-    const [leaveRequest] = await db
-      .select()
-      .from(leaveRequests)
-      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)));
-
-    if (!leaveRequest) {
-      return NextResponse.json(
-        { error: 'Leave request not found' },
-        { status: 404 }
-      );
-    }
-
-    if (leaveRequest.userId !== userId && !APPROVER_ROLES.has(auth.user.role)) {
-      return NextResponse.json(
-        { error: 'No tienes permisos para cancelar esta solicitud' },
-        { status: 403 }
-      );
-    }
-
-    if (leaveRequest.status !== 'PENDING') {
-      return NextResponse.json(
-        { error: 'Only pending requests can be cancelled' },
-        { status: 400 }
-      );
-    }
-
-    const [cancelledRequest] = await db
-      .update(leaveRequests)
-      .set({
-        status: 'CANCELLED',
-        updatedAt: new Date(),
-      })
-      .where(and(eq(leaveRequests.id, requestId), eq(leaveRequests.companyId, auth.tenantId)))
-      .returning();
-
-    // Reduce pending balance
-    const [balance] = await db
-      .select()
-      .from(leaveBalances)
-      .where(
-        and(
-          eq(leaveBalances.userId, leaveRequest.userId),
-          eq(leaveBalances.leaveTypeId, leaveRequest.leaveTypeId),
-          eq(leaveBalances.year, new Date().getFullYear())
-        )
-      );
-
-    if (balance) {
-      await db
-        .update(leaveBalances)
-        .set({
-          pending: Math.max(0, balance.pending - leaveRequest.totalDays),
-          updatedAt: new Date(),
-        })
-        .where(eq(leaveBalances.id, balance.id));
-    }
-
+    const cancelled = await cancelLeaveRequest({ userId: auth.user.id, companyId: auth.tenantId }, requestId);
     return NextResponse.json({
-      request: cancelledRequest,
-      message: 'Leave request cancelled successfully',
+      request: cancelled,
+      message: "Solicitud de permiso cancelada exitosamente",
     });
   } catch (error) {
-    console.error('Error cancelling leave request:', error);
-    return NextResponse.json(
-      { error: 'Failed to cancel leave request' },
-      { status: 500 }
-    );
+    return failure(error);
   }
 });

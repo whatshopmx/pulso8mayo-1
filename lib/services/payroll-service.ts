@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { vacationCivilDay } from "./vacation-dates";
+import { resolveVacationHistory, type VacationHistoryInput } from "./vacation-history";
+import { readVacationHistoryAtCutoff, type VacationHistoryCutoff, type VacationHistoryManifest } from "./vacation-history-reader";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { ApiError } from "@/lib/api/error";
 import { 
@@ -297,7 +299,7 @@ export async function isPayrollPeriodFrozen(
   return Boolean(completed);
 }
 
-export type VacationBalanceStatus = "AVAILABLE" | "MISSING" | "QUERY_ERROR";
+export type VacationBalanceStatus = "AVAILABLE" | "MISSING" | "CONFLICT" | "QUERY_ERROR";
 
 export interface VacationPeriodBreakdown {
   vacationDaysTaken: number;
@@ -310,9 +312,9 @@ export interface VacationPeriodBreakdown {
   vacationRemainingBalance: number;
   hasVacations: boolean;
   /**
-   * Distingue saldo conocido (AVAILABLE), dato ausente (MISSING) y consulta
-   * fallida (QUERY_ERROR). Un fallo de consulta NO se colapsa a saldo 0: son
-   * estados distintos y NOM-06 bloquea aprobación sobre MISSING/QUERY_ERROR.
+   * Distingue saldo conocido (AVAILABLE), dato ausente (MISSING), conflicto
+   * histórico (CONFLICT) y consulta fallida (QUERY_ERROR). Un fallo o ausencia
+   * NO se colapsa a saldo 0: NOM-06 bloquea aprobación sobre estados no verificados.
    */
   vacationBalanceStatus: VacationBalanceStatus;
   /** Estado de la consulta de solicitudes (un fallo no se lee como "sin vacaciones"). */
@@ -322,11 +324,15 @@ export interface VacationPeriodBreakdown {
     | "SIN_VACACIONES"
     | "EXCEEDED_VACATION_BALANCE"
     | "VACATION_BALANCE_MISSING"
+    | "VACATION_HISTORY_CONFLICT"
     | "VACATION_BALANCE_QUERY_ERROR"
     | "VACATION_REQUESTS_QUERY_ERROR";
   approvedRequestsCount: number;
   rejectedRequestsCount: number;
   pendingRequestsCount: number;
+  vacationSource?: "LEGACY_BALANCE" | "VERIFIED_HISTORY";
+  historyManifest?: VacationHistoryManifest;
+  historyReason?: string;
   details?: Array<{
     requestId?: string;
     startDate: string;
@@ -393,6 +399,11 @@ export interface ResolveVacationsInput {
     year?: number;
     balance: number;
   }>;
+  /** Activa el lector de historia verificada al corte (sin fallback a saldos mutables). */
+  useVerifiedHistory?: boolean;
+  historyCutoff?: VacationHistoryCutoff;
+  historyActorId?: string;
+  vacationHistory?: VacationHistoryInput;
   dbInstance?: any;
 }
 
@@ -863,6 +874,13 @@ export interface PayrollPreStampingValidation {
     error: string;
     code: 'GHOST_EMPLOYEE' | 'MISSING_RFC' | 'MISSING_CURP' | 'NO_CONTRACT' | 'UNSUPPORTED_CURRENCY' | 'INVALID_SALARY' | 'INACTIVE_CONTRACT_PERIOD' | 'PERIOD_ALREADY_COMPLETED' | 'INVALID_PERIOD' | 'PENDING_ATTENDANCE' | string;
     severity: 'BLOCKING' | 'WARNING';
+    /**
+     * Sucursal del empleado afectado. La auditoría siempre cubre a toda la
+     * empresa (es la población que se timbra), pero la UI necesita poder
+     * agrupar las incidencias por sucursal sin una segunda consulta.
+     * `null`/ausente = incidencia de nivel empresa (periodo, congelamiento).
+     */
+    branchId?: string | null;
   }>;
   financialSummary: {
     totalGrossSalaryCents: number;
@@ -1164,6 +1182,18 @@ export async function validatePayrollPreStamping(
 
     if (!hasBlockingError) {
       verifiedEmployees++;
+    }
+  }
+
+  // Cada incidencia hereda la sucursal de su empleado. Se resuelve al final y
+  // en un solo punto (en vez de en cada `push`) para que ninguna incidencia
+  // nueva se olvide de llevarla: sin esto la UI no puede filtrar por sucursal
+  // sin una consulta extra. Las incidencias de nivel empresa (periodo
+  // congelado, periodo inválido) quedan sin sucursal a propósito.
+  const branchByUser = new Map<string, string | null>(activeStaff.map((emp) => [emp.userId, emp.branchId]));
+  for (const validationError of validationErrors) {
+    if (validationError.userId !== "PERIOD_CHECK") {
+      validationError.branchId = branchByUser.get(validationError.userId) ?? null;
     }
   }
 
@@ -1498,6 +1528,151 @@ export async function resolveVacationsForPeriod(
   } = input;
 
   const bonusPercent = Math.max(25, vacationBonusPercent ?? 25);
+
+  if (input.useVerifiedHistory || input.vacationHistory !== undefined) {
+    const outcome = input.vacationHistory !== undefined
+      ? {
+          status: "OK" as const,
+          manifest: {
+            knownAt: input.vacationHistory.knownAt,
+            throughVersion: "preloaded",
+            streamId: input.vacationHistory.coverage?.id ?? null,
+          },
+          result: resolveVacationHistory(input.vacationHistory),
+        }
+      : await readVacationHistoryAtCutoff({
+          companyId,
+          userId,
+          periodStart: startDate,
+          periodEnd: endDate,
+          actorId: input.historyActorId,
+          cutoff: input.historyCutoff,
+          dbInstance: input.dbInstance,
+        });
+
+    if (outcome.status === "QUERY_ERROR") {
+      return {
+        vacationDaysTaken: 0,
+        vacationDaysEligible: 0,
+        vacationDaysExceeded: 0,
+        vacationBasePayCents: 0,
+        vacationPrimeCents: 0,
+        vacationBonusPercent: bonusPercent,
+        vacationAvailableBalance: 0,
+        vacationRemainingBalance: 0,
+        hasVacations: false,
+        vacationBalanceStatus: "QUERY_ERROR",
+        vacationRequestsStatus: "QUERY_ERROR",
+        justification: "VACATION_BALANCE_QUERY_ERROR",
+        approvedRequestsCount: 0,
+        rejectedRequestsCount: 0,
+        pendingRequestsCount: 0,
+        vacationSource: "VERIFIED_HISTORY",
+        details: [],
+      };
+    }
+
+    const { manifest, result } = outcome;
+    if (result.status === "MISSING") {
+      return {
+        vacationDaysTaken: 0,
+        vacationDaysEligible: 0,
+        vacationDaysExceeded: 0,
+        vacationBasePayCents: 0,
+        vacationPrimeCents: 0,
+        vacationBonusPercent: bonusPercent,
+        vacationAvailableBalance: 0,
+        vacationRemainingBalance: 0,
+        hasVacations: false,
+        vacationBalanceStatus: "MISSING",
+        vacationRequestsStatus: "AVAILABLE",
+        justification: "VACATION_BALANCE_MISSING",
+        approvedRequestsCount: 0,
+        rejectedRequestsCount: 0,
+        pendingRequestsCount: 0,
+        vacationSource: "VERIFIED_HISTORY",
+        historyManifest: manifest,
+        historyReason: result.reason,
+        details: [],
+      };
+    }
+
+    if (result.status === "CONFLICT") {
+      return {
+        vacationDaysTaken: 0,
+        vacationDaysEligible: 0,
+        vacationDaysExceeded: 0,
+        vacationBasePayCents: 0,
+        vacationPrimeCents: 0,
+        vacationBonusPercent: bonusPercent,
+        vacationAvailableBalance: 0,
+        vacationRemainingBalance: 0,
+        hasVacations: false,
+        vacationBalanceStatus: "CONFLICT",
+        vacationRequestsStatus: "AVAILABLE",
+        justification: "VACATION_HISTORY_CONFLICT",
+        approvedRequestsCount: 0,
+        rejectedRequestsCount: 0,
+        pendingRequestsCount: 0,
+        vacationSource: "VERIFIED_HISTORY",
+        historyManifest: manifest,
+        historyReason: result.reason,
+        details: [],
+      };
+    }
+
+    const vacationDaysTaken = result.requestedDays;
+    const vacationDaysEligible = result.eligibleDays;
+    const vacationDaysExceeded = result.unfundedDays;
+    const hasVacations = vacationDaysTaken > 0;
+    const vacationBasePayCents = vacationDaysEligible * dailySalaryCents;
+    const vacationPrimeCents = Math.round((vacationBasePayCents * bonusPercent) / 100);
+    const justification: VacationPeriodBreakdown["justification"] = !hasVacations
+      ? "SIN_VACACIONES"
+      : vacationDaysExceeded > 0
+        ? "EXCEEDED_VACATION_BALANCE"
+        : "LFT_ARTS_76_80";
+
+    const byRequest = new Map<string, string[]>();
+    for (const allocation of result.allocations) {
+      if (allocation.day >= startDate && allocation.day <= endDate) {
+        const list = byRequest.get(allocation.requestId) ?? [];
+        list.push(allocation.day);
+        byRequest.set(allocation.requestId, list);
+      }
+    }
+    const details = [...byRequest.entries()].map(([requestId, days]) => {
+      const sorted = [...days].sort();
+      return {
+        requestId,
+        startDate: sorted[0],
+        endDate: sorted[sorted.length - 1],
+        days: sorted.length,
+        status: "APPROVED",
+      };
+    });
+
+    return {
+      vacationDaysTaken,
+      vacationDaysEligible,
+      vacationDaysExceeded,
+      vacationBasePayCents,
+      vacationPrimeCents,
+      vacationBonusPercent: bonusPercent,
+      vacationAvailableBalance: result.balanceBeforePeriod,
+      vacationRemainingBalance: result.balanceAtClose,
+      hasVacations,
+      vacationBalanceStatus: "AVAILABLE",
+      vacationRequestsStatus: "AVAILABLE",
+      justification,
+      approvedRequestsCount: details.length,
+      rejectedRequestsCount: 0,
+      pendingRequestsCount: 0,
+      vacationSource: "VERIFIED_HISTORY",
+      historyManifest: manifest,
+      details,
+    };
+  }
 
   // 1. Obtener solicitudes de vacaciones
   let vacationRequestsStatus: "AVAILABLE" | "QUERY_ERROR" = "AVAILABLE";
@@ -2193,6 +2368,15 @@ export async function executePayrollRun(
 
   const scope = { companyId, actorId: performedBy };
   // 0. Pre-Flight Validation Check (Módulo 7.1 & 7.2)
+  //
+  // `branchId` va deliberadamente en `undefined`: la corrida timbra a TODA la
+  // empresa, así que la validación que la habilita tiene que cubrir esa misma
+  // población. Pasar una sucursal aquí aprobaría un subconjunto y timbraría el
+  // resto — justo el fallo de alcance que corrigió la auditoría de UI.
+  // Una corrida por sucursal requiere `payroll_runs.branch_id` y un
+  // `isPayrollPeriodFrozen` con alcance de sucursal; hoy el congelamiento es
+  // por empresa y periodo, así que la primera corrida de sucursal bloquearía
+  // a las demás. Hasta entonces, la unidad de timbrado es la empresa.
   const validation = await validatePayrollPreStamping(companyId, startDate, endDate, undefined, options);
   if (!validation.canStamp) {
     const errorDetails = validation.validationErrors
