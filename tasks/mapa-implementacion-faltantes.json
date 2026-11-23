@@ -6,7 +6,7 @@
       "type": "I",
       "size": "M",
       "checks": ["V1", "V2", "V3"],
-      "dependsOn": ["NOM-02.a", "SEC-00", "NOM-02.c1.http.rls", "NOM-02.c1.http.runtime"]
+      "dependsOn": ["NOM-02.a", "SEC-00", "NOM-02.c1.http.rls", "NOM-02.c1.http.runtime", "NOM-02.c1.civil-days"]
     },
     {
       "id": "NOM-02.c1.http.rls",
@@ -23,6 +23,14 @@
       "size": "M",
       "checks": ["V1", "V2"],
       "dependsOn": ["NOM-02.a", "SEC-00", "NOM-02.c1.http.rls", "SEC-00.db-pool-logs"]
+    },
+    {
+      "id": "NOM-02.c1.civil-days",
+      "title": "Conservar fechas civiles de vacaciones entre API, navegador y cálculo del período",
+      "type": "I",
+      "size": "M",
+      "checks": ["V1", "V2", "V3"],
+      "dependsOn": ["NOM-02.a", "SEC-00", "NOM-02.c1.http.runtime"]
     },
     {
       "id": "SEC-00.db-pool-logs",
@@ -797,6 +805,7 @@
         "NOM-02.c1.http",
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
+        "NOM-02.c1.civil-days",
         "NOM-02.c2"
       ]
     },
@@ -821,6 +830,7 @@
         "NOM-02.c1.http",
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
+        "NOM-02.c1.civil-days",
         "NOM-02.c2",
         "NOM-02.d1",
         "NOM-02.d2",
@@ -2770,6 +2780,7 @@
         "NOM-02.c1.http",
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
+        "NOM-02.c1.civil-days",
         "VAL-01.M01-M17.M09"
       ],
       "acceptance": "VAL-01.M01-M17.M09"
@@ -2851,6 +2862,7 @@
         "NOM-02.c1.http",
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
+        "NOM-02.c1.civil-days",
         "VAL-01.M01-M17.M10"
       ],
       "acceptance": "VAL-01.M01-M17.M10"
@@ -5364,26 +5376,27 @@
         "checks": ["V1", "V2"]
       }]
     },
-    "NOM-02.c1.http": {
-      "state": "V2",
+    "NOM-02.c1.civil-days": {
+      "state": "aceptado",
       "evidence": [{
-        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md",
-        "head": "b236e1f257965d2ffd5b7856934e01514f2d5b9f",
-        "environment": "V2 de handlers/SQL con LOGIN independiente y dos PIDs; auth/dispatcher simulados, sin V3 Next/Better Auth/navegador",
-        "commands": [{ "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-runtime-db.test.ts", "exit": 0 }],
-        "checks": ["V1", "V2"]
-      }, {
-        "file": "tasks/evidencia/2026-11-22/NOM-02.c1-http-scope/README.md",
-        "head": "a6e103db2d7452dce9c228b1a22c35026b28da7a",
-        "environment": "Windows local; PGlite con SQL/handlers reales, sesión y dispatcher simulados; sin runtime NOBYPASSRLS ni aceptación V2/V3",
-        "commands": [{
-          "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-routes-scope-db.test.ts tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts",
-          "exit": 0
-        }, {
-          "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false",
-          "exit": 0
-        }],
-        "checks": ["V1"]
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.http-next/README.md",
+        "head": "74e959e0fa717386bd146718dd2dd52562a49694",
+        "environment": "Windows; V1 109/109, V2/V3 Next producción y PostgreSQL aislado con LOGIN mínimo, navegador México/servidor UTC; NODE_OPTIONS incluye --use-system-ca; sin reescribir historia ni desplegar",
+        "commands": [{ "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-civil-days.test.ts lib/rbac/__tests__/permissions.test.ts tests/unit/db/pool-logging.test.ts tests/unit/payroll/vacation-runtime-rls-db.test.ts tests/unit/payroll/vacation-routes-scope-db.test.ts tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-next-browser.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-runtime-db.test.ts", "exit": 0 }],
+        "checks": ["V1", "V2", "V3"]
+      }]
+    },
+    "NOM-02.c1.http": {
+      "state": "aceptado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.http-next/README.md",
+        "head": "74e959e0fa717386bd146718dd2dd52562a49694",
+        "environment": "Windows; Next producción build 2mSrUCPDpyH8r3Z2yYFfn, Chromium, Better Auth y PostgreSQL reales; LOGIN mínimo, dos empresas, tres sesiones; NODE_OPTIONS incluye --use-system-ca; sin despliegue",
+        "commands": [{ "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-next-browser.test.ts", "exit": 0 },
+          { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-runtime-db.test.ts", "exit": 0 }],
+        "checks": ["V1", "V2", "V3"]
       }]
     },
     "NOM-02.c1": {
