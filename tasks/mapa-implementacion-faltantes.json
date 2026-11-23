@@ -1,6 +1,14 @@
 {
   "tasks": [
     {
+      "id": "NOM-02.c1.http",
+      "title": "Completar alcance y transiciones HTTP de vacaciones con sesión, empresa y sucursal",
+      "type": "I",
+      "size": "M",
+      "checks": ["V1", "V2", "V3"],
+      "dependsOn": ["NOM-02.a", "SEC-00"]
+    },
+    {
       "id": "SEC-05.resto.recetas",
       "title": "Aislamiento de recetas: tablas, HTTP/job, rol runtime y alcance de sucursal",
       "parent": "SEC-05.resto",
@@ -762,6 +770,7 @@
         "NOM-02.b",
         "NOM-02.a",
         "NOM-02.c1",
+        "NOM-02.c1.http",
         "NOM-02.c2"
       ]
     },
@@ -783,6 +792,7 @@
         "NOM-06",
         "NOM-02.b",
         "NOM-02.c1",
+        "NOM-02.c1.http",
         "NOM-02.c2",
         "NOM-02.d1",
         "NOM-02.d2",
@@ -2729,6 +2739,7 @@
       "id": "09.11",
       "tasks": [
         "NOM-02.c1",
+        "NOM-02.c1.http",
         "VAL-01.M01-M17.M09"
       ],
       "acceptance": "VAL-01.M01-M17.M09"
@@ -2807,6 +2818,7 @@
       "id": "10.05",
       "tasks": [
         "NOM-02.c1",
+        "NOM-02.c1.http",
         "VAL-01.M01-M17.M10"
       ],
       "acceptance": "VAL-01.M01-M17.M10"
@@ -5288,9 +5300,35 @@
         }
       ]
     },
+    "NOM-02.c1.http": {
+      "state": "código implementado",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-22/NOM-02.c1-http-scope/README.md",
+        "head": "a6e103db2d7452dce9c228b1a22c35026b28da7a",
+        "environment": "Windows local; PGlite con SQL/handlers reales, sesión y dispatcher simulados; sin runtime NOBYPASSRLS ni aceptación V2/V3",
+        "commands": [{
+          "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-routes-scope-db.test.ts tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts",
+          "exit": 0
+        }, {
+          "command": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --incremental false",
+          "exit": 0
+        }],
+        "checks": ["V1"]
+      }]
+    },
     "NOM-02.c1": {
       "state": "código implementado",
       "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-22/NOM-02.c1-period-balance/README.md",
+          "head": "ef061c4f89ac51f5923cc5d425a5f305c55eba51",
+          "environment": "Windows local; V1 con consultas PGlite y build; saldos históricos y aceptación nativa pendientes",
+          "commands": [{
+            "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/payroll-nom02b-overtime.test.ts",
+            "exit": 0
+          }],
+          "checks": ["V1"]
+        },
         {
           "file": "tasks/evidencia/2026-11-16/CONSOLIDACION/README.md",
           "head": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
