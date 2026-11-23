@@ -10,7 +10,8 @@ const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
 
 /** Disposable database: source copy by default, or an explicit fresh baseline.
  * Never terminates source clients or alters the source database. */
-export async function createSalesRuntimeDatabase(options: { baseline?: '0158'; posFiles?: boolean } = {}) {
+export async function createSalesRuntimeDatabase(options: { baseline?: '0158'; posFiles?: boolean; grants?: 'sales' | 'none' } = {}) {
+  if (options.grants === 'none' && options.posFiles) throw new Error('POS fixtures require their sales grants');
   const source = new URL(process.env.TEST_DATABASE_URL!);
   const operational = new URL(parse(readFileSync('.env')).DATABASE_URL);
   const host = (url: URL) => url.hostname.replace(/-pooler(?=\.)/, '');
@@ -33,7 +34,7 @@ export async function createSalesRuntimeDatabase(options: { baseline?: '0158'; p
   ownerPool.on('error', () => console.error('[sales-fixture] owner pool error'));
   let databaseCreated = false, roleCreated = false, closed = false;
   mkdirSync('.tmp', { recursive: true });
-  const record = () => writeFileSync('.tmp/sales-runtime-database-fixture.json', JSON.stringify({ databaseName, roleName, databaseCreated, roleCreated, closed, baseline: options.baseline ?? 'source', posFiles: options.posFiles === true }));
+  const record = () => writeFileSync('.tmp/sales-runtime-database-fixture.json', JSON.stringify({ databaseName, roleName, databaseCreated, roleCreated, closed, baseline: options.baseline ?? 'source', posFiles: options.posFiles === true, grants: options.grants ?? 'sales' }));
   record(); // Recovery identifiers only; never persist either connection URI.
 
   async function close() {
@@ -104,7 +105,7 @@ export async function createSalesRuntimeDatabase(options: { baseline?: '0158'; p
         await client.query("SET LOCAL statement_timeout='120s'");
         await client.query(baseline.join('\n'));
       }
-      for (const file of ['0137_inv01a_sale_consumption_identity.sql', '0138_inv01b_recipe_reader.sql',
+      for (const file of options.grants === 'none' ? [] : ['0137_inv01a_sale_consumption_identity.sql', '0138_inv01b_recipe_reader.sql',
         '0139_inv01b_application_scope.sql', '0141_inv01b_import_recipe_name.sql']) {
         const grants = readFileSync(`drizzle/${file}`, 'utf8').split('--> statement-breakpoint').at(-1)!;
         if (!grants.includes('DO $$ BEGIN')) throw new Error('Missing declared runtime grants');
