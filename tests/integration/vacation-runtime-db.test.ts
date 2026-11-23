@@ -188,6 +188,18 @@ it("handlers con runtime: creación/lectura, rechazo ajeno y decisiones concurre
   expect(authState.notify).toHaveBeenCalledTimes(1);
   const stored = (await fixture!.owner.execute(sql`SELECT status,approved_by FROM vacation_requests WHERE id=${createdRow.id}`)).rows[0];
   expect(stored).toEqual({ status: "APPROVED", approved_by: s.ids.manager });
+  // Read the committed request through the real payroll query, not a preloaded
+  // array: PostgreSQL timestamp -> driver Date -> period clipping must keep day 10.
+  const { resolveVacationsForPeriod } = await import("@/lib/services/payroll-service");
+  const payroll = await resolveVacationsForPeriod({
+    userId: s.ids.worker, companyId: s.company, startDate: "2026-12-10", endDate: "2026-12-12",
+    dailySalaryCents: 10000, timezone: "America/Mexico_City", dbInstance: fixture!.owner,
+    vacationAccruals: [{ year: 2026, daysBalance: 12 }],
+  });
+  expect(payroll.vacationRequestsStatus).toBe("AVAILABLE");
+  expect(payroll.vacationDaysTaken).toBe(3);
+  expect(payroll.vacationDaysEligible).toBe(3);
+  expect(payroll.vacationPrimeCents).toBe(7500);
   authState.user = s.actor("worker", "EMPLEADO");
   expect((await routes.DELETE(req(`?id=${createdRow.id}`, "DELETE"))).status).toBe(200);
   expect((await routes.DELETE(req(`?id=${createdRow.id}`, "DELETE"))).status).toBe(409);
