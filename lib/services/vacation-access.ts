@@ -31,15 +31,17 @@ export async function resolveVacationScope(user: VacationActor, action: "read" |
   return scope;
 }
 
-export function vacationScopeCondition(scope: VacationScope): SQL {
+export function vacationScopeCondition(scope: VacationScope, runtime = false): SQL {
   return and(eq(vacationRequests.companyId, scope.companyId),
     scope.kind !== "COMPANY" && scope.branchId ? eq(vacationRequests.branchId, scope.branchId) : undefined,
     scope.kind === "OWN" ? eq(vacationRequests.userId, scope.userId) : undefined,
     // Las FKs legacy garantizan existencia, no que empleado/sucursal pertenezcan
     // a la empresa de la solicitud. No exponer ni notificar referencias cruzadas.
-    sql`EXISTS (SELECT 1 FROM public.users AS vacation_subject
+    // The dedicated role has no catalog SELECT: its verified RLS predicate
+    // enforces these FK checks through a narrow SECURITY DEFINER function.
+    runtime ? undefined : sql`EXISTS (SELECT 1 FROM public.users AS vacation_subject
       WHERE vacation_subject.id = ${vacationRequests.userId} AND vacation_subject.company_id = ${scope.companyId})`,
-    sql`(${vacationRequests.branchId} IS NULL OR EXISTS (SELECT 1 FROM public.branches AS vacation_branch
+    runtime ? undefined : sql`(${vacationRequests.branchId} IS NULL OR EXISTS (SELECT 1 FROM public.branches AS vacation_branch
       WHERE vacation_branch.id = ${vacationRequests.branchId} AND vacation_branch.company_id = ${scope.companyId}))`)!;
 }
 

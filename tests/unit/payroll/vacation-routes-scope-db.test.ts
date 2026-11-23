@@ -29,7 +29,7 @@ const foreignId = "bbbbbbbb-0000-4000-8000-000000000023";
 
 beforeAll(async () => {
   await runtime.pg.exec(`
-    CREATE TABLE users (id text PRIMARY KEY, company_id uuid, branch_id uuid, name text, email text, role text);
+    CREATE TABLE users (id text PRIMARY KEY, company_id uuid, branch_id uuid, name text, email text, role text, deleted_at timestamp);
     CREATE TABLE branches (id uuid PRIMARY KEY, company_id uuid, name text);
     CREATE TABLE vacation_requests (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id text NOT NULL, company_id uuid NOT NULL, branch_id uuid,
@@ -47,7 +47,7 @@ beforeEach(async () => {
   runtime.session = { user: { id: "manager", role: "GERENTE", companyId: company, branchId: branch } };
   await runtime.pg.exec("TRUNCATE vacation_requests, users, branches, notifications");
   await runtime.pg.query("INSERT INTO branches VALUES ($1,$2,'A'),($3,$2,'B'),($4,$5,'Foreign')", [branch, company, otherBranch, foreignBranch, otherCompany]);
-  await runtime.pg.query(`INSERT INTO users VALUES
+  await runtime.pg.query(`INSERT INTO users (id,company_id,branch_id,name,email,role) VALUES
     ('manager',$1,$2,'Manager','manager@test.invalid','GERENTE'),
     ('worker',$1,$2,'Worker','worker@test.invalid','EMPLEADO'),
     ('peer',$1,$2,'Peer','peer@test.invalid','EMPLEADO'),
@@ -208,4 +208,22 @@ it("crear rechaza un empleado ajeno aunque se envíe una empresa propia", async 
   expect((await POST(req("", "POST", createBody("foreign")))).status).toBe(404);
   const count = await runtime.pg.query<{ count: number }>("SELECT count(*)::int AS count FROM vacation_requests");
   expect(count.rows[0].count).toBe(3);
+});
+it.each([
+  "", "postgresql://owner:not-a-secret@unit.invalid/db", "postgresql://runtime:not-a-secret@other.invalid/db",
+  "postgresql://runtime:not-a-secret@unit.invalid/other", "postgresql://pulso_app:not-a-secret@unit.invalid/db",
+])("configuración runtime explícita inválida devuelve 503 sin fallback: %s", async runtimeUrl => {
+  const previous = { owner: process.env.DATABASE_URL, runtime: process.env.VACATIONS_RUNTIME_DATABASE_URL };
+  process.env.DATABASE_URL = "postgresql://owner:not-a-secret@unit.invalid/db";
+  process.env.VACATIONS_RUNTIME_DATABASE_URL = runtimeUrl;
+  try {
+    expect((await GET(req())).status).toBe(503);
+    expect((await POST(req("", "POST", createBody()))).status).toBe(503);
+    const count = await runtime.pg.query<{ count: number }>("SELECT count(*)::int AS count FROM vacation_requests");
+    expect(count.rows[0].count).toBe(3);
+  } finally {
+    for (const [key, value] of [["DATABASE_URL", previous.owner], ["VACATIONS_RUNTIME_DATABASE_URL", previous.runtime]]) {
+      if (value === undefined) delete process.env[key!]; else process.env[key!] = value;
+    }
+  }
 });

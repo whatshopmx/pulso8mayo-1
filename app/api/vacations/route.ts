@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { vacationRequests, vacationStatusEnum, users, branches, notifications, notificationPreferences } from "@/lib/db/schema";
-import { eq, and, gte, lte, lt, or } from "drizzle-orm";
+import { eq, and, gte, lte, lt, or, inArray, isNull, type SQL } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { addDays, differenceInDays, parseISO } from "date-fns";
 import { z } from "zod";
 import { isApiError, ApiError } from "@/lib/api/error";
 import { targetInScope } from "@/lib/rbac/resource-scope";
 import { resolveVacationScope, vacationScopeCondition, assertVacationUserPermission } from "@/lib/services/vacation-access";
+import { withVacationTransaction } from "@/lib/db/vacation-runtime";
 
 const createSchema = z.object({
     userId: z.string().min(1).max(128), companyId: z.uuid().optional(), branchId: z.uuid().nullish(),
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
         if (companyId && companyId !== scope.companyId) throw ApiError.forbidden("Empresa fuera de tu alcance");
 
         // Build conditions
-        const conditions = [vacationScopeCondition(scope)];
+        const conditions: SQL[] = [];
 
         // Filter by user if provided (or use current user)
         if (userId) {
@@ -121,15 +122,12 @@ export async function GET(req: NextRequest) {
         }
 
         // Fetch vacation requests with user and branch data
-        const requests = await db
+        const requests = await withVacationTransaction(session.user, async (tx, runtime) => tx
             .select({
                 id: vacationRequests.id,
                 userId: vacationRequests.userId,
-                userName: users.name,
-                userEmail: users.email,
                 companyId: vacationRequests.companyId,
                 branchId: vacationRequests.branchId,
-                branchName: branches.name,
                 startDate: vacationRequests.startDate,
                 endDate: vacationRequests.endDate,
                 totalDays: vacationRequests.totalDays,
@@ -142,13 +140,26 @@ export async function GET(req: NextRequest) {
                 approvedBy: vacationRequests.approvedBy
             })
             .from(vacationRequests)
-            .leftJoin(users, and(eq(vacationRequests.userId, users.id), eq(users.companyId, scope.companyId)))
-            .leftJoin(branches, and(eq(vacationRequests.branchId, branches.id), eq(branches.companyId, scope.companyId)))
-            .where(conditions.length > 0 ? and(...conditions) : undefined)
-            .orderBy(vacationRequests.requestedAt);
+            .where(and(vacationScopeCondition(scope, runtime), ...conditions))
+            .orderBy(vacationRequests.requestedAt));
+
+        // Catalogs stay on their existing connection. Only hydrate identities
+        // already returned by the scoped writer/reader, always within company.
+        if (!requests.length) return NextResponse.json({ data: [], total: 0 });
+        const userIds = [...new Set(requests.map(request => request.userId))];
+        const branchIds = [...new Set(requests.map(request => request.branchId).filter((id): id is string => Boolean(id)))];
+        const [staff, branchNames] = await Promise.all([
+            db.select({ id: users.id, name: users.name, email: users.email }).from(users)
+                .where(and(eq(users.companyId, scope.companyId), inArray(users.id, userIds))),
+            branchIds.length ? db.select({ id: branches.id, name: branches.name }).from(branches)
+                .where(and(eq(branches.companyId, scope.companyId), inArray(branches.id, branchIds))) : Promise.resolve([]),
+        ]);
+        const people = new Map(staff.map(person => [person.id, person]));
+        const locations = new Map(branchNames.map(location => [location.id, location.name]));
 
         return NextResponse.json({
-            data: requests,
+            data: requests.map(request => ({ ...request, userName: people.get(request.userId)?.name,
+                userEmail: people.get(request.userId)?.email, branchName: locations.get(request.branchId) })),
             total: requests.length
         });
     } catch (error) {
@@ -179,7 +190,7 @@ export async function POST(req: NextRequest) {
         assertVacationUserPermission(session.user, userId);
         const employee = await db.query.users.findFirst({
             columns: { id: true, companyId: true, branchId: true },
-            where: and(eq(users.id, userId), eq(users.companyId, scope.companyId)),
+            where: and(eq(users.id, userId), eq(users.companyId, scope.companyId), isNull(users.deletedAt)),
         });
         if (!employee || !targetInScope(scope, { ...employee, userId: employee.id })) throw ApiError.notFound("Empleado no encontrado");
         const companyId = scope.companyId;
@@ -202,34 +213,35 @@ export async function POST(req: NextRequest) {
         }
 
         // Check for overlapping vacations
-        const overlapping = await db.query.vacationRequests.findFirst({
-            where: and(
-                eq(vacationRequests.userId, userId),
-                eq(vacationRequests.companyId, companyId),
-                eq(vacationRequests.status, "APPROVED"),
-                lte(vacationRequests.startDate, end),
-                gte(vacationRequests.endDate, start)
-            )
+        const newRequest = await withVacationTransaction(session.user, async (tx, runtime) => {
+            const overlapping = await tx.query.vacationRequests.findFirst({
+                where: and(
+                    vacationScopeCondition(scope, runtime),
+                    eq(vacationRequests.userId, userId),
+                    eq(vacationRequests.companyId, companyId),
+                    eq(vacationRequests.status, "APPROVED"),
+                    lte(vacationRequests.startDate, end),
+                    gte(vacationRequests.endDate, start)
+                )
+            });
+
+            if (overlapping) {
+                throw ApiError.badRequest("Ya tienes vacaciones aprobadas en este período");
+            }
+
+            // Create vacation request
+            const [created] = await tx.insert(vacationRequests).values({
+                userId,
+                companyId,
+                branchId,
+                startDate: start,
+                endDate: end,
+                totalDays,
+                status: "PENDING",
+                reason: reason || null
+            }).returning();
+            return created;
         });
-
-        if (overlapping) {
-            return NextResponse.json(
-                { error: "Ya tienes vacaciones aprobadas en este período" },
-                { status: 400 }
-            );
-        }
-
-        // Create vacation request
-        const [newRequest] = await db.insert(vacationRequests).values({
-            userId,
-            companyId,
-            branchId,
-            startDate: start,
-            endDate: end,
-            totalDays,
-            status: "PENDING",
-            reason: reason || null
-        }).returning();
 
         // Notify managers of new request
         await notifyManagersOfNewRequest(
@@ -278,32 +290,29 @@ export async function DELETE(req: NextRequest) {
         const id = parsedId.data;
 
         // Get the vacation request
-        const request = await db.query.vacationRequests.findFirst({
-            where: and(eq(vacationRequests.id, id), vacationScopeCondition(scope))
+        const updated = await withVacationTransaction(session.user, async (tx, runtime) => {
+            const request = await tx.query.vacationRequests.findFirst({
+                where: and(eq(vacationRequests.id, id), vacationScopeCondition(scope, runtime))
+            });
+
+            if (!request) {
+                throw ApiError.notFound("Solicitud no encontrada");
+            }
+            assertVacationUserPermission(session.user, request.userId);
+
+            // Only allow cancellation if pending or approved by the same user
+            if (request.status !== "PENDING" && request.status !== "APPROVED") {
+                throw ApiError.conflict("Solo se pueden cancelar solicitudes pendientes o aprobadas");
+            }
+
+            // Update to cancelled
+            const [cancelled] = await tx.update(vacationRequests).set({
+                status: "CANCELLED",
+                cancelledAt: new Date(), updatedAt: new Date(),
+            }).where(and(eq(vacationRequests.id, id), vacationScopeCondition(scope, runtime), eq(vacationRequests.status, request.status))).returning();
+            if (!cancelled) throw ApiError.conflict("La solicitud cambió; actualiza antes de cancelar");
+            return cancelled;
         });
-
-        if (!request) {
-            return NextResponse.json(
-                { error: "Solicitud no encontrada" },
-                { status: 404 }
-            );
-        }
-        assertVacationUserPermission(session.user, request.userId);
-
-        // Only allow cancellation if pending or approved by the same user
-        if (request.status !== "PENDING" && request.status !== "APPROVED") {
-            return NextResponse.json(
-                { error: "Solo se pueden cancelar solicitudes pendientes o aprobadas" },
-                { status: 409 }
-            );
-        }
-
-        // Update to cancelled
-        const [updated] = await db.update(vacationRequests).set({
-            status: "CANCELLED",
-            cancelledAt: new Date(), updatedAt: new Date(),
-        }).where(and(eq(vacationRequests.id, id), vacationScopeCondition(scope), eq(vacationRequests.status, request.status))).returning();
-        if (!updated) throw ApiError.conflict("La solicitud cambió; actualiza antes de cancelar");
 
         return NextResponse.json({
             success: true,

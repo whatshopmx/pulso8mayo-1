@@ -5,8 +5,9 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
 import { z } from "zod";
-import { isApiError } from "@/lib/api/error";
+import { ApiError, isApiError } from "@/lib/api/error";
 import { resolveVacationScope, vacationScopeCondition } from "@/lib/services/vacation-access";
+import { withVacationTransaction } from "@/lib/db/vacation-runtime";
 
 const decisionSchema = z.object({
     id: z.uuid(), action: z.enum(["APPROVED", "REJECTED"]),
@@ -76,58 +77,55 @@ export async function POST(req: NextRequest) {
         const { id, action, managerComments, rejectionReason } = parsed.data;
 
         // Get the vacation request
-        const request = await db.query.vacationRequests.findFirst({
-            where: and(eq(vacationRequests.id, id), vacationScopeCondition(scope))
+        const updated = await withVacationTransaction(session.user, async (tx, runtime) => {
+            const request = await tx.query.vacationRequests.findFirst({
+                where: and(eq(vacationRequests.id, id), vacationScopeCondition(scope, runtime))
+            });
+
+            if (!request) {
+                throw ApiError.notFound("Solicitud no encontrada");
+            }
+
+            if (request.status !== "PENDING") {
+                throw ApiError.conflict("Solo se pueden aprobar/rechazar solicitudes pendientes");
+            }
+
+            // Update based on action
+            const updateData: Partial<typeof vacationRequests.$inferInsert> = {
+                status: action,
+                updatedAt: new Date(),
+            };
+
+            if (action === "APPROVED") {
+                updateData.approvedBy = session.user.id;
+                updateData.approvedAt = new Date();
+                updateData.managerComments = managerComments || null;
+            } else if (action === "REJECTED") {
+                updateData.rejectionReason = rejectionReason || null;
+                updateData.rejectedBy = session.user.id;
+                updateData.rejectedAt = new Date();
+            }
+
+            const [decided] = await tx.update(vacationRequests).set(updateData).where(and(
+                eq(vacationRequests.id, id), vacationScopeCondition(scope, runtime), eq(vacationRequests.status, "PENDING")
+            )).returning();
+            if (!decided) throw ApiError.conflict("La solicitud cambió; actualiza antes de decidir");
+            return decided;
         });
-
-        if (!request) {
-            return NextResponse.json(
-                { error: "Solicitud no encontrada" },
-                { status: 404 }
-            );
-        }
-
-        if (request.status !== "PENDING") {
-            return NextResponse.json(
-                { error: "Solo se pueden aprobar/rechazar solicitudes pendientes" },
-                { status: 409 }
-            );
-        }
-
-        // Update based on action
-        const updateData: Partial<typeof vacationRequests.$inferInsert> = {
-            status: action,
-            updatedAt: new Date(),
-        };
-
-        if (action === "APPROVED") {
-            updateData.approvedBy = session.user.id;
-            updateData.approvedAt = new Date();
-            updateData.managerComments = managerComments || null;
-        } else if (action === "REJECTED") {
-            updateData.rejectionReason = rejectionReason || null;
-            updateData.rejectedBy = session.user.id;
-            updateData.rejectedAt = new Date();
-        }
-
-        const [updated] = await db.update(vacationRequests).set(updateData).where(and(
-            eq(vacationRequests.id, id), vacationScopeCondition(scope), eq(vacationRequests.status, "PENDING")
-        )).returning();
-        if (!updated) return NextResponse.json({ error: "La solicitud cambió; actualiza antes de decidir" }, { status: 409 });
 
         // Send notification to employee
         if (action === "APPROVED") {
             await sendVacationNotification(
-                request.userId,
+                updated.userId,
                 "✅ Vacaciones Aprobadas",
-                `Tu solicitud de vacaciones del ${new Date(request.startDate).toLocaleDateString()} al ${new Date(request.endDate).toLocaleDateString()} ha sido aprobada.${managerComments ? " Comentarios: " + managerComments : ""}`,
+                `Tu solicitud de vacaciones del ${new Date(updated.startDate).toLocaleDateString()} al ${new Date(updated.endDate).toLocaleDateString()} ha sido aprobada.${managerComments ? " Comentarios: " + managerComments : ""}`,
                 id
             );
         } else {
             await sendVacationNotification(
-                request.userId,
+                updated.userId,
                 "❌ Vacaciones Rechazadas",
-                `Tu solicitud de vacaciones del ${new Date(request.startDate).toLocaleDateString()} al ${new Date(request.endDate).toLocaleDateString()} ha sido rechazada.${rejectionReason ? " Motivo: " + rejectionReason : ""}`,
+                `Tu solicitud de vacaciones del ${new Date(updated.startDate).toLocaleDateString()} al ${new Date(updated.endDate).toLocaleDateString()} ha sido rechazada.${rejectionReason ? " Motivo: " + rejectionReason : ""}`,
                 id
             );
         }
