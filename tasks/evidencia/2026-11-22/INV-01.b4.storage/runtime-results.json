@@ -1,0 +1,63 @@
+{
+  "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+  "run": {
+    "exit": 0,
+    "commandExit": 0,
+    "signal": null,
+    "allExpectedPassed": true,
+    "passedCount": 4,
+    "finishedAt": "2026-11-22T22:18:09.836Z"
+  },
+  "fixture": {
+    "databaseName": "inv_sales_next_f7785e618c974588bb1bb84405a9d697",
+    "roleName": "inv_sales_role_b5e35fa9344e49669b96637c23576946",
+    "databaseCreated": false,
+    "roleCreated": false,
+    "closed": true,
+    "baseline": "0158"
+  },
+  "tests": [
+    {
+      "name": "POS runtime login is independent, unprivileged and restricted to the declared cut columns",
+      "status": "passed",
+      "durationMs": 1830.1489999999994
+    },
+    {
+      "name": "POS runtime read scopes company/branch and never leaks context on the reused connection",
+      "status": "passed",
+      "durationMs": 3163.303100000001
+    },
+    {
+      "name": "POS runtime link commits only the matching company/branch/day and preserves monetary fields",
+      "status": "passed",
+      "durationMs": 1324.6435999999994
+    },
+    {
+      "name": "POS runtime refuses a missing company and unknown targets without changing stored links",
+      "status": "passed",
+      "durationMs": 2429.7646000000022
+    }
+  ],
+  "sources": [
+    {
+      "file": "tests/integration/pos-cut-file-runtime-db.test.ts",
+      "sha256": "97473baec1fdf46b5a37286cc0867c73cfd10af493a8ec02dbb1352bcfa628b0"
+    },
+    {
+      "file": "lib/services/pos-cut-file-service.ts",
+      "sha256": "176708003f752fe823199afebbe764412d646a0b6f76736c86074851c6426903"
+    },
+    {
+      "file": "drizzle/0155_pos_storage_rls.sql",
+      "sha256": "62318ca6e1d051dc3c5505bb757454478ed34da6aab7036890b4a40baa486256"
+    },
+    {
+      "file": "tests/integration/helpers/sales-runtime-database.ts",
+      "sha256": "88673aecb102c47f52eba939208e08805338c1caa362230d145016f1afee9354"
+    },
+    {
+      "file": "tests/integration/helpers/sales-runtime-baseline.ts",
+      "sha256": "ed0ba2a6c6e076e782d305f1aa0a8e20e387f40d579529fcb74744e5a4cb9322"
+    }
+  ]
+}

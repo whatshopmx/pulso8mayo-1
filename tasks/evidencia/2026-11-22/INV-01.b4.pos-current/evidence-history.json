@@ -1,0 +1,44 @@
+{
+  "INV-01.b4.smartlink": [
+    {
+      "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
+      "head": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
+      "environment": "local + br-round-voice-belheola; sin despliegue; build global acreditado exit 0",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle <10 archivos focales> --maxWorkers=1 --pool=threads",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec tsc --noEmit (heap 4 GB)",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec eslint <8 archivos del incremento>",
+          "exit": 0
+        },
+        {
+          "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.next/README.md",
+      "head": "d184a88",
+      "environment": "Next HTTP/R2/Better Auth/Neon aislado sin mocks; writer independiente y objetos/base/rol/proceso retirados; enlace/auth con dueño; sin UI ni aceptación",
+      "commands": [
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; $env:RUN_SALES_RUNTIME_POS='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+  "buildId": "3uHsQamaXwpx8-UdKZkBZ",
+  "run": {
+    "exit": 0,
+    "commandExit": 0,
+    "signal": null,
+    "passedCount": 4,
+    "allExpectedPassed": true,
+    "baseline": "source",
+    "posFilesRuntime": true,
+    "durationSeconds": 316.89,
+    "finishedAt": "2026-11-22T22:59:52.509Z"
+  },
+  "fixture": {
+    "databaseName": "inv_sales_next_8f41f0dbd79d4390b0a9a33eafd574a6",
+    "roleName": "inv_sales_role_161b62ea0fcd4affa006144bd01d7e0d",
+    "databaseCreated": false,
+    "roleCreated": false,
+    "closed": true,
+    "baseline": "source",
+    "posFiles": true
+  },
+  "tests": [
+    {
+      "name": "Next HTTP + R2 + real writer runtime: POS ingestion and evidence",
+      "status": "passed",
+      "durationMs": 92108
+    },
+    {
+      "name": "Next HTTP + R2 + real writer runtime: POS alternate executor",
+      "status": "passed",
+      "durationMs": 97256
+    },
+    {
+      "name": "Next + Chromium + real session: POS library installation and editor persistence",
+      "status": "passed",
+      "durationMs": 26210
+    },
+    {
+      "name": "Next + real POS file runtime: rejects owner configuration without reading or linking cuts",
+      "status": "passed",
+      "durationMs": 20243
+    }
+  ]
+}

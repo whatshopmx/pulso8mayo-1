@@ -1,0 +1,240 @@
+{
+  "INV-01.b4.runtime.config": [
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.runtime.config/README.md",
+      "head": "bf010bb",
+      "environment": "Local y Neon aislado con rol efímero/grants mínimos; sin secretos de despliegue ni aceptación integrada",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-ingest-runtime-connection-db.test.ts tests/integration/sales-entry-session-db.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+      "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+      "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+      "commands": [
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2"
+      ]
+    }
+  ],
+  "INV-01.b4.manual": [
+    {
+      "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
+      "head": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
+      "environment": "local + br-round-voice-belheola; sin despliegue; build global acreditado exit 0",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle <10 archivos focales> --maxWorkers=1 --pool=threads",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec tsc --noEmit (heap 4 GB)",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec eslint <8 archivos del incremento>",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads (NODE_OPTIONS=--use-system-ca)",
+          "exit": 0
+        },
+        {
+          "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.runtime.connection/README.md",
+      "head": "04003b2",
+      "environment": "Neon aislado; login independiente con rol efímero NOBYPASSRLS y grants mínimos, writer rollback; rol/datos eliminados; no Next ni despliegue",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-ingest-runtime-connection-db.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec eslint tests/integration/sales-ingest-runtime-connection-db.test.ts",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+      "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+      "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+      "commands": [
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2"
+      ]
+    }
+  ],
+  "INV-01.b4.bulk": [
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.bulk/README.md",
+      "head": "07b2a69bd6ee48c6159cd8c41a3b8c8445220408",
+      "environment": "Neon aislado; HTTP y Better Auth reales; writer pulso_app dentro de rollback, sin conexión runtime independiente ni despliegue",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-entry-session-db.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1",
+        "V2"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-11/INV-01.b4/README.md",
+      "head": "e6a93ff9fd4338447ab13ce84083bf1912f4397e",
+      "environment": "local + br-round-voice-belheola; sin despliegue; build global acreditado exit 0",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle <10 archivos focales> --maxWorkers=1 --pool=threads",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec tsc --noEmit (heap 4 GB)",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec eslint <8 archivos del incremento>",
+          "exit": 0
+        },
+        {
+          "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1"
+      ]
+    }
+  ],
+  "INV-01.b4.ui": [
+    {
+      "file": "tasks/evidencia/2026-11-11/INV-01.b4.ui/README.md",
+      "head": "b91355ba8a0167aef02089118fb2b1606c9936db",
+      "environment": "Windows; Chromium aislado, componente/CSS reales, HTTP sintético; sin DB; build global acreditado exit 0",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec eslint app/dashboard/inventory/sales-entry/sales-entry-client.tsx tests/support/sales-entry-browser-server.ts tests/e2e/sales-entry-feedback.spec.ts tests/playwright-sales-entry.config.ts",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec tsc --noEmit (NODE_OPTIONS=--max-old-space-size=4096)",
+          "exit": 0
+        },
+        {
+          "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.ui.next/README.md",
+      "head": "3f8b002",
+      "environment": "Next producción/Chromium/Better Auth/Neon aislado sin mocks; writer con login mínimo y copia/rol efímeros retirados; sin aceptación ni despliegue",
+      "commands": [
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V3"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-22/INV-01.b4.manual-csv-next/README.md",
+      "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+      "environment": "Windows/React SSR y navegador controlado; no nueva aceptación. Se detectó selector SSR habilitado antes del handler; corrección con build/Next reales posteriores pendientes.",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/sales-entry-readiness.test.ts tests/unit/inventory/sales-runtime-connection.test.ts tests/unit/inventory/sales-entry-access.test.ts tests/unit/inventory/sales-entry-bulk.test.ts lib/services/__tests__/sales-ingest-service.test.ts",
+          "exit": 0
+        },
+        {
+          "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts tests/e2e/sales-entry-feedback.spec.ts",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1"
+      ]
+    }
+  ],
+  "INV-01.b4.manual.ui": [
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.ui/README.md",
+      "head": "07055084df845584047e449f24d4bb68b42dd086",
+      "environment": "Navegador sintético; Next/Better Auth/Neon aislado para denegaciones; sin aceptación ni despliegue",
+      "commands": [
+        {
+          "command": "pnpm.cmd exec playwright test --config tests/playwright-sales-entry.config.ts",
+          "exit": 0
+        },
+        {
+          "command": "RUN_COGS_NEXT_BROWSER=1 pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/cogs-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        },
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; pnpm.cmd run build",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V1",
+        "V3"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+      "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+      "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+      "commands": [
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V3"
+      ]
+    }
+  ]
+}

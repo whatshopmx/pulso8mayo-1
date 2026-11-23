@@ -22,14 +22,15 @@ describe("catálogo canónico de adjuntos de recuperación", () => {
     const labels = async () => (await db.execute<{ label: string }>(sql`SELECT enumlabel AS label FROM pg_enum
       WHERE enumtypid='public.evidence_entity_type'::regtype ORDER BY enumsortorder`)).rows.map(row=>row.label);
     const before = await labels();
-    expect([legacy,[...legacy,"SALE_RECOVERY"]]).toContainEqual(before);
+    expect(before.slice(0, legacy.length)).toEqual(legacy);
+    if (before.length > legacy.length) expect(before[legacy.length]).toBe("SALE_RECOVERY");
     const [role] = (await db.execute(sql`SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname='pulso_app'`)).rows;
     expect(role).toEqual({rolsuper:false,rolbypassrls:false});
     // ALTER TYPE aditivo debe confirmar su transacción antes de usar la etiqueta.
     // Solo esta sentencia; no db:migrate ni journal para migraciones 0140–0143 pendientes.
     await db.execute(sql.raw(migration));
     const after = await labels();
-    expect(after).toEqual([...legacy,"SALE_RECOVERY"]);
+    expect(after.slice(0, legacy.length + 1)).toEqual([...legacy,"SALE_RECOVERY"]);
     mkdirSync(out,{recursive:true});
     writeFileSync(`${out}/isolated-ddl.json`,JSON.stringify({file,sha256:createHash("sha256").update(migration).digest("hex"),
       host:host(process.env.TEST_DATABASE_URL!),before,after,appliedTo:"isolated only",drizzleJournalWritten:false,
@@ -38,7 +39,7 @@ describe("catálogo canónico de adjuntos de recuperación", () => {
   it("la migración aislada es repetible y conserva el orden del catálogo legacy", async () => {
     await db.execute(sql.raw(readFileSync(file,"utf8")));
     const result = await db.execute<{ label: string }>(sql`SELECT enumlabel AS label FROM pg_enum WHERE enumtypid='public.evidence_entity_type'::regtype ORDER BY enumsortorder`);
-    expect(result.rows.map(row=>row.label)).toEqual([...legacy,"SALE_RECOVERY"]);
+    expect(result.rows.map(row=>row.label).slice(0, legacy.length + 1)).toEqual([...legacy,"SALE_RECOVERY"]);
   });
   it("runtime registra y vuelve a leer SALE_RECOVERY sin reinterpretar sujetos anteriores", async () => {
     const companyId=randomUUID(), branchId=randomUUID(); const ids=Array.from({length:legacy.length+1},()=>randomUUID());

@@ -1,0 +1,25 @@
+# INV-02.publish — publicador transaccional de políticas
+
+Base: `d05eae09d67ed0b190b6785da168a8fb8b564fd0` + diff compartido. **Código implementado, sin aceptación dependiente/V2/V3**. Sin ruta/UI conectada, migración externa ni activación del consumo elaborado.
+
+Archivos de código del incremento: servicio de publicación, AuditService, parser compartido del contrato, prueba SQL del servicio y prueba de frontera/reintentos (cinco). La preparación de permisos 0160 es un incremento independiente: [publish.rls](publication-access.md).
+
+El actor procede de sesión/job del servidor. El servicio exige capacidad de administrar inventario y alcance de empresa; roles de sucursal no pueden cambiar una política global. Empresa, id de política y actor no se aceptan desde el JSON del cliente. Se valida entrada estricta, fecha civil real, modo excluyente y motivo. Se busca la versión por empresa/receta; para elaborado se valida artículo propio y unidad de inventario.
+
+La publicación recibe una transacción SERIALIZABLE (o la abre con el mismo selector de runtime del escritor de ventas), bloquea por empresa/receta y usa un savepoint que cubre toda la operación. Política y bitácora de configuración se escriben juntas. Una auditoría fallida revierte la política aun cuando el llamador capture el error y confirme la transacción exterior. El contexto GUC previo se restaura al terminar; el savepoint lo restaura también al fallar.
+
+El motivo es obligatorio bajo AUD-02; se registró `RECIPE_CONSUMPTION_POLICY/CREATE` en su catálogo crítico. La bitácora usa `config_change_logs`, ya que el catálogo es de empresa y la bitácora de stock exige una sucursal/enum que no representa este hecho. Se conservan antes/después, actor, motivo y hora del servidor. El campo identifica la política concreta (`recipe_consumption_policy:<policy-id>`). No se introdujo un nuevo enum ni se etiquetó como un movimiento de inventario.
+
+Una vigencia nueva debe ser posterior al último inicio ya publicado y a todos los días conocidos de venta de esa receta, tanto proyección legacy como hechos canónicos de cualquier sucursal propia. No hay backfill ni adopción silenciosa de históricos. Un reintento de la misma versión/definición/autor/motivo requiere prueba de la auditoría ya persistida; devuelve UNCHANGED sin otra bitácora. Una política huérfana requiere revisión. Los conflictos serializables/deadlock/unicidad reintentan la transacción completa un máximo de tres veces; agotarlos entrega 409 recuperable.
+
+Verificación:
+
+- RED inicial: módulo inexistente. Primer SQL: cinco casos detectan 42501 porque el INSERT de Drizzle incluye id/hora como DEFAULT. Se corrigió la escritura mediante lista explícita de columnas parametrizadas, conservando los grants mínimos; no se amplió INSERT a id/hora.
+- GREEN inicial: 18/18 SQL del servicio y 19/19 AUD-02.
+- GREEN final: **20 SQL del servicio + 6 SQL de acceso + 6 de frontera/reintentos + 19 AUD-02 = 51/51**, cuatro archivos, exit 0, 32.32 s. Se ejecutan realmente migraciones 0137/0138/0139/0159/0160 dentro de PGlite, no mocks de inserts. Las tablas base previas materializan columnas del schema y no todas sus restricciones; las nuevas migraciones y RLS/grants sí son SQL real.
+- Casos: publicación auditada runtime NOBYPASSRLS, repetición, conflictos, roles/entrada ajenos, versión/artículo ajenos, unidad incorrecta, orden de vigencias, fecha con venta legacy en otra sucursal propia y con hecho canónico sin proyección, fallo SQL de bitácora con captura del caller, política huérfana, restauración de contexto y rechazo de transacción READ COMMITTED. Declarar elaborado no escribe ventas ni movimientos.
+- Lint final: exit 0 sin warnings en los servicios/pruebas del incremento. Drizzle check: exit 0. Tipos globales nuevos en ejecución (sesión 46789), con heap 4 GB.
+
+Límites: PGlite no acredita carreras entre conexiones/LOGIN independientes, Better Auth/HTTP ni PostgreSQL externo. Las pruebas de reintentos simulan códigos transitorios en la frontera; los casos SQL acreditan por separado atomicidad/idempotencia. Los escritores de venta todavía no comparten el bloqueo/lectura de política: esa coordinación pertenece a INV-02.apply y debe probarse antes de activar el recorrido. No se acepta concurrencia publicación↔venta por probar sólo el publicador. Faltan snapshot de versión publicada, aplicación y recorrido visible; no afirmar que declarar FINISHED ya cambió el consumo operativo.
+
+Checkpoint posterior: **`NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit`, exit 0** (sesión 46789 terminada). Trazabilidad: 239 filas, 86 tareas base, 114 hijos, 25 aceptaciones, cero errores; sin aceptar estos hijos. Build nuevo solicitado con Webpack/heap 4 GB después de finalizar tipos, sin otro typecheck paralelo iniciado por este incremento. Sesión **64135** activa al último sondeo; consultar ese mismo handle hasta resultado terminal, sin reiniciar por observación sin salida. Después apareció además un diff concurrente de `payroll-service.ts`, ajeno a este incremento; se conserva y no se atribuye su implementación ni aceptación a INV-02.

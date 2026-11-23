@@ -1,0 +1,30 @@
+{
+  "note": "Partial pre-acceptance evidence entries preserved from tasks/mapa-implementacion-faltantes.json upon accepting INV-01.b4.coverage.*, INV-01.b4.coverage, INV-01.b4 and INV-01.b on 2026-11-22.",
+  "INV-01.b4.coverage.cogs": [
+    "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/README.md (V1 PGlite + Chromium, 51b90d4b31a14096a3b6fa37e1f18e774e23d55f)",
+    "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/runtime.md (V2 Neon 0154, 0442fd8b5052f8d47cd922065552c265173678f2)",
+    "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/session-http.md (V3 HTTP loopback, 1e8a2f394f6c382243c84651d8efb757c1aa9fbf)",
+    "tasks/evidencia/2026-11-16/INV-01.b4.coverage.cogs/next-browser.md (V3 Next browser)"
+  ],
+  "INV-01.b4.coverage.menu.rls": [
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.menu/README.md (V2 Neon 0156, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)"
+  ],
+  "INV-01.b4.coverage.menu": [
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.menu/README.md (V1/V2, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)",
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/session-http.md (V3 HTTP, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)",
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/next-browser.md (V3 Next browser)"
+  ],
+  "INV-01.b4.coverage.executive.catalog.rls": [
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/runtime.md (V2 Neon 0157, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)"
+  ],
+  "INV-01.b4.coverage.executive.sources.rls": [
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/runtime.md (V2 Neon 0158, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)"
+  ],
+  "INV-01.b4.coverage.executive": [
+    "tasks/evidencia/2026-11-17/INV-01.b4.coverage.executive/README.md (V1 pure helpers, 0dfd139d75a5870d7af3baad5423d218f54a093f)",
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/README.md (V1 route, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)",
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/runtime.md (V2 Neon 0157/0158, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)",
+    "tasks/evidencia/2026-11-18/INV-01.b4.coverage.executive/session-http.md (V3 HTTP, 7ad1ef6f9817a8f034fc1ef325bceb86ac15d750)",
+    "tasks/evidencia/2026-11-19/INV-01.b4.coverage.executive/README.md (V3 Next browser + 400 recovery, ea764e83ce5484eeefd31caaa3e9ba36bc75bf0d)"
+  ]
+}

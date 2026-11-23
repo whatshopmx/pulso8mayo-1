@@ -8,14 +8,17 @@ import * as schema from '@/lib/db/schema';
 
 const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
 
-/** Disposable copy of the isolated test database. Never terminates source clients. */
-export async function createSalesRuntimeDatabase() {
+/** Disposable database: source copy by default, or an explicit fresh baseline.
+ * Never terminates source clients or alters the source database. */
+export async function createSalesRuntimeDatabase(options: { baseline?: '0158'; posFiles?: boolean } = {}) {
   const source = new URL(process.env.TEST_DATABASE_URL!);
   const operational = new URL(parse(readFileSync('.env')).DATABASE_URL);
   const host = (url: URL) => url.hostname.replace(/-pooler(?=\.)/, '');
   if (host(source) === host(operational)) throw new Error('Sales browser fixture requires an isolated endpoint');
   const sourceName = decodeURIComponent(source.pathname.slice(1));
   if (!sourceName || sourceName === 'postgres') throw new Error('Invalid fixture source database');
+  const baseline = options.baseline === '0158'
+    ? await (await import('./sales-runtime-baseline')).salesRuntimeBaseline0158() : undefined;
   const databaseName = `inv_sales_next_${randomUUID().replaceAll('-', '')}`;
   const roleName = `inv_sales_role_${randomUUID().replaceAll('-', '')}`;
   const password = randomUUID();
@@ -30,7 +33,7 @@ export async function createSalesRuntimeDatabase() {
   ownerPool.on('error', () => console.error('[sales-fixture] owner pool error'));
   let databaseCreated = false, roleCreated = false, closed = false;
   mkdirSync('.tmp', { recursive: true });
-  const record = () => writeFileSync('.tmp/sales-runtime-database-fixture.json', JSON.stringify({ databaseName, roleName, databaseCreated, roleCreated, closed }));
+  const record = () => writeFileSync('.tmp/sales-runtime-database-fixture.json', JSON.stringify({ databaseName, roleName, databaseCreated, roleCreated, closed, baseline: options.baseline ?? 'source', posFiles: options.posFiles === true }));
   record(); // Recovery identifiers only; never persist either connection URI.
 
   async function close() {
@@ -60,6 +63,13 @@ export async function createSalesRuntimeDatabase() {
   }
 
   try {
+    if (baseline) {
+      // No connection to/cloning of the source database. This avoids its
+      // Timescale scheduler while keeping the same explicitly isolated host.
+      await admin.query(`CREATE DATABASE ${quote(databaseName)} TEMPLATE template0`);
+      databaseCreated = true;
+      record();
+    }
     // CREATE DATABASE cannot run inside a transaction. A source client can
     // race the preflight; retry only 55006, with a bound, without killing it.
     const deadline = Date.now() + 90_000;
@@ -90,16 +100,30 @@ export async function createSalesRuntimeDatabase() {
     const client = await ownerPool.connect();
     try {
       await client.query('BEGIN');
+      if (baseline) {
+        await client.query("SET LOCAL statement_timeout='120s'");
+        await client.query(baseline.join('\n'));
+      }
       for (const file of ['0137_inv01a_sale_consumption_identity.sql', '0138_inv01b_recipe_reader.sql',
         '0139_inv01b_application_scope.sql', '0141_inv01b_import_recipe_name.sql']) {
         const grants = readFileSync(`drizzle/${file}`, 'utf8').split('--> statement-breakpoint').at(-1)!;
         if (!grants.includes('DO $$ BEGIN')) throw new Error('Missing declared runtime grants');
         await client.query(grants.replaceAll('pulso_app', roleName));
       }
+      if (options.posFiles) {
+        // Candidate 0155 is installed only in this generated database. Drop its
+        // named policy here so both an older source and an already migrated
+        // source exercise the same checked-in candidate and fresh role grants.
+        await client.query('DROP POLICY IF EXISTS "daily_sales_cut_tenant" ON public.daily_sales_cuts');
+        for (const statement of readFileSync('drizzle/0155_pos_storage_rls.sql', 'utf8').split('--> statement-breakpoint')) {
+          await client.query(statement.replaceAll('pulso_app', roleName));
+        }
+      }
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
-    return { owner, ownerUrl: ownerUrl.toString(), runtimeUrl: runtimeUrl.toString(), databaseName, roleName, close };
+    return { owner, ownerUrl: ownerUrl.toString(), runtimeUrl: runtimeUrl.toString(),
+      posFileRuntimeUrl: options.posFiles ? runtimeUrl.toString() : undefined, databaseName, roleName, close };
   } catch (error) {
     await close();
     throw error;

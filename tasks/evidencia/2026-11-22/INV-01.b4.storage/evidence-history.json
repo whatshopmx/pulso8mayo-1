@@ -1,0 +1,20 @@
+{
+  "note": "Partial pre-acceptance evidence entries preserved from tasks/mapa-implementacion-faltantes.json upon accepting INV-01.b4.storage, INV-01.b4.smartlink.next and INV-01.b4.smartlink.ui on 2026-11-22.",
+  "INV-01.b4.storage": [
+    "tasks/evidencia/2026-11-17/INV-01.b4.storage/README.md (V1 unit, 0dfd139d75a5870d7af3baad5423d218f54a093f)",
+    "tasks/evidencia/2026-11-17/INV-01.b4.storage/README.md (V2/V3 HTTP R2+Better Auth, 81ec4ddb97e6327b8c557c5ff9769d99a4b048af)",
+    "tasks/evidencia/2026-11-22/INV-01.b4.pos-current/README.md (3/3 POS Next, d05eae09d67ed0b190b6785da168a8fb8b564fd0)",
+    "tasks/evidencia/2026-11-22/INV-01.b4.storage/runtime-login.md (4/4 SQL explicit client LOGIN, d05eae09d67ed0b190b6785da168a8fb8b564fd0)"
+  ],
+  "INV-01.b4.smartlink.next": [
+    "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.next/README.md (5/5 Next HTTP/R2/writer, d184a88)",
+    "tasks/evidencia/2026-11-22/INV-01.b4.pos-current/README.md (3/3 POS Next, d05eae09d67ed0b190b6785da168a8fb8b564fd0)"
+  ],
+  "INV-01.b4.smartlink.ui": [
+    "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/README.md (stepper controlled UI + build, 0105111)",
+    "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/README.md (stepper Next real, 6edbb31)",
+    "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/alternate-executor.md (WorkflowExecutor controlled + template, 61ffe7a)",
+    "tasks/evidencia/2026-11-21/INV-01.b4.smartlink.ui/alternate-executor.md (2/2 Next real alternate + catalog, d34759c)",
+    "tasks/evidencia/2026-11-22/INV-01.b4.pos-current/README.md (3/3 POS Next, d05eae09d67ed0b190b6785da168a8fb8b564fd0)"
+  ]
+}

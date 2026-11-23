@@ -1,0 +1,74 @@
+{
+  "INV-01.b4.manual.next": [
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.manual.next/README.md",
+      "head": "fd4e07b2eb2874c8276fdc66b96f430a48bc0677",
+      "environment": "Next de producción, Chromium, Better Auth y Neon aislado sin mocks; copia/rol mínimo efímeros y limpieza comprobada; sin aceptación de dependencias ni despliegue",
+      "commands": [
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2",
+        "V3"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-22/INV-01.b4.manual-csv-next/README.md",
+      "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+      "environment": "4/4 funcionales sobre base nueva 0158; sin aceptación de puerta de copia de base existente",
+      "commands": [
+        {
+          "command": "node .tmp/manual-csv-next-verify.cjs",
+          "exit": 0
+        },
+        {
+          "command": "NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd run build --webpack",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2",
+        "V3"
+      ]
+    }
+  ],
+  "INV-01.b4.ui.next": [
+    {
+      "file": "tasks/evidencia/2026-11-19/INV-01.b4.ui.next/README.md",
+      "head": "3f8b002",
+      "environment": "Next producción/Chromium/Better Auth/Neon aislado sin mocks; writer con login mínimo y copia/rol efímeros retirados; sin aceptación ni despliegue",
+      "commands": [
+        {
+          "command": "$env:NODE_OPTIONS='--use-system-ca --max-old-space-size=4096'; $env:RUN_SALES_RUNTIME_NEXT_BROWSER='1'; pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sales-runtime-next-browser.test.ts --maxWorkers=1 --pool=threads",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2",
+        "V3"
+      ]
+    },
+    {
+      "file": "tasks/evidencia/2026-11-22/INV-01.b4.manual-csv-next/README.md",
+      "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+      "environment": "4/4 funcionales sobre base nueva 0158; sin aceptación de puerta de copia de base existente",
+      "commands": [
+        {
+          "command": "node .tmp/manual-csv-next-verify.cjs",
+          "exit": 0
+        },
+        {
+          "command": "NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd run build --webpack",
+          "exit": 0
+        }
+      ],
+      "checks": [
+        "V2",
+        "V3"
+      ]
+    }
+  ]
+}

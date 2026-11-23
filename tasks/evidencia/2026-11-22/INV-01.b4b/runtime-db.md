@@ -1,8 +1,12 @@
 # INV-01.b4b — ingesta con commits y login independiente
 
-2026-11-22. Código de pruebas: `b1b791e6252e90f83b3f45c4bca91fe35fb29cea`.
-Estado: **pruebas preparadas; nueva V2 sin ejecutar por fallo de clonación**.
-No se acepta b4b ni ningún padre. Continúan 25 registros aceptados.
+2026-11-22. Actualización posterior: **4/4 V2 de ingestión aprobadas y servicio b4b aceptado V1/V2** mediante baseline vacía explícita. [Aceptación vigente y límites](accepted.md). Los apartados siguientes conservan el diagnóstico del intento anterior; el origen no se intervino.
+
+## Intento previo mediante copia del template
+
+Código de pruebas: `b1b791e6252e90f83b3f45c4bca91fe35fb29cea`.
+Estado de ese intento: **pruebas preparadas; nueva V2 sin ejecutar por fallo de clonación**.
+No se aceptó b4b ni ningún padre en ese intento; entonces había 25 registros aceptados.
 
 Se añadió `tests/integration/sales-ingest-runtime-db.test.ts`, sin cambios en
 aplicación, SQL ni permisos compartidos. Usa el provisionador existente de copia

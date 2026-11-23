@@ -1,0 +1,112 @@
+{
+  "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+  "buildId": "bBmXOvXw0G4OayubgEgi3",
+  "run": {
+    "exit": 0,
+    "commandExit": 0,
+    "signal": null,
+    "expectedCases": [
+      "disposable sales database preserves RLS and immutable triggers and cleans up",
+      "production Next starts with separate owner/runtime secrets and shuts down cleanly",
+      "Next + Chromium + real runtime: rejects owner fallback, then saves/corrects/repeats/completes/cancels manual sales",
+      "Next + Chromium + real runtime: CSV SKU survives rename, correction and revenue completion"
+    ],
+    "passedCount": 4,
+    "allExpectedPassed": true,
+    "baseline": "0158",
+    "scope": "Manual/CSV only; three POS cases are deliberately outside this run.",
+    "finishedAt": "2026-11-22T22:01:39.651Z"
+  },
+  "fixture": {
+    "databaseName": "inv_sales_next_eb1b3a2130a34d75b344bcec6fb373bd",
+    "roleName": "inv_sales_role_bbd890242fa84d89bed3834ba66e86eb",
+    "databaseCreated": false,
+    "roleCreated": false,
+    "closed": true,
+    "baseline": "0158"
+  },
+  "ssr": {
+    "disabled": true,
+    "reactProps": false
+  },
+  "tests": [
+    {
+      "name": "Next HTTP + R2 + real writer runtime: POS ingestion and evidence",
+      "status": "skipped"
+    },
+    {
+      "name": "Next HTTP + R2 + real writer runtime: POS alternate executor",
+      "status": "skipped"
+    },
+    {
+      "name": "Next + Chromium + real session: POS library installation and editor persistence",
+      "status": "skipped"
+    },
+    {
+      "name": "disposable sales database preserves RLS and immutable triggers and cleans up",
+      "status": "passed",
+      "durationMs": 448.53139999999985
+    },
+    {
+      "name": "production Next starts with separate owner/runtime secrets and shuts down cleanly",
+      "status": "passed",
+      "durationMs": 15617.6349
+    },
+    {
+      "name": "Next + Chromium + real runtime: rejects owner fallback, then saves/corrects/repeats/completes/cancels manual sales",
+      "status": "passed",
+      "durationMs": 106996.05680000002
+    },
+    {
+      "name": "Next + Chromium + real runtime: CSV SKU survives rename, correction and revenue completion",
+      "status": "passed",
+      "durationMs": 93402.62590000001
+    }
+  ],
+  "sources": [
+    {
+      "file": "app/dashboard/inventory/sales-entry/sales-entry-client.tsx",
+      "sha256": "17c27c14687702ab559331935ebb1a82ad67e0100e8147ef2eb2f670ef0e9960"
+    },
+    {
+      "file": "lib/db/sales-runtime.ts",
+      "sha256": "e8a110a4f5ed7e88acc2eaf41156d454d13c45b3b5cea26efcc1b5d53fd2f531"
+    },
+    {
+      "file": "app/api/inventory/sales-entry/route.ts",
+      "sha256": "f958a2c14b80d2b31892767d2bc1b36675cef1a0f0694b4596147ec8d502fd4f"
+    },
+    {
+      "file": "app/api/inventory/sales-entry/bulk/route.ts",
+      "sha256": "af147cd8e9d0733e844a77f83f0ee41d9020ef296b9a9a06e1e559f666aad6fe"
+    },
+    {
+      "file": "lib/services/sales-ingest-service.ts",
+      "sha256": "946f90b1043b3ae3eb8b84316c7bd2cc303d73c43eddc1646a2fda58c77e4e93"
+    },
+    {
+      "file": "tests/unit/inventory/sales-entry-readiness.test.ts",
+      "sha256": "c0a91d3c5c256a2376c2c97ce120785334856e26d77a603a33c0415d259134d8"
+    },
+    {
+      "file": "tests/integration/sales-runtime-next-browser.test.ts",
+      "sha256": "bd1df134955caccabc0b04e0c592f904d5df221d5111c53cf090f607477e75e9"
+    },
+    {
+      "file": "tests/integration/helpers/sales-runtime-database.ts",
+      "sha256": "88673aecb102c47f52eba939208e08805338c1caa362230d145016f1afee9354"
+    },
+    {
+      "file": "tests/integration/helpers/sales-runtime-baseline.ts",
+      "sha256": "ed0ba2a6c6e076e782d305f1aa0a8e20e387f40d579529fcb74744e5a4cb9322"
+    },
+    {
+      "file": "tests/integration/helpers/sales-runtime-next-server.ts",
+      "sha256": "84bf4572114bfe663d98dae84d98fbc05a43ccaf7da3de88ab5a4bef72450fa5"
+    },
+    {
+      "file": "tests/e2e/sales-entry-feedback.spec.ts",
+      "sha256": "2c8c22282ab7687e76eb4d25ba6a062318a150a953948588411ac9ce06093d65"
+    }
+  ]
+}

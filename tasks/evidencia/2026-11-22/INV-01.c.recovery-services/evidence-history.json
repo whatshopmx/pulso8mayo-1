@@ -1,0 +1,13 @@
+{
+  "note": "Partial pre-acceptance evidence entries preserved from tasks/mapa-implementacion-faltantes.json upon accepting INV-01.c.races and 13 INV-01.c.recovery.* service tasks on 2026-11-22.",
+  "preserved": [
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.objects/README.md (V1 mocked SDK)",
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.subject.access/README.md (V1+SQL partial)",
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.attestation.schema/results.json",
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.attestation.service/results.json",
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.historical/results.json",
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.provenance/results.json",
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.sources/results.json",
+    "tasks/evidencia/2026-11-11/INV-01.c.recovery.proposal.service/results.json"
+  ]
+}

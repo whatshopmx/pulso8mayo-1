@@ -1,0 +1,110 @@
+{
+  "baseHead": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+  "sharedWorktree": true,
+  "scope": "Native PostgreSQL on isolated Neon endpoint; fresh 0158 baseline plus scoped custom SQL and actual 0159/0160. No deployment or migration of existing operational data.",
+  "command": "RUN_RECIPE_POLICY_RUNTIME=1 RUN_SALES_RUNTIME_NEXT_BROWSER=1 NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts tests/integration/sales-ingest-runtime-db.test.ts --maxWorkers=1 --pool=threads --reporter=default --reporter=json --outputFile=.tmp/inv02-runtime-final.json",
+  "exit": 0,
+  "tests": 12,
+  "passed": 12,
+  "skipped": 0,
+  "suites": [
+    {
+      "file": "tests/integration/recipe-policy-runtime-db.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "name": "INV-02 runtime: pristine baseline and independent login satisfy the actual writer guard",
+          "status": "passed",
+          "durationMs": 1706.0715000000018
+        },
+        {
+          "name": "INV-02 runtime: archived demand survives commits, corrections, revenue and cancellation",
+          "status": "passed",
+          "durationMs": 41620.2623
+        },
+        {
+          "name": "INV-02 runtime: real RLS, column grants, composite FK and owner immutability",
+          "status": "passed",
+          "durationMs": 18151.656799999997
+        },
+        {
+          "name": "INV-02 runtime: overlapping publications retry to one immutable policy and one audit",
+          "status": "passed",
+          "durationMs": 12007.3165
+        },
+        {
+          "name": "INV-02 runtime: overlapping sale and publication cannot reinterpret a committed sale day",
+          "status": "passed",
+          "durationMs": 21873.858599999992
+        },
+        {
+          "name": "INV-02 runtime: missing coverage and finished-product mode leave no sale or consumption",
+          "status": "passed",
+          "durationMs": 15154.076499999996
+        },
+        {
+          "name": "INV-02 runtime: a real audit failure rolls back publication across connections",
+          "status": "passed",
+          "durationMs": 4483.749400000001
+        },
+        {
+          "name": "INV-02 runtime: frozen subrecipe protects retroactivity and finished stock remains gated",
+          "status": "passed",
+          "durationMs": 25057.92750000002
+        }
+      ]
+    },
+    {
+      "file": "tests/integration/sales-ingest-runtime-db.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "name": "ingest runtime: unknown revenue, aggregate correction and cross-source coverage survive real commits",
+          "status": "passed",
+          "durationMs": 35570.529899999994
+        },
+        {
+          "name": "ingest runtime: business failures preserve valid groups and report every grouped row",
+          "status": "passed",
+          "durationMs": 16053.718900000007
+        },
+        {
+          "name": "ingest runtime: atomic business failure rolls back earlier groups across connections",
+          "status": "passed",
+          "durationMs": 12273.702699999994
+        },
+        {
+          "name": "ingest runtime: SQL infrastructure failure rolls back the whole non-atomic batch",
+          "status": "passed",
+          "durationMs": 11878.080799999996
+        }
+      ]
+    }
+  ],
+  "lastFixtureCleanup": {
+    "databaseName": "inv_sales_next_76dd03d9fa624688a6014f5faac07b93",
+    "roleName": "inv_sales_role_7c173c8426bb478890325543a576f285",
+    "databaseCreated": false,
+    "roleCreated": false,
+    "closed": true,
+    "baseline": "0158"
+  },
+  "sourceSha256": {
+    "tests/integration/helpers/sales-runtime-baseline.ts": "ed0ba2a6c6e076e782d305f1aa0a8e20e387f40d579529fcb74744e5a4cb9322",
+    "tests/integration/helpers/sales-runtime-database.ts": "88673aecb102c47f52eba939208e08805338c1caa362230d145016f1afee9354",
+    "tests/integration/recipe-policy-runtime-db.test.ts": "f96c704d1ca107bd164f5e1fce6a3ea011142369a200768f50d7f1f8e2f983c3",
+    "tests/integration/sales-ingest-runtime-db.test.ts": "028a4b62a3a98a62b0a32c468326159fdfa0d7267f4f169b562ddb899ddf8004",
+    "lib/services/sales-ingest-service.ts": "946f90b1043b3ae3eb8b84316c7bd2cc303d73c43eddc1646a2fda58c77e4e93",
+    "lib/services/sale-consumption-service.ts": "49e368c821f5d23beaa473327ad92cddfd52a75e1514d8ce78c2e55fee33bf16",
+    "lib/services/sale-consumption-reader.ts": "b50a5d9f5ebcb2350bf4f1294c65c4de76f223de465bc6a62b1538a6e34c98c3",
+    "lib/services/sale-consumption-snapshot.ts": "af6ce9b666119a4508fd94a1e20a7e22d0d4079d7e332065aeb4b7233ab64a49",
+    "lib/services/recipe-consumption-publication.ts": "f0ebb63ec4e89136fb579e776ff1dfe21e745ed21ea96c1ed7d63e3376bc82e3",
+    "lib/services/recipe-consumption-policy.ts": "8325be892dad0ca64f25e3e35138539ade22df12f2fe38957eafe11c130f4f64",
+    "lib/services/audit-service.ts": "04004f3baba195deec782c24b65279a34299a533f216b72530cca4c897aa8297",
+    "lib/db/sales-runtime.ts": "e8a110a4f5ed7e88acc2eaf41156d454d13c45b3b5cea26efcc1b5d53fd2f531",
+    "lib/db/schema.ts": "7252ee477dffff706593bac72c4fa9e5444c9019f79542f81979b0c9cbe01996",
+    "drizzle/meta/0158_snapshot.json": "581532aa9bbe66cd88008d94e27c7b830608d2962f3dec76c0b2b56b84d9f034",
+    "drizzle/0159_inv02_consumption_policy.sql": "40713e2a912a0b0c56236d96f32c50ed022829ef2393eafa3919c23a1f69bb9c",
+    "drizzle/0160_inv02_policy_publication_access.sql": "30a7af34ed8e58bcf454e8826587c306a55872b6e0f96e175a46ab6065cd5319"
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
+  "buildId": "bBmXOvXw0G4OayubgEgi3",
+  "run": {
+    "exit": 0,
+    "commandExit": 0,
+    "signal": null,
+    "expectedCases": [
+      "Next HTTP + R2 + real writer runtime: POS ingestion and evidence",
+      "Next HTTP + R2 + real writer runtime: POS alternate executor",
+      "Next + Chromium + real session: POS library installation and editor persistence"
+    ],
+    "passedCount": 3,
+    "allExpectedPassed": true,
+    "baseline": "source",
+    "scope": "Three POS cases only; four manual/CSV/infrastructure cases are outside this run.",
+    "finishedAt": "2026-11-22T22:17:07.655Z"
+  },
+  "fixture": {
+    "databaseName": "inv_sales_next_20d91345d5314a1ca0de57c1178d36cd",
+    "roleName": "inv_sales_role_c6d7a9952a514e658b42d7e2a876595e",
+    "databaseCreated": false,
+    "roleCreated": false,
+    "closed": true,
+    "baseline": "source"
+  },
+  "tests": [
+    {
+      "name": "Next HTTP + R2 + real writer runtime: POS ingestion and evidence",
+      "status": "passed",
+      "durationMs": 109825.4475
+    },
+    {
+      "name": "Next HTTP + R2 + real writer runtime: POS alternate executor",
+      "status": "passed",
+      "durationMs": 120348.263
+    },
+    {
+      "name": "Next + Chromium + real session: POS library installation and editor persistence",
+      "status": "passed",
+      "durationMs": 24316.355700000015
+    },
+    {
+      "name": "disposable sales database preserves RLS and immutable triggers and cleans up",
+      "status": "skipped"
+    },
+    {
+      "name": "production Next starts with separate owner/runtime secrets and shuts down cleanly",
+      "status": "skipped"
+    },
+    {
+      "name": "Next + Chromium + real runtime: rejects owner fallback, then saves/corrects/repeats/completes/cancels manual sales",
+      "status": "skipped"
+    },
+    {
+      "name": "Next + Chromium + real runtime: CSV SKU survives rename, correction and revenue completion",
+      "status": "skipped"
+    }
+  ],
+  "sources": [
+    {
+      "file": "app/api/workflows/smart-links/upload-pos/route.ts",
+      "sha256": "cf38cbafeb771c1e8d15759d896770b501b3061928292b0fe77faadf91163687"
+    },
+    {
+      "file": "app/api/sales/cuts/[id]/pos-file/route.ts",
+      "sha256": "652ecbb0c7c22fe793350eeb12337c59f059ef4d10f75cb87c402052053c9eaf"
+    },
+    {
+      "file": "lib/services/pos-cut-file-service.ts",
+      "sha256": "176708003f752fe823199afebbe764412d646a0b6f76736c86074851c6426903"
+    },
+    {
+      "file": "lib/storage/pos-upload.ts",
+      "sha256": "79ba011f1476f7a2cbe5a97f33b06ca58b0eefe89c3b6299f3e05862bc511300"
+    },
+    {
+      "file": "components/workflow/pos-upload-step.tsx",
+      "sha256": "b3f3b2bd505b02000528394031699e7669f89bbc42814dd939c89e30399947bf"
+    },
+    {
+      "file": "tests/integration/helpers/pos-runtime-scenario.ts",
+      "sha256": "d5efbb9f86acdc2b6897bdd824847d117ae60a3a1ce302faf2b7ef5778a5bb51"
+    },
+    {
+      "file": "tests/integration/helpers/pos-template-runtime-scenario.ts",
+      "sha256": "fb3aacad69736f39dd2d97c8df3d713bdfc71772b755ba06e22518338b1b040b"
+    },
+    {
+      "file": "tests/integration/helpers/sales-runtime-database.ts",
+      "sha256": "88673aecb102c47f52eba939208e08805338c1caa362230d145016f1afee9354"
+    },
+    {
+      "file": "tests/integration/helpers/sales-runtime-next-server.ts",
+      "sha256": "84bf4572114bfe663d98dae84d98fbc05a43ccaf7da3de88ab5a4bef72450fa5"
+    },
+    {
+      "file": "tests/integration/sales-runtime-next-browser.test.ts",
+      "sha256": "bd1df134955caccabc0b04e0c592f904d5df221d5111c53cf090f607477e75e9"
+    }
+  ]
+}

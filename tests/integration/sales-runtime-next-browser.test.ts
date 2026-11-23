@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import type { Browser } from '@playwright/test';
 import { account, users, companies, branches, recipes, recipeItems, inventoryItems, inventoryBatches,
   inventoryMovements, salesEntries, salesConsumptionRevisions } from '@/lib/db/schema';
@@ -8,13 +9,16 @@ import { createSalesRuntimeDatabase } from './helpers/sales-runtime-database';
 import { startSalesRuntimeNextServer } from './helpers/sales-runtime-next-server';
 
 const enabled = process.env.RUN_SALES_RUNTIME_NEXT_BROWSER === '1';
-// All cases use one disposable copy; writing scenarios use disjoint tenants.
+// All cases use one disposable database; writing scenarios use disjoint tenants.
 // Avoid repeatedly contending for the shared source database's template lock.
 let fixture: Awaited<ReturnType<typeof createSalesRuntimeDatabase>> | undefined;
 const originalDatabaseUrl = process.env.DATABASE_URL;
 beforeAll(async () => {
   if (enabled) {
-    fixture = await createSalesRuntimeDatabase();
+    fixture = await createSalesRuntimeDatabase({
+      ...(process.env.RUN_SALES_FRESH_BASELINE === '1' ? { baseline: '0158' as const } : {}),
+      posFiles: process.env.RUN_POS_FILES_RUNTIME_NEXT === '1',
+    });
     // Application helpers and their host-process dependencies use the copy,
     // never the shared source database, and load only after it exists.
     process.env.DATABASE_URL = fixture.ownerUrl;
@@ -43,7 +47,40 @@ it.skipIf(!enabled || process.env.RUN_SALES_RUNTIME_POS !== '1')('Next + Chromiu
   await verifyPosTemplateInstallation(fixture!);
 }, 180_000);
 
-it.skipIf(!enabled)('disposable sales database copies RLS and immutable triggers and cleans up', async () => {
+it.skipIf(!enabled || process.env.RUN_POS_FILES_RUNTIME_NEXT !== '1')('Next + real POS file runtime: rejects owner configuration without reading or linking cuts', async () => {
+  const { chromium } = await import('@playwright/test');
+  const { seedCsvRuntimeScenario } = await import('./helpers/csv-runtime-scenario');
+  const { dailySalesCuts } = await import('@/lib/db/schema');
+  const database = fixture!, scenario = await seedCsvRuntimeScenario(database), cutId = randomUUID();
+  expect(database.posFileRuntimeUrl).toBe(database.runtimeUrl);
+  const fileUrl = `companies/${scenario.companyId}/branches/${scenario.branchId}/pos/2026-11-22/1_not-uploaded.csv`;
+  await database.owner.insert(dailySalesCuts).values({ id: cutId, companyId: scenario.companyId,
+    branchId: scenario.branchId, businessDate: '2026-11-22', shift: 'COMPLETO', channel: 'TOTAL',
+    totalSales: 12345, source: 'MANUAL_FORM', rawFileUrl: fileUrl });
+  const before = await database.owner.select().from(dailySalesCuts).where(eq(dailySalesCuts.id, cutId));
+  const stateBefore = await scenario.state();
+  const server = await startSalesRuntimeNextServer({ ...database, posFileRuntimeUrl: database.ownerUrl });
+  let browser: Browser | undefined;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ baseURL: server.baseURL });
+    try {
+      expect((await context.request.post('/api/auth/sign-in/email', { headers: { origin: server.baseURL },
+        data: { email: `${scenario.actorId}@example.invalid`, password: scenario.password } })).status()).toBe(200);
+      for (const response of [await context.request.get(`/api/sales/cuts/${cutId}/pos-file`),
+        await context.request.post('/api/workflows/smart-links/upload-pos', { data: {
+          branchId: scenario.branchId, businessDate: '2026-11-22', fileUrl,
+        } })]) {
+        expect(response.status()).toBe(503);
+        expect((await response.json()).error.message).toBe('No se pudo habilitar el acceso al archivo POS. Inténtalo de nuevo o contacta al administrador.');
+      }
+      expect(await database.owner.select().from(dailySalesCuts).where(eq(dailySalesCuts.id, cutId))).toEqual(before);
+      expect(await scenario.state()).toEqual(stateBefore);
+    } finally { await context.close(); }
+  } finally { try { await browser?.close(); } finally { await server.close(); } }
+}, 150_000);
+
+it.skipIf(!enabled)('disposable sales database preserves RLS and immutable triggers and cleans up', async () => {
     const count = (await fixture!.owner.execute(sql`SELECT count(*)::int AS n FROM pg_tables WHERE schemaname='public'`)).rows[0];
     expect(Number(count.n)).toBeGreaterThan(190);
     const triggers = (await fixture!.owner.execute(sql`SELECT tgname FROM pg_trigger WHERE tgname IN
@@ -208,13 +245,30 @@ it.skipIf(!enabled)('Next + Chromium + real runtime: CSV SKU survives rename, co
     server = await startSalesRuntimeNextServer(database);
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ baseURL: server.baseURL, timezoneId: 'America/Mexico_City', viewport: { width: 1440, height: 1000 } });
+    let releaseScripts!: () => void;
+    const scriptsReady = new Promise<void>(resolve => { releaseScripts = resolve; });
+    let closing = false;
+    await context.route('**/_next/static/**/*.js', async route => {
+      await scriptsReady;
+      if (closing) { await route.abort().catch(() => {}); return; }
+      await route.continue();
+    });
     try {
       expect((await context.request.post('/api/auth/sign-in/email', { headers: { origin: server.baseURL },
         data: { email: `${scenario.actorId}@example.invalid`, password: scenario.password } })).status()).toBe(200);
       await context.addCookies([{ name: 'pulso_selected_branch', value: scenario.branchId, url: server.baseURL }]);
       const page = await context.newPage(), errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
-      await page.goto('/dashboard/inventory/sales-entry', { timeout: 90_000 });
+      await page.goto('/dashboard/inventory/sales-entry', { timeout: 90_000, waitUntil: 'commit' });
+      const fileInput = page.getByLabel('Archivo CSV', { exact: true });
+      await browserExpect(fileInput).toBeVisible({ timeout: 90_000 });
+      writeFileSync('.tmp/csv-sales-ssr-readiness.json', JSON.stringify(await fileInput.evaluate(element => ({
+        disabled: element.matches(':disabled'), reactProps: Object.keys(element).some(key => key.startsWith('__reactProps$')),
+      }))));
+      await page.screenshot({ path: '.tmp/csv-sales-runtime-next-ssr.png', fullPage: true });
+      await browserExpect(fileInput).toBeDisabled();
+      releaseScripts();
+      await browserExpect(fileInput).toBeEnabled({ timeout: 90_000 });
       await browserExpect(page.getByLabel('Sucursal destino')).toHaveCount(0);
       const row = (key: string, recipe: string, quantity: number | string, revenue = '') =>
         [key, recipe, quantity, revenue].map(value => `"${String(value).replaceAll('"', '""')}"`).join(',');
@@ -223,7 +277,16 @@ it.skipIf(!enabled)('Next + Chromium + real runtime: CSV SKU survives rename, co
       const upload = async (text: string, name: string, first = false) => {
         uploaded = text;
         await page.getByLabel('Archivo CSV', { exact: true }).setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(text) });
-        await browserExpect(page.getByText(`Seleccionado: ${name}`, { exact: true })).toBeVisible();
+        try { await browserExpect(page.getByText(`Seleccionado: ${name}`, { exact: true })).toBeVisible(); }
+        catch (error) {
+          await page.screenshot({ path: '.tmp/csv-sales-runtime-selection-failure.png', fullPage: true });
+          const observed = await page.getByLabel('Archivo CSV', { exact: true }).evaluate(element => ({
+            state: document.readyState, files: Array.from((element as HTMLInputElement).files ?? []).map(file => file.name),
+            reactProps: Object.keys(element).some(key => key.startsWith('__reactProps$')), body: document.body.innerText.slice(0, 3500),
+          }));
+          writeFileSync('.tmp/csv-sales-runtime-selection-failure.json', JSON.stringify({ observed, errors }, null, 2));
+          throw error;
+        }
         await browserExpect(page.getByLabel('Producto / receta *', { exact: true })).toBeVisible();
         if (first) {
           await page.getByLabel('Producto / receta *', { exact: true }).selectOption('Producto, receta');
@@ -321,6 +384,6 @@ it.skipIf(!enabled)('Next + Chromium + real runtime: CSV SKU survives rename, co
       await browserExpect.poll(() => preview.evaluate(element => element.scrollLeft)).not.toBe(scrollBefore);
       await page.screenshot({ path: '.tmp/csv-sales-runtime-next-mobile.png', fullPage: true });
       expect(errors).toEqual([]);
-    } finally { await context.close(); }
+    } finally { closing = true; releaseScripts(); await context.close(); }
   } finally { try { await browser?.close(); } finally { await server?.close(); } }
 }, 300_000);

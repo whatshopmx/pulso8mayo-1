@@ -10,7 +10,11 @@
     "SERVICE_ORDER",
     "WASTE",
     "RECEIVING",
-    "GENERAL"
+    "GENERAL",
+    "SALE_RECOVERY",
+    "INVOICE",
+    "PAYMENT",
+    "EXCEPTION"
   ],
   "after": [
     "WORKFLOW_STEP",
@@ -21,10 +25,13 @@
     "WASTE",
     "RECEIVING",
     "GENERAL",
-    "SALE_RECOVERY"
+    "SALE_RECOVERY",
+    "INVOICE",
+    "PAYMENT",
+    "EXCEPTION"
   ],
   "appliedTo": "isolated only",
   "drizzleJournalWritten": false,
   "operation": "ADD VALUE IF NOT EXISTS, committed; no data rewrite or grants",
-  "recordedAt": "2026-11-14T02:28:41.464Z"
+  "recordedAt": "2026-11-23T00:11:22.940Z"
 }

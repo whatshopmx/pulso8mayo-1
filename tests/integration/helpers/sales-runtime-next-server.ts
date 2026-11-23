@@ -4,7 +4,7 @@ import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
 import { createConnection, createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
 
-export async function startSalesRuntimeNextServer(database: { ownerUrl: string; runtimeUrl: string }) {
+export async function startSalesRuntimeNextServer(database: { ownerUrl: string; runtimeUrl: string; posFileRuntimeUrl?: string }) {
   if (!existsSync('.next/BUILD_ID')) throw new Error('Build the current product before testing Next runtime');
   const portProbe = createServer();
   await new Promise<void>(resolve => portProbe.listen(0, '127.0.0.1', resolve));
@@ -18,6 +18,7 @@ export async function startSalesRuntimeNextServer(database: { ownerUrl: string; 
     windowsHide: true, stdio: ['ignore', log, log],
     env: { ...process.env, NODE_ENV: 'production', DATABASE_URL: database.ownerUrl,
       SALES_RUNTIME_DATABASE_URL: database.runtimeUrl, BETTER_AUTH_URL: baseURL, BETTER_AUTH_SECRET: randomUUID(), NEXT_PUBLIC_APP_URL: baseURL,
+      POS_FILES_RUNTIME_DATABASE_URL: database.posFileRuntimeUrl,
       UPSTASH_REDIS_REST_URL: '', UPSTASH_REDIS_REST_TOKEN: '', RESEND_API_KEY: '', WASENDER_API_KEY: '', INNGEST_DEV: '1', NEXT_TELEMETRY_DISABLED: '1' },
   });
   closeSync(log);
