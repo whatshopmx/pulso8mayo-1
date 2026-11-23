@@ -81,6 +81,8 @@ export function VacationManager({
     const [managerComments, setManagerComments] = React.useState("")
     const [rejectionReason, setRejectionReason] = React.useState("")
     const [isProcessing, setIsProcessing] = React.useState(false)
+    const [loadError, setLoadError] = React.useState<string | null>(null)
+    const [actionError, setActionError] = React.useState<string | null>(null)
 
     // Form state
     const [startDate, setStartDate] = React.useState("")
@@ -91,21 +93,21 @@ export function VacationManager({
     // Fetch vacations
     const fetchVacations = async () => {
         setLoading(true)
+        setLoadError(null)
         try {
             const params = new URLSearchParams()
             params.set("companyId", companyId)
             if (branchId) params.set("branchId", branchId)
-            if (userId) params.set("userId", userId)
+            if (userId && !canApprove) params.set("userId", userId)
             if (statusFilter !== "all") params.set("status", statusFilter)
 
             const response = await fetch(`/api/vacations?${params.toString()}`)
-            if (response.ok) {
-                const result = await response.json()
-                setVacations(result.data || [])
-            }
+            const result = await response.json()
+            if (!response.ok) throw new Error(result.error || "Error cargando vacaciones")
+            setVacations(result.data || [])
         } catch (error) {
-            console.error("Error fetching vacations:", error)
-            toast.error("Error cargando vacaciones")
+            setVacations([])
+            setLoadError(error instanceof Error ? error.message : "Error cargando vacaciones")
         } finally {
             setLoading(false)
         }
@@ -113,9 +115,10 @@ export function VacationManager({
 
     React.useEffect(() => {
         fetchVacations()
-    }, [statusFilter, branchId])
+    }, [statusFilter, branchId, companyId, userId, canApprove])
 
     const handleOpenDialog = (vacation?: VacationRequest) => {
+        setActionError(null)
         if (vacation) {
             setSelectedVacation(vacation)
         } else {
@@ -130,11 +133,12 @@ export function VacationManager({
 
     const handleRequestVacation = async () => {
         if (!startDate || !endDate || !selectedUserId) {
-            toast.error("Completa todos los campos requeridos")
+            setActionError("Completa todos los campos requeridos")
             return
         }
 
         setIsProcessing(true)
+        setActionError(null)
         try {
             const response = await fetch("/api/vacations", {
                 method: "POST",
@@ -156,11 +160,11 @@ export function VacationManager({
                 setDialogOpen(false)
                 fetchVacations()
             } else {
-                toast.error(result.error || "Error creando la solicitud")
+                setActionError(result.error || "Error creando la solicitud")
             }
         } catch (error) {
             console.error("Error requesting vacation:", error)
-            toast.error("Error creando la solicitud")
+            setActionError("Error creando la solicitud")
         } finally {
             setIsProcessing(false)
         }
@@ -170,6 +174,7 @@ export function VacationManager({
         if (!vacationToApprove) return
 
         setIsProcessing(true)
+        setActionError(null)
         try {
             const response = await fetch("/api/vacations/approve", {
                 method: "POST",
@@ -192,11 +197,11 @@ export function VacationManager({
                 setRejectionReason("")
                 fetchVacations()
             } else {
-                toast.error(result.error || "Error procesando la solicitud")
+                setActionError(result.error || "Error procesando la solicitud")
             }
         } catch (error) {
             console.error("Error processing vacation:", error)
-            toast.error("Error procesando la solicitud")
+            setActionError("Error procesando la solicitud")
         } finally {
             setIsProcessing(false)
         }
@@ -206,6 +211,7 @@ export function VacationManager({
         if (!confirm("¿Estás seguro de cancelar esta solicitud de vacaciones?")) return
 
         setIsProcessing(true)
+        setActionError(null)
         try {
             const response = await fetch(`/api/vacations?id=${id}`, {
                 method: "DELETE"
@@ -217,11 +223,11 @@ export function VacationManager({
                 toast.success("Solicitud cancelada exitosamente")
                 fetchVacations()
             } else {
-                toast.error(result.error || "Error cancelando la solicitud")
+                setActionError(result.error || "Error cancelando la solicitud")
             }
         } catch (error) {
             console.error("Error cancelling vacation:", error)
-            toast.error("Error cancelando la solicitud")
+            setActionError("Error cancelando la solicitud")
         } finally {
             setIsProcessing(false)
         }
@@ -274,6 +280,14 @@ export function VacationManager({
                     Solicitar Vacaciones
                 </Button>
             </div>
+
+            {loadError && (
+                <div role="alert" className="space-y-2 text-destructive">
+                    <p>{loadError}</p>
+                    <Button variant="outline" onClick={fetchVacations} disabled={loading}>Reintentar</Button>
+                </div>
+            )}
+            {actionError && !dialogOpen && !approveDialogOpen && <p role="alert" className="text-destructive">{actionError}</p>}
 
             {/* Stats */}
             <div className="grid gap-4 md:grid-cols-4">
@@ -420,6 +434,7 @@ export function VacationManager({
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => {
+                                                            setActionError(null)
                                                             setVacationToApprove(vacation)
                                                             setApproveDialogOpen(true)
                                                         }}
@@ -428,10 +443,11 @@ export function VacationManager({
                                                         Aprobar
                                                     </Button>
                                                 )}
-                                                {vacation.status === "PENDING" && (
+                                                {["PENDING", "APPROVED"].includes(vacation.status) && (canApprove || vacation.userId === userId) && (
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
+                                                        aria-label="Cancelar solicitud"
                                                         onClick={() => handleCancelVacation(vacation.id)}
                                                     >
                                                         <Trash2 className="h-3 w-3" />
@@ -569,6 +585,7 @@ export function VacationManager({
                         </div>
                     )}
 
+                    {actionError && <p role="alert" className="text-destructive">{actionError}</p>}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>
                             Cerrar
@@ -645,6 +662,7 @@ export function VacationManager({
                         </div>
                     )}
 
+                    {actionError && <p role="alert" className="text-destructive">{actionError}</p>}
                     <DialogFooter className="gap-2">
                         <Button
                             variant="outline"

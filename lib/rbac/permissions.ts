@@ -3,7 +3,7 @@
  * Defines which roles can access which routes
  */
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
+export type UserRole = 'SUPER_ADMIN' | 'OWNER' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
 
 export interface RoutePermission {
     path: string;
@@ -180,8 +180,8 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   },
   {
     path: '/dashboard/labor/vacations',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR'],
-    description: 'Vacation management'
+    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO'],
+    description: 'Vacation requests and scoped team management'
   },
   {
     path: '/dashboard/labor/geolocation',
@@ -242,7 +242,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // === Dashboard home - All roles ===
   {
     path: '/dashboard',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO', 'READONLY'],
+    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO', 'READONLY'],
     description: 'Main dashboard'
   }
 ];

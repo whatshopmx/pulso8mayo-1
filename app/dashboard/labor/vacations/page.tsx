@@ -4,9 +4,9 @@ import { VacationManager } from "@/components/labor/vacation-manager"
 import { useRequireRole } from "@/hooks/use-session"
 
 export default function VacationsPage() {
-  const { loading, session } = useRequireRole(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR'])
+  const { loading, session, hasAccess } = useRequireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO'])
 
-  if (loading) {
+  if (loading || !hasAccess) {
     return null
   }
 
@@ -18,7 +18,7 @@ export default function VacationsPage() {
     return null
   }
 
-  const canApprove = ["ADMIN", "GERENTE", "SUPER_ADMIN"].includes(userRole || "")
+  const canApprove = ["OWNER", "ADMIN", "GERENTE", "SUPER_ADMIN"].includes(userRole || "")
 
   return (
     <div className="space-y-6">

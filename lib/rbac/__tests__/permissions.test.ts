@@ -18,12 +18,13 @@ import {
  *   (fail-cerrado).
  * - Los dashboards default por rol deben ser SIEMPRE accesibles para ese rol:
  *   ningún redirect puede aterrizar en una ruta prohibida.
- * - Este módulo usa 6 roles (sin OWNER); no confundir con el Role de
- *   `lib/permissions.ts`, que sí lo tiene.
+ * - OWNER tiene acceso explícito a inicio y autoservicio de vacaciones;
+ *   no hereda implícitamente las rutas administrativas.
  */
 
 const ROLES: UserRole[] = [
     'SUPER_ADMIN',
+    'OWNER',
     'ADMIN',
     'GERENTE',
     'SUPERVISOR',
@@ -63,6 +64,14 @@ describe('hasAccess — barrido completo rol × ruta', () => {
 });
 
 describe('hasAccess — sub-rutas heredan la entrada más específica', () => {
+    it('vacaciones permite autoservicio y OWNER sin abrir otras rutas de gestión al empleado', () => {
+        for (const role of ['OWNER', 'EMPLEADO'] as UserRole[]) {
+            expect(hasAccess(role, '/dashboard/labor/vacations'), role).toBe(true);
+        }
+        expect(hasAccess('EMPLEADO', '/dashboard/labor/approvals')).toBe(false);
+        expect(hasAccess('EMPLEADO', '/dashboard/labor/payroll')).toBe(false);
+        expect(hasAccess('READONLY', '/dashboard/labor/vacations')).toBe(false);
+    });
     it('EMPLEADO accede a sub-ruta de workflows (su entrada específica lo permite)', () => {
         expect(hasAccess('EMPLEADO', '/dashboard/workflows')).toBe(true);
         expect(hasAccess('EMPLEADO', '/dashboard/workflows/paso-1')).toBe(true);
