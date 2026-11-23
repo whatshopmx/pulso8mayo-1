@@ -36,6 +36,16 @@ Reconstrucción: procesar todos los días aprobados desde el inicio de cobertura
 
 El resultado distingue `AVAILABLE`, `MISSING` y `CONFLICT`; errores de lectura se mapearán a `QUERY_ERROR` en el adaptador SQL. Devuelve días elegibles/no financiados, asignaciones por crédito/solicitud/día, saldo antes del período y remanente al cierre. El lector de nómina conservará procedencia y no declarará falta laboral por ausencia de historia.
 
+## Persistencia y corte consistente
+
+La candidata `0164` añade `vacation_history_streams` (apertura verificada y sucesores de corrección) y `vacation_history_events` (COVERAGE, GRANT, REVOKE_GRANT, APPROVE_REQUEST, CANCEL_REQUEST). Cada evento conserva actor, motivo, referencia, clave de idempotencia y fecha de registro de la base. Dos FKs distinguen solicitudes de vacaciones y permisos; solo los permisos VACATION admiten eventos de este historial. Las reversas apuntan a su hecho original en la misma historia/empresa/empleado y solo pueden ocurrir una vez. Una historia sustituida deja de aceptar eventos; sus hechos anteriores se conservan.
+
+El corte SQL incluirá **`knownAt` y `throughVersion`**, capturados dentro del mismo bloqueo transaccional por empresa/empleado que usan los escritores. `record_version` proviene de una secuencia de base y se asigna después de tomar el bloqueo; se representa como string decimal fuera de PostgreSQL. La fecha sola no garantiza estabilidad frente a commits tardíos, empates de milisegundos o variaciones del reloj. La proyección entregada al contrato puro deberá estar limitada por esa versión, seleccionar la historia vigente en ese corte y luego aplicar `knownAt`. No se deduce orden de commit de una secuencia asignada como DEFAULT antes del bloqueo. Los huecos de secuencia son válidos.
+
+Las tablas nuevas usan RLS con FORCE, SELECT/INSERT para el rol dedicado y predicados privados de alcance; no reciben acceso de catálogo ni de secuencia. No se añade un bypass sin actor para la conexión legacy de nómina. Los triggers prohíben UPDATE/DELETE/TRUNCATE de hechos y comprueban referencias, capacidad, estado/fechas del origen y sucesores antes de registrar. Esto no conecta automáticamente los cambios operativos con eventos: esa atomicidad sigue a cargo de los hitos de escritores.
+
+La [decisión de persistencia](../docs/audits/2026-11-23-decision-vacation-history-persistence.md) registra las garantías y límites de esta preparación. No se aplica la candidata al entorno operativo ni se copian balances mutables como aperturas verificadas.
+
 ## Construcción por incrementos
 
 1. **Contrato:** `vacation-history.ts`, pruebas puras y este documento. Reproducir pérdida de saldo histórico, crédito futuro, doble descuento, vencimiento, cancelación posterior, solapamientos y falta de cobertura. Sin activar la fuente incompleta.
