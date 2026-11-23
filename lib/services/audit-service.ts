@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { employeeAuditLogs, inventoryAuditLog } from "@/lib/db/schema";
+import { employeeAuditLogs, inventoryAuditLog, configChangeLogs } from "@/lib/db/schema";
 import type { DbExecutor } from "./fefo-allocator";
 import { eq, and, desc, sql } from "drizzle-orm";
 
@@ -52,6 +52,7 @@ export interface CriticalAuditDescriptor {
 }
 
 export const CRITICAL_AUDIT_CATALOG: readonly CriticalAuditDescriptor[] = [
+  { domain: 'INVENTORY', entityType: 'RECIPE_CONSUMPTION_POLICY', action: 'CREATE', description: 'Publicación de política de consumo por versión/vigencia (bitácora de configuración de empresa)', reasonRequired: true, transactionRequired: true },
   // Frente A / Inventario y Stock
   { domain: 'INVENTORY', entityType: 'WASTE', action: 'CREATE', description: 'Registro de merma/desecho que destruye stock físico', reasonRequired: true, transactionRequired: true },
   { domain: 'INVENTORY', entityType: 'WASTE', action: 'UPDATE', description: 'Aprobación o rechazo administrativo de merma', reasonRequired: true, transactionRequired: true },
@@ -164,6 +165,27 @@ export interface CriticalInventoryAuditLogRequest extends InventoryAuditLogReque
 }
 
 export class AuditService {
+
+    /** Configuración de empresa: no inventa una sucursal para una política global. */
+    static async logCriticalConfigChange(data: {
+        companyId: string; performedBy: string; fieldName: string;
+        oldValue: Record<string, unknown> | null; newValue: Record<string, unknown>; reason: string;
+    }, executor: DbExecutor) {
+        const tx = assertTransactionExecutor(executor);
+        const reason = validateAuditReason(data.reason, true)!;
+        // Drizzle incluye id/performed_at como DEFAULT en su INSERT habitual,
+        // lo que exige permiso INSERT sobre esas columnas. Esta lista explícita
+        // mantiene id/hora exclusivamente del servidor y el grant mínimo.
+        const result = await tx.execute<{ id: string }>(sql`INSERT INTO public.${configChangeLogs}
+            (company_id, user_id, field_name, old_value, new_value)
+            VALUES (${data.companyId}, ${data.performedBy}, ${data.fieldName},
+              ${data.oldValue === null ? null : sql`${JSON.stringify(data.oldValue)}::jsonb`},
+              ${JSON.stringify({ ...data.newValue, auditReason: reason })}::jsonb)
+            RETURNING id`);
+        const log = result.rows[0];
+        if (!log) throw new AuditValidationError('AUDIT_WRITE_FAILED', 'No se pudo registrar la auditoría de configuración.');
+        return log;
+    }
 
     /**
      * Auditoría crítica para mutaciones de personal, laboral o excepciones.

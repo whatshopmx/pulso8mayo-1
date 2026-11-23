@@ -2,6 +2,8 @@
 
 Plan: [implementación revisada](../plans/2026-11-11-plan-implementacion-faltantes.md). Base: [investigación](../docs/2026-11-11-investigacion-plan-faltantes.md).
 
+Checkpoint Fase 1 completa (`INV-01.d` + `INV-02`) 2026-11-22: **`INV-01.d`, los 6 hijos de `INV-02` y el padre `INV-02` aceptados en entorno aislado; 71 registros aceptados (Puerta 1 cerrada)**. **13/13** recorridos reales Next producción + Chromium + Better Auth + Neon + R2 (`INV-01.d`), **99/99** unitarias/PGlite `INV-02` (6 archivos) y **8/8** PostgreSQL nativo con LOGIN independiente, `0159`/`0160` y 2 carreras reales (`recipe-policy-runtime-db.test.ts`, 126.15 s). Destraba **`PROD-00`**; sin despliegue operativo ni cierre de fila `11.11` (pendiente `VAL-01.M01-M17.M11`). [INV-01.d](evidencia/2026-11-22/INV-01.d/accepted.md); [INV-02](evidencia/2026-11-22/INV-02/accepted.md).
+
 Checkpoint `INV-01.c` cierre completo 2026-11-22: **`INV-01.c.recovery.ui-routes`, `INV-01.c.recovery` y padre `INV-01.c` aceptados en entorno aislado; 63 registros aceptados**. Recorrido integrado real [sale-recovery-next-browser.test.ts](../../tests/integration/sale-recovery-next-browser.test.ts) **1/1** (`exit 0`, 66.22 s) sobre Next producción (`BUILD_ID: 3uHsQamaXwpx8-UdKZkBZ`), Chromium, Better Auth (dos `ADMIN` independientes), Neon desechable baseline `0158` y R2 privado real: 3 cargas/atestaciones SHA-256, alta en diálogo UI, segregación de funciones, aprobación, aplicación auditada `AUD-02` con oráculos SQL (`20→17`, revisión `1`, movimiento `-3`, `inventory_audit_log`), reintento idempotente, `sign-out` `401` y limpieza verificada. Siguen abiertos `INV-01.d` y la fila `11.11`. [Aceptación y límites](evidencia/2026-11-22/INV-01.c.recovery.ui-routes/accepted.md).
 
 Checkpoint `INV-01.c` servicios y concurrencia 2026-11-22: **`races` y 13 hijos de servicios de recuperación (`contract` → `apply`, incluido R2 real en `objects`) aceptados en entorno aislado; 60 registros aceptados**. **97/97** unitarias (14 archivos), **13/13** suites SQL Neon (`pulso_app` NOBYPASSRLS, 65 casos: concurrencia 5/5 + recuperación 60/60), **1/1** R2 privado real (`sale-recovery-objects-r2-db.test.ts`), **4/4** Playwright controlado y ESLint limpio. Siguen abiertos `INV-01.c.recovery.ui-routes`, `INV-01.c.recovery`, `INV-01.c`, `INV-01.d` y la fila `11.11`. [Aceptación y límites](evidencia/2026-11-22/INV-01.c.recovery-services/accepted.md).
@@ -144,16 +146,16 @@ Ver [evidencia y límites](evidencia/2026-11-16/CONSOLIDACION/README.md). Se man
 - [x] **INV-01.c.recovery.decision.service** [I/M] Decisión administrativa independiente ligada a propuesta y estado verificado — aceptado V1/V2 (14 unitarias + 5/5 Neon `pulso_app`). [Aceptación](evidencia/2026-11-22/INV-01.c.recovery-services/accepted.md).
 - [x] **INV-01.c.recovery.apply** [I/M] Aplicación auditada e idempotente de recuperación histórica bajo AUD-02 — aceptado V1/V2 (10 unitarias + 6/6 apply + 3/3 E2E Neon `pulso_app`). [Aceptación](evidencia/2026-11-22/INV-01.c.recovery-services/accepted.md).
 - [x] **INV-01.c.recovery.ui-routes** [I/M] Rutas de propuesta y diálogo de revisión/aplicación — aceptado V1/V2/V3 en entorno aislado (25 unitarias rutas, 4/4 Playwright controlado y 1/1 Next producción `BUILD_ID: 3uHsQamaXwpx8-UdKZkBZ` + Chromium + Better Auth + Neon + R2 reales con segregación de funciones, `AUD-02`, reintento idempotente y limpieza verificada). [Aceptación](evidencia/2026-11-22/INV-01.c.recovery.ui-routes/accepted.md).
-- [ ] **Checkpoint 1.1** — revisar los últimos 2–3 hijos ejecutados: pruebas del recorrido, tipos/lint, evidencia y regresión aplicable.
-- [ ] **INV-01.d** [A/M] Aceptar corrección y anulación por API/UI
-- [ ] **INV-02** [I/P] Definir quién consume cada receta
-- [ ] **INV-02.contract** [I/S] Contrato por versión/vigencia (20 unitarias; sin aceptación dependiente)
-- [ ] **INV-02.schema** [I/M] Persistencia e aislamiento (14 SQL PGlite y casos nativos de RLS/FK; aceptación dependiente/aplicación operativa pendientes)
-- [ ] **INV-02.publish.rls** [I/M] Catálogo de versiones y bitácora mínima (6 SQL PGlite y grants/login nativos comprobados; aceptación dependiente/aplicación operativa pendientes)
-- [ ] **INV-02.publish** [I/M] Publicación auditada y retroactividad (SQL/frontera/AUD-02 y dos carreras nativas comprobados; históricos y aceptación dependiente pendientes)
-- [ ] **INV-02.snapshot** [I/M] Lector de versión y demanda congelada (106/106 locales y casos nativos de raíz/subreceta; histórico/recovery y dependencias pendientes)
-- [ ] **INV-02.apply** [I/M] Writer y compensaciones históricas (183/183 locales, ocho nativas y build correctos; bajo activación, sin aceptación dependiente ni operación)
-- [ ] **Puerta 1** — hijos requeridos aceptados, build del hito de código, V2/V3 aplicables y matriz enlazada.
+- [x] **Checkpoint 1.1** — revisados todos los hijos de `INV-01.a`/`b`/`c`/`d` e `INV-02`, evidencia, build `BUILD_ID: 3uHsQamaXwpx8-UdKZkBZ` y trazabilidad.
+- [x] **INV-01.d** [A/M] Aceptar corrección y anulación por API/UI — aceptado V3 en entorno aislado (13/13 recorridos reales Next producción + Chromium + Better Auth + Neon + R2). [Aceptación](evidencia/2026-11-22/INV-01.d/accepted.md).
+- [x] **INV-02** [I/P] Definir quién consume cada receta — aceptado V1/V2 en entorno aislado con todos sus 6 hijos acreditados. [Aceptación](evidencia/2026-11-22/INV-02/accepted.md).
+- [x] **INV-02.contract** [I/S] Contrato por versión/vigencia — aceptado V1 (20/20). [Aceptación](evidencia/2026-11-22/INV-02/accepted.md).
+- [x] **INV-02.schema** [I/M] Persistencia e aislamiento — aceptado V1/V2 (14 PGlite + 8/8 PostgreSQL nativo `0159`). [Aceptación](evidencia/2026-11-22/INV-02/accepted.md).
+- [x] **INV-02.publish.rls** [I/M] Catálogo de versiones y bitácora mínima — aceptado V1/V2 (6 PGlite + 8/8 PostgreSQL nativo `0160`). [Aceptación](evidencia/2026-11-22/INV-02/accepted.md).
+- [x] **INV-02.publish** [I/M] Publicación auditada y retroactividad — aceptado V1/V2 (47 unitarias/PGlite + 8/8 PostgreSQL nativo con 2 carreras reales y rollback AUD-02). [Aceptación](evidencia/2026-11-22/INV-02/accepted.md).
+- [x] **INV-02.snapshot** [I/M] Lector de versión y demanda congelada — aceptado V1/V2 (53 unitarias/PGlite + 8/8 PostgreSQL nativo). [Aceptación](evidencia/2026-11-22/INV-02/accepted.md).
+- [x] **INV-02.apply** [I/M] Writer y compensaciones históricas — aceptado V1/V2 (99 unitarias/PGlite + 8/8 PostgreSQL nativo; elaborado bloqueado hasta PROD-01.b). [Aceptación](evidencia/2026-11-22/INV-02/accepted.md).
+- [x] **Puerta 1** — todos los hijos y padres del frente 1 (`INV-01.a`/`b`/`c`/`d` e `INV-02`) aceptados en entorno aislado; sin despliegue operativo ni cierre de fila `11.11` hasta `VAL-01.M01-M17.M11`.
 
 ## 2. Nómina calculada y explicable
 

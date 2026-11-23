@@ -4071,20 +4071,52 @@
   ],
   "execution": {
     "INV-02": {
-      "state": "en curso",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/INV-02/README.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows local; contrato puro, sin DB ni activación de stock",
+          "file": "tasks/evidencia/2026-11-22/INV-02/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "Padre INV-02 cerrado en entorno aislado con todos sus 6 hijos acreditados: 99/99 unitarias/PGlite (6 archivos) y 8/8 PostgreSQL nativo (baseline 0158 + 0159/0160, LOGIN independiente, 2 carreras con advisory lock, rollback AUD-02 y limpieza verificada). Sin despliegue operativo ni activación de elaborado.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/recipe-consumption-policy.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle lib/services/__tests__/recipe-consumption-policy.test.ts lib/services/__tests__/recipe-consumption-publication-retry.test.ts lib/services/__tests__/published-sale-snapshot.test.ts tests/unit/inventory/recipe-consumption-policy-db.test.ts tests/unit/inventory/recipe-policy-publication-access-db.test.ts tests/unit/inventory/recipe-policy-publication-service-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "INV-01.d": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-22/INV-01.d/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "13/13 recorridos reales Next producción (BUILD_ID 3uHsQamaXwpx8-UdKZkBZ) + Chromium + Better Auth + Neon + R2: manual/CSV (4/4), POS/storage con POS_FILES_RUNTIME_DATABASE_URL (4/4), cobertura COGS/menú/ejecutivo y alcance SUPERVISOR/tenant (4/4) y recuperación histórica con segregación de funciones y AUD-02 (1/1). Sin despliegue operativo; fila 11.11 pendiente de VAL-01.M01-M17.M11.",
+          "commands": [
+            {
+              "command": "node .tmp/pos-storage-next-verify.cjs",
+              "exit": 0
+            },
+            {
+              "command": "node .tmp/coverage-next-browser-verify.cjs",
+              "exit": 0
+            },
+            {
+              "command": "node .tmp/sale-recovery-next-browser-verify.cjs",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V3"
           ]
         }
       ]
@@ -5791,15 +5823,15 @@
       ]
     },
     "INV-02.contract": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/INV-02/README.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows local; sin aceptación dependiente ni aplicación externa",
+          "file": "tasks/evidencia/2026-11-22/INV-02/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "V1 unitarias (20/20 en 99/99 INV-02) sobre HEAD 43428b1. Sin despliegue.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/recipe-consumption-policy.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle lib/services/__tests__/recipe-consumption-policy.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
@@ -5810,165 +5842,120 @@
       ]
     },
     "INV-02.schema": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/INV-02/schema.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows local; sin aceptación dependiente ni aplicación externa",
+          "file": "tasks/evidencia/2026-11-22/INV-02/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "V1 PGlite (14/14) + V2 PostgreSQL nativo (0159 sobre baseline 0158, LOGIN independiente, FK compuestas, FORCE RLS, inmutabilidad y limpieza verificada). Sin aplicación operativa.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/recipe-consumption-policy-db.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle tests/unit/inventory/recipe-consumption-policy-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
-          ]
-        },
-        {
-          "file": "tasks/evidencia/2026-11-22/INV-02/runtime.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Neon aislado: baseline 0158 más SQL 0159/0160, login fresco mínimo, commits, FK/RLS/triggers y dos carreras con espera observada; sin aplicación operativa ni aceptación dependiente.",
-          "commands": [
-            {
-              "command": "RUN_RECIPE_POLICY_RUNTIME=1 RUN_SALES_RUNTIME_NEXT_BROWSER=1 NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts tests/integration/sales-ingest-runtime-db.test.ts --maxWorkers=1 --pool=threads --reporter=default --reporter=json --outputFile=.tmp/inv02-runtime-final.json",
-              "exit": 0
-            }
-          ],
-          "checks": [
+            "V1",
             "V2"
           ]
         }
       ]
     },
     "INV-02.publish.rls": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/INV-02/publication-access.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows/PGlite efímero; sin V2 externo ni aceptación dependiente",
+          "file": "tasks/evidencia/2026-11-22/INV-02/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "V1 PGlite (6/6) + V2 PostgreSQL nativo (0160 sobre baseline 0158, LOGIN independiente, grants por columna, RLS y limpieza verificada). Sin aplicación operativa.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/recipe-policy-publication-access-db.test.ts tests/unit/inventory/recipe-policy-publication-service-db.test.ts lib/services/__tests__/recipe-consumption-publication-retry.test.ts tests/unit/audit/audit-02.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle tests/unit/inventory/recipe-policy-publication-access-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
-          ]
-        },
-        {
-          "file": "tasks/evidencia/2026-11-22/INV-02/runtime.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Neon aislado: baseline 0158 más SQL 0159/0160, login fresco mínimo, commits, FK/RLS/triggers y dos carreras con espera observada; sin aplicación operativa ni aceptación dependiente.",
-          "commands": [
-            {
-              "command": "RUN_RECIPE_POLICY_RUNTIME=1 RUN_SALES_RUNTIME_NEXT_BROWSER=1 NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts tests/integration/sales-ingest-runtime-db.test.ts --maxWorkers=1 --pool=threads --reporter=default --reporter=json --outputFile=.tmp/inv02-runtime-final.json",
-              "exit": 0
-            }
-          ],
-          "checks": [
+            "V1",
             "V2"
           ]
         }
       ]
     },
     "INV-02.publish": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/INV-02/publication.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows/PGlite efímero; sin V2 externo ni aceptación dependiente",
+          "file": "tasks/evidencia/2026-11-22/INV-02/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "V1 unitarias/PGlite (41+6) + V2 PostgreSQL nativo (8/8 con carreras publicación↔publicación y publicación↔venta, rollback AUD-02 y limpieza verificada). Sin aplicación operativa.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/recipe-policy-publication-access-db.test.ts tests/unit/inventory/recipe-policy-publication-service-db.test.ts lib/services/__tests__/recipe-consumption-publication-retry.test.ts tests/unit/audit/audit-02.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle lib/services/__tests__/recipe-consumption-publication-retry.test.ts tests/unit/inventory/recipe-policy-publication-service-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
-          ]
-        },
-        {
-          "file": "tasks/evidencia/2026-11-22/INV-02/runtime.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Neon aislado: baseline 0158 más SQL 0159/0160, login fresco mínimo, commits, FK/RLS/triggers y dos carreras con espera observada; sin aplicación operativa ni aceptación dependiente.",
-          "commands": [
-            {
-              "command": "RUN_RECIPE_POLICY_RUNTIME=1 RUN_SALES_RUNTIME_NEXT_BROWSER=1 NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts tests/integration/sales-ingest-runtime-db.test.ts --maxWorkers=1 --pool=threads --reporter=default --reporter=json --outputFile=.tmp/inv02-runtime-final.json",
-              "exit": 0
-            }
-          ],
-          "checks": [
+            "V1",
             "V2"
           ]
         }
       ]
     },
     "INV-02.snapshot": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/INV-02/snapshot.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows/PGlite efímero; sin V2 independiente ni aceptación dependiente",
+          "file": "tasks/evidencia/2026-11-22/INV-02/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "V1 unitarias/PGlite (12+41) + V2 PostgreSQL nativo (8/8 con subreceta congelada sin relación mutable y limpieza verificada). Sin despliegue operativo.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/recipe-policy-publication-service-db.test.ts tests/unit/inventory/recipe-policy-publication-access-db.test.ts tests/unit/inventory/recipe-consumption-policy-db.test.ts lib/services/__tests__/published-sale-snapshot.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/recipe-consumption-policy.test.ts lib/services/__tests__/recipe-consumption-publication-retry.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle lib/services/__tests__/published-sale-snapshot.test.ts tests/unit/inventory/recipe-policy-publication-service-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
-          ]
-        },
-        {
-          "file": "tasks/evidencia/2026-11-22/INV-02/runtime.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Neon aislado: baseline 0158 más SQL 0159/0160, login fresco mínimo, commits, FK/RLS/triggers y dos carreras con espera observada; sin aplicación operativa ni aceptación dependiente.",
-          "commands": [
-            {
-              "command": "RUN_RECIPE_POLICY_RUNTIME=1 RUN_SALES_RUNTIME_NEXT_BROWSER=1 NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts tests/integration/sales-ingest-runtime-db.test.ts --maxWorkers=1 --pool=threads --reporter=default --reporter=json --outputFile=.tmp/inv02-runtime-final.json",
-              "exit": 0
-            }
-          ],
-          "checks": [
+            "V1",
             "V2"
           ]
         }
       ]
     },
     "INV-02.apply": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/INV-02/apply.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows/PGlite efímero; sin V2 independiente ni aceptación dependiente",
+          "file": "tasks/evidencia/2026-11-22/INV-02/accepted.md",
+          "head": "43428b1c4ea8bb0543014014301eb05d76b7c675",
+          "environment": "V1 unitarias/PGlite (99/99 en 6 archivos) + V2 PostgreSQL nativo (8/8 con compensaciones históricas, bloqueo de elaborado hasta PROD-01.b y limpieza verificada). Sin despliegue ni activación externa.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/recipe-policy-publication-service-db.test.ts tests/unit/inventory/recipe-policy-publication-access-db.test.ts tests/unit/inventory/recipe-consumption-policy-db.test.ts lib/services/__tests__/published-sale-snapshot.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/recipe-consumption-policy.test.ts lib/services/__tests__/recipe-consumption-publication-retry.test.ts lib/services/__tests__/sale-consumption-contract.test.ts lib/services/__tests__/sale-consumption-delta.test.ts tests/unit/audit/audit-02.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle lib/services/__tests__/recipe-consumption-policy.test.ts lib/services/__tests__/recipe-consumption-publication-retry.test.ts lib/services/__tests__/published-sale-snapshot.test.ts tests/unit/inventory/recipe-consumption-policy-db.test.ts tests/unit/inventory/recipe-policy-publication-access-db.test.ts tests/unit/inventory/recipe-policy-publication-service-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
-          ]
-        },
-        {
-          "file": "tasks/evidencia/2026-11-22/INV-02/runtime.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Neon aislado: baseline 0158 más SQL 0159/0160, login fresco mínimo, commits, FK/RLS/triggers y dos carreras con espera observada; sin aplicación operativa ni aceptación dependiente.",
-          "commands": [
-            {
-              "command": "RUN_RECIPE_POLICY_RUNTIME=1 RUN_SALES_RUNTIME_NEXT_BROWSER=1 NODE_OPTIONS='--use-system-ca --max-old-space-size=4096' pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts tests/integration/sales-ingest-runtime-db.test.ts --maxWorkers=1 --pool=threads --reporter=default --reporter=json --outputFile=.tmp/inv02-runtime-final.json",
-              "exit": 0
-            }
-          ],
-          "checks": [
+            "V1",
             "V2"
           ]
         }

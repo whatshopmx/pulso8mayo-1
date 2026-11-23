@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
-import { branches, inventoryBatches, inventoryItems, inventoryMovements, salesEntries, salesConsumptionIdentities as identities, salesConsumptionRevisions as revisions } from "@/lib/db/schema";
+import { branches, inventoryBatches, inventoryItems, inventoryMovements, recipeConsumptionPolicies, salesEntries, salesConsumptionIdentities as identities, salesConsumptionRevisions as revisions } from "@/lib/db/schema";
 import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
-import { normalizeSaleConsumptionIdentity, nextSaleConsumptionRevision, soldQuantity, type SaleConsumptionIdentity, type SaleConsumptionMovement } from "./sale-consumption-contract";
+import { normalizeSaleConsumptionIdentity, nextSaleConsumptionRevision, soldQuantity, type SaleConsumptionIdentity, type SaleConsumptionMovement, type SaleRecipeSnapshot } from "./sale-consumption-contract";
 import { planSaleConsumptionDelta } from "./sale-consumption-delta";
 import { buildSaleRecipeSnapshot, saleSnapshotDemand } from "./sale-consumption-snapshot";
-import { saleRecipeReader } from "./sale-consumption-reader";
+import { publishedSaleRecipeReader, saleRecipeReader } from "./sale-consumption-reader";
 import { allocateScopedBatches } from "./fefo-allocator";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -30,6 +30,42 @@ function decimal(value: bigint, places = 4) {
   return `${value < zero ? "-" : ""}${absolute / scale}.${String(absolute % scale).padStart(places, "0")}`;
 }
 function pending(message: string): never { throw new SaleConsumptionError("PENDING_RECOVERY", message); }
+function snapshotPublications(snapshot: SaleRecipeSnapshot | undefined) {
+  const recipes = snapshot?.definition.recipes;
+  return Array.isArray(recipes) ? recipes.flatMap(recipe => recipe?.publication ? [recipe.publication] : []) : [];
+}
+
+async function newSnapshot(tx: Tx, identity: SaleConsumptionIdentity, recipeId: string, head: Head | undefined) {
+  // La activación exige preparar 0159/0160 y publicar versiones. No se infiere
+  // un modo histórico por ausencia de filas ni se permite opt-out del cliente.
+  const mode = process.env.SALES_RECIPE_POLICY_MODE;
+  if (mode !== undefined && mode !== 'PUBLISHED') pending('Configuración de políticas de consumo inválida');
+  const published = mode === 'PUBLISHED' || snapshotPublications(head?.recipeSnapshot).length > 0;
+  try {
+    const reader = published ? publishedSaleRecipeReader(tx, identity.saleDay) : saleRecipeReader(tx);
+    if (!published) {
+      const schema = (await tx.execute<{ installed: boolean }>(sql`SELECT to_regclass('public.recipe_consumption_policies') IS NOT NULL AS installed`)).rows[0];
+      const read = reader.recipe;
+      // También la transición legacy comparte los locks de publicación. Una
+      // venta nueva y una publicación no pueden aprobar fechas incompatibles.
+      reader.recipe = async (id, companyId) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`recipe-consumption-policy:${companyId}:${id}`}, 0))`);
+        if (schema?.installed) {
+          const [policy] = await tx.select({ id: recipeConsumptionPolicies.id }).from(recipeConsumptionPolicies)
+            .where(and(eq(recipeConsumptionPolicies.companyId, companyId), eq(recipeConsumptionPolicies.recipeId, id))).limit(1);
+          if (policy) pending('La receta ya tiene políticas publicadas; habilita su lector antes de registrar otra venta');
+        }
+        return read(id, companyId);
+      };
+    }
+    return await buildSaleRecipeSnapshot(identity.companyId, recipeId, reader);
+  } catch (error) {
+    // Conservar errores SQL para reintentar la transacción completa, nunca
+    // degradar una política ilegible/incompleta a la ficha mutable.
+    if (error && typeof error === 'object' && ('code' in error || 'cause' in error)) throw error;
+    pending('No hay una definición de consumo vigente y verificable para esta venta');
+  }
+}
 function validate(input: ApplySaleConsumptionInput) {
   let identity: SaleConsumptionIdentity, quantity: string;
   try { identity = normalizeSaleConsumptionIdentity(input); quantity = soldQuantity(input.quantitySold); }
@@ -130,9 +166,12 @@ async function applyRevision(tx: Tx, input: ApplySaleConsumptionInput) {
   await checkAllocations(tx, identity, key.id, head);
   // Corregir cantidad no sustituye la definición histórica por la receta mutable.
   const snapshot = head?.recipeId === recipeId && input.recipeVersionKey === undefined ? head.recipeSnapshot
-    : await buildSaleRecipeSnapshot(identity.companyId, recipeId, saleRecipeReader(tx));
+    : await newSnapshot(tx, identity, recipeId, head);
   if (input.recipeVersionKey !== undefined && input.recipeVersionKey !== snapshot.versionKey) throw new SaleConsumptionError("RECIPE_VERSION_CONFLICT", "La definición de receta cambió; recarga su versión");
   const target = saleSnapshotDemand(snapshot, quantity);
+  if (ticks(quantity, 2) > zero && snapshotPublications(snapshot).some(publication => publication.policy?.mode === 'FINISHED_PRODUCT_ON_SALE')) {
+    pending('El consumo de producto elaborado requiere el recorrido de producción e inventario PROD-01');
+  }
   if (head && head.quantitySold === quantity && head.totalRevenue === input.totalRevenueCents && head.recipeId === recipeId && head.recipeSnapshot.versionKey === snapshot.versionKey) return { identityId: key.id, revision: head.revision, applied: false, created: false, movementIds: [] as string[], revenueComplete: [...totals.values()].every(total => total.unknownRevenue === 0) };
   const next = nextSaleConsumptionRevision(head ?? null, quantity);
   const delta = planSaleConsumptionDelta(head?.allocations ?? [], target, !!head && head.recipeSnapshot.versionKey !== snapshot.versionKey);

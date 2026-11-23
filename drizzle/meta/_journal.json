@@ -1107,6 +1107,20 @@
       "when": 1795028897846,
       "tag": "0158_inv01b_executive_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1795373047311,
+      "tag": "0159_inv02_consumption_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1795374213418,
+      "tag": "0160_inv02_policy_publication_access",
+      "breakpoints": true
     }
   ]
 }

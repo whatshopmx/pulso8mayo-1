@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { soldQuantity, type SaleRecipeSnapshot } from "./sale-consumption-contract";
+import { soldQuantity, validateSaleDay, type SaleRecipeSnapshot } from "./sale-consumption-contract";
 import type { SaleIngredientDemand } from "./sale-consumption-delta";
+import { parseRecipeConsumptionPolicy, type RecipeConsumptionPolicy } from "./recipe-consumption-policy";
 
 export interface SaleRecipeDefinition {
   id: string; companyId: string; baseYield: string; unit: string;
   items: { id: string; itemId: string; quantity: string; unit: string; isSubRecipe: boolean; yieldPercent: number | null }[];
+  /** Sólo el lector publicado del servidor añade esta procedencia. */
+  publication?: { policy: RecipeConsumptionPolicy; recipeVersionId: string; versionNumber: number; saleDay: string };
 }
 export interface SaleUnitConversion { id: string; companyId: string; fromUnit: string; toUnit: string; factor: string }
 export interface SaleRecipeReader {
@@ -52,7 +55,17 @@ export async function buildSaleRecipeSnapshot(companyId: string, recipeId: strin
   const ingredients = new Map<string, { id: string; companyId: string; unit: string }>();
   const expanded = new Map<string, Map<string, Fraction>>();
   const visiting = new Set<string>();
+  let published: boolean | undefined, publicationDay: string | undefined;
   let lines = 0;
+  async function ingredient(id: string) {
+    let item = ingredients.get(id);
+    if (!item) {
+      item = await reader.ingredient(id, companyId);
+      if (!item || item.companyId !== companyId || item.id !== id) throw new Error("Ingrediente inexistente o de otra empresa");
+      unit(item.unit); ingredients.set(id, { ...item });
+    }
+    return item;
+  }
   async function convert(from: string, to: string): Promise<Fraction> {
     unit(from); unit(to);
     if (from === to) return fraction(one);
@@ -80,10 +93,34 @@ export async function buildSaleRecipeSnapshot(companyId: string, recipeId: strin
     const base = quantity(row.baseYield, 2, 8);
     if (base.n === zero) throw new Error("Rendimiento base debe ser positivo");
     const recipe = structuredClone(row);
+    const hasPublication = recipe.publication !== undefined;
+    if (published !== undefined && published !== hasPublication) throw new Error("No se mezclan versiones publicadas con fichas mutables");
+    published = hasPublication;
+    if (recipe.publication) {
+      const metadata = recipe.publication;
+      const policy = parseRecipeConsumptionPolicy(metadata.policy);
+      const day = validateSaleDay(metadata.saleDay);
+      if (policy.companyId !== companyId || policy.recipeId !== id || policy.recipeVersionId !== metadata.recipeVersionId
+        || !Number.isInteger(metadata.versionNumber) || metadata.versionNumber < 1 || policy.effectiveFrom > day
+        || (publicationDay !== undefined && publicationDay !== day)) throw new Error("Procedencia o vigencia de receta publicada inconsistente");
+      publicationDay = day;
+      recipe.publication = { ...metadata, policy };
+    }
     recipe.items.sort(ordered);
-    if (!recipe.items.length) throw new Error("Receta sin ingredientes: consumo sin definir");
     if (new Set(recipe.items.map(item => item.id)).size !== recipe.items.length) throw new Error("Líneas de receta duplicadas");
-    definitions.set(id, recipe); visiting.add(id);
+    definitions.set(id, recipe);
+    const policy = recipe.publication?.policy;
+    if (policy?.mode === 'FINISHED_PRODUCT_ON_SALE') {
+      const item = await ingredient(policy.inventoryItemId);
+      if (item.unit !== policy.unit) throw new Error("Cambió la unidad del elaborado respecto a su política publicada");
+      // Una unidad vendida de la salida consume esa unidad física. El
+      // rendimiento y sus insumos pertenecen a la fabricación, no a otra venta.
+      const terminal = new Map([[item.id, await convert(recipe.unit, item.unit)]]);
+      expanded.set(id, terminal);
+      return terminal;
+    }
+    if (!recipe.items.length) throw new Error("Receta sin ingredientes: consumo sin definir");
+    visiting.add(id);
     const result = new Map<string, Fraction>();
     for (const line of recipe.items) {
       if (++lines > 10000) throw new Error("Límite de ingredientes excedido");
@@ -95,13 +132,8 @@ export async function buildSaleRecipeSnapshot(companyId: string, recipeId: strin
         const factor = multiply(perOutput, await convert(line.unit, definitions.get(line.itemId)!.unit));
         for (const [itemId, amount] of child) result.set(itemId, add(result.get(itemId) ?? fraction(zero), multiply(factor, amount)));
       } else {
-        let ingredient = ingredients.get(line.itemId);
-        if (!ingredient) {
-          ingredient = await reader.ingredient(line.itemId, companyId);
-          if (!ingredient || ingredient.companyId !== companyId || ingredient.id !== line.itemId) throw new Error("Ingrediente inexistente o de otra empresa");
-          unit(ingredient.unit); ingredients.set(line.itemId, { ...ingredient });
-        }
-        const amount = multiply(perOutput, await convert(line.unit, ingredient.unit));
+        const item = await ingredient(line.itemId);
+        const amount = multiply(perOutput, await convert(line.unit, item.unit));
         result.set(line.itemId, add(result.get(line.itemId) ?? fraction(zero), amount));
       }
     }

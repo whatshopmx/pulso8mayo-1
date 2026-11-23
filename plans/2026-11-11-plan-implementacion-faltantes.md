@@ -203,6 +203,8 @@ Checkpoint `INV-01.c` servicios y concurrencia 2026-11-22: **`races` y 13 hijos 
 
 Checkpoint `INV-01.c` cierre completo 2026-11-22: **`INV-01.c.recovery.ui-routes`, `INV-01.c.recovery` y padre `INV-01.c` aceptados en entorno aislado; 63 registros aceptados**. Recorrido integrado real (`sale-recovery-next-browser.test.ts`) **1/1** (`exit 0`, 66.22 s) sobre Next producción (`BUILD_ID: 3uHsQamaXwpx8-UdKZkBZ`), Chromium, Better Auth, Neon desechable baseline `0158` y R2 privado real con segregación de funciones, `AUD-02`, oráculos SQL, reintento idempotente, `sign-out` `401` y limpieza verificada. Destraba `INV-01.d` e `INV-02.*`; fila `11.11` sigue abierta hasta aceptar `INV-01.d`. [Aceptación y límites](../tasks/evidencia/2026-11-22/INV-01.c.recovery.ui-routes/accepted.md).
 
+Checkpoint Fase 1 completa (`INV-01.d` + `INV-02`) 2026-11-22: **`INV-01.d`, los 6 hijos de `INV-02` y el padre `INV-02` aceptados en entorno aislado; 71 registros aceptados (Puerta 1 cerrada)**. **13/13** recorridos reales Next/Chromium/Better Auth/Neon/R2 (`INV-01.d`), **99/99** unitarias/PGlite y **8/8** PostgreSQL nativo con LOGIN independiente, `0159`/`0160` y 2 carreras reales (`INV-02`). Destraba `PROD-00`; sin despliegue operativo ni cierre de fila `11.11` hasta `VAL-01.M01-M17.M11`. [INV-01.d](../tasks/evidencia/2026-11-22/INV-01.d/accepted.md); [INV-02](../tasks/evidencia/2026-11-22/INV-02/accepted.md).
+
 #### INV-01.c — Recuperar fallos y carreras
 
 **Tipo/tamaño:** I / P. **Depende de:** INV-01.b. **Verificación:** V2.

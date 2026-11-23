@@ -1059,6 +1059,7 @@ export const inventoryItems = pgTable("inventory_items", {
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
+    unique("inventory_item_identity_company_unique").on(table.id, table.companyId),
     pgPolicy("sale_inventory_catalog_tenant", { for: "select", to: "public",
         using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid` }),
 ]).enableRLS();
@@ -2866,6 +2867,7 @@ export const recipes = pgTable("recipes", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
+    unique("recipe_identity_company_unique").on(table.id, table.companyId),
     pgPolicy("sale_recipe_catalog_tenant", { for: "select", to: "public",
         using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid` }),
 ]).enableRLS();
@@ -2912,7 +2914,45 @@ export const recipeVersions = pgTable("recipe_versions", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
     recipeVersionsIdx: index("recipe_versions_recipe_idx").on(table.recipeId, table.versionNumber),
-}));
+    recipeVersionIdentityScope: unique("recipe_version_identity_scope_unique").on(table.id, table.recipeId, table.companyId),
+    recipeVersionTenant: pgPolicy("recipe_version_reader_tenant", { for: "select", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid` }),
+})).enableRLS();
+
+/** INV-02: publicación inmutable; no modifica fichas ni revisiones históricas. */
+export const recipeConsumptionPolicies = pgTable("recipe_consumption_policies", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    recipeId: uuid("recipe_id").notNull(),
+    recipeVersionId: uuid("recipe_version_id").notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    mode: text("mode").$type<"INGREDIENTS_ON_SALE" | "FINISHED_PRODUCT_ON_SALE">().notNull(),
+    inventoryItemId: uuid("inventory_item_id"),
+    unit: text("unit"),
+    publishedBy: text("published_by").notNull(),
+    reason: text("reason").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    const scope = sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid`;
+    return [
+        unique("recipe_consumption_policy_start_unique").on(table.companyId, table.recipeId, table.effectiveFrom),
+        unique("recipe_consumption_policy_version_unique").on(table.recipeVersionId),
+        foreignKey({ name: "recipe_consumption_policy_recipe_scope_fk", columns: [table.recipeId, table.companyId],
+            foreignColumns: [recipes.id, recipes.companyId] }),
+        foreignKey({ name: "recipe_consumption_policy_version_scope_fk", columns: [table.recipeVersionId, table.recipeId, table.companyId],
+            foreignColumns: [recipeVersions.id, recipeVersions.recipeId, recipeVersions.companyId] }),
+        foreignKey({ name: "recipe_consumption_policy_item_scope_fk", columns: [table.inventoryItemId, table.companyId],
+            foreignColumns: [inventoryItems.id, inventoryItems.companyId] }),
+        check("recipe_consumption_policy_mode_check", sql`(
+            (${table.mode} = 'INGREDIENTS_ON_SALE' AND ${table.inventoryItemId} IS NULL AND ${table.unit} IS NULL)
+            OR (${table.mode} = 'FINISHED_PRODUCT_ON_SALE' AND ${table.inventoryItemId} IS NOT NULL
+                AND ${table.unit} IS NOT NULL AND length(${table.unit}) > 0 AND ${table.unit} = btrim(${table.unit}))) IS TRUE`),
+        check("recipe_consumption_policy_day_check", sql`${table.effectiveFrom} BETWEEN '0001-01-01'::date AND '9999-12-31'::date`),
+        check("recipe_consumption_policy_actor_check", sql`${table.publishedBy} = btrim(${table.publishedBy}) AND length(${table.publishedBy}) BETWEEN 1 AND 256`),
+        check("recipe_consumption_policy_reason_check", sql`${table.reason} = btrim(${table.reason}) AND length(${table.reason}) BETWEEN 1 AND 1000`),
+        pgPolicy("recipe_consumption_policy_tenant", { for: "all", to: "public", using: scope, withCheck: scope }),
+    ];
+}).enableRLS();
 
 export const salesEntries = pgTable("sales_entries", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -3749,7 +3789,15 @@ export const configChangeLogs = pgTable("config_change_logs", {
     // C14.3 — la vigencia se resuelve con "el último cambio de este campo
     // anterior a esta fecha"; este índice es el que la hace barata.
     configChangeLogsParamIdx: index("config_change_logs_param_idx").on(table.companyId, table.fieldName, table.performedAt),
-}));
+    recipePolicyAuditReader: pgPolicy("recipe_policy_audit_reader", { for: "select", to: "public",
+        using: sql`${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND ${table.fieldName} LIKE 'recipe_consumption_policy:%'` }),
+    recipePolicyAuditWriter: pgPolicy("recipe_policy_audit_writer", { for: "insert", to: "public",
+        withCheck: sql`(${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND ${table.fieldName} ~ '^recipe_consumption_policy:[0-9a-f-]{36}$'
+            AND jsonb_typeof(${table.newValue}) = 'object'
+            AND length(btrim(${table.newValue}->>'auditReason')) BETWEEN 4 AND 1000) IS TRUE` }),
+})).enableRLS();
 
 // ---------------------------------------------------------------------------
 // M16: Pagos y Gastos / Caja Chica (T34)
