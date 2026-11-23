@@ -32,7 +32,12 @@ function createPool() {
     // Sin listener, un error en un cliente ocioso se emite como evento
     // 'error' no manejado y tumba el proceso de Node entero.
     pool.on("error", (error) => {
-        console.error("[db] pooled connection error:", error);
+        // Driver errors can carry the entire Client, including credentials.
+        // Keep only a bounded SQLSTATE/network code, never the object/message.
+        const candidate = (error as { code?: unknown })?.code;
+        const code = typeof candidate === "string" && (/^[0-9A-Z]{5}$/.test(candidate)
+            || ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND"].includes(candidate)) ? candidate : "UNKNOWN";
+        console.error("[db] pooled connection error:", { event: "database_pool_error", code });
     });
     return pool;
 }
