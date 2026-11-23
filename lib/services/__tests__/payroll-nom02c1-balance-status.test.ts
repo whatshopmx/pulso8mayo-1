@@ -38,6 +38,55 @@ function failingDb() {
 }
 
 describe("NOM-02.c1: saldo de vacaciones distingue ausente de fallo de consulta", () => {
+  it.each(["vacationAccruals", "leaveBalances"] as const)("%s vacío no acredita saldo cero", async (source) => {
+    const res = await resolveVacationsForPeriod({
+      ...base, vacationRequests: [approvedVacation], [source]: [],
+    });
+    expect(res.vacationBalanceStatus).toBe("MISSING");
+    expect(res.justification).toBe("VACATION_BALANCE_MISSING");
+    expect(res.vacationPrimeCents).toBe(0);
+  });
+
+  it("no usa acumulaciones de años futuros para pagar un período anterior", async () => {
+    const res = await resolveVacationsForPeriod({
+      ...base, vacationRequests: [approvedVacation],
+      vacationAccruals: [{ year: 2026, daysBalance: 2 }, { year: 2027, daysBalance: 12 }],
+    });
+    expect(res.vacationAvailableBalance).toBe(2);
+    expect(res.vacationDaysEligible).toBe(2);
+    expect(res.vacationPrimeCents).toBe(25000);
+  });
+
+  it("excluye acumulaciones que empiezan después del cierre incluso en el mismo año", async () => {
+    const res = await resolveVacationsForPeriod({
+      ...base, vacationRequests: [approvedVacation],
+      vacationAccruals: [
+        { year: 2026, daysBalance: 2, periodStart: "2026-05-15" },
+        { year: 2026, daysBalance: 12, periodStart: new Date("2026-06-01T00:00:00Z") },
+      ],
+    });
+    expect(res.vacationAvailableBalance).toBe(2);
+    expect(res.vacationPrimeCents).toBe(25000);
+  });
+
+  it("un saldo exclusivamente futuro queda MISSING, no AVAILABLE", async () => {
+    const res = await resolveVacationsForPeriod({
+      ...base, vacationRequests: [approvedVacation],
+      vacationAccruals: [{ year: 2027, daysBalance: 12 }],
+    });
+    expect(res.vacationBalanceStatus).toBe("MISSING");
+    expect(res.vacationDaysEligible).toBe(0);
+  });
+
+  it("aplica el mismo corte anual al fallback de permisos", async () => {
+    const res = await resolveVacationsForPeriod({
+      ...base, vacationRequests: [approvedVacation],
+      leaveBalances: [{ year: 2026, balance: 1 }, { year: 2027, balance: 12 }],
+    });
+    expect(res.vacationAvailableBalance).toBe(1);
+    expect(res.vacationPrimeCents).toBe(12500);
+  });
+
   it("saldo 0 explícito (precargado) es AVAILABLE y produce EXCEEDED", async () => {
     const res = await resolveVacationsForPeriod({
       ...base,

@@ -20,7 +20,7 @@ import {
   payrollPayslips,
   holidays
 } from "@/lib/db/schema";
-import { eq, and, gte, lte, sum, desc } from "drizzle-orm";
+import { eq, and, gte, lte, lt, sum, desc } from "drizzle-orm";
 import { timbrarNomina } from "./fiscal-service";
 import type { NominaDeduccion, NominaPercepcion } from "./fiscal-service";
 import { calcularAguinaldoAnual, DIAS_PRORRATEO } from "./aguinaldo-service";
@@ -383,6 +383,7 @@ export interface ResolveVacationsInput {
   vacationAccruals?: Array<{
     year: number;
     daysBalance: number;
+    periodStart?: Date | string;
     daysTaken?: number | null;
     daysAccrued?: number | null;
   }>;
@@ -1606,17 +1607,25 @@ export async function resolveVacationsForPeriod(
   let vacationBalanceStatus: VacationBalanceStatus = "MISSING";
 
   if (preloadedAccruals !== undefined) {
-    vacationAvailableBalance = preloadedAccruals.reduce(
+    const eligible = preloadedAccruals.filter(a =>
+      a.year <= Number(endDate.slice(0, 4)) &&
+      (!a.periodStart || (typeof a.periodStart === "string"
+        ? a.periodStart.slice(0, 10) : a.periodStart.toISOString().slice(0, 10)) <= endDate)
+    );
+    vacationAvailableBalance = eligible.reduce(
       (acc, a) => acc + Math.max(0, a.daysBalance ?? 0),
       0
     );
-    vacationBalanceStatus = "AVAILABLE";
+    vacationBalanceStatus = eligible.length > 0 ? "AVAILABLE" : "MISSING";
   } else if (preloadedLeaveBalances !== undefined) {
-    vacationAvailableBalance = preloadedLeaveBalances.reduce(
+    // Los callers legacy pueden suministrar saldo del período sin año; si lo
+    // declaran, una anualidad futura nunca financia vacaciones anteriores.
+    const eligible = preloadedLeaveBalances.filter(b => b.year === undefined || b.year <= Number(endDate.slice(0, 4)));
+    vacationAvailableBalance = eligible.reduce(
       (acc, b) => acc + Math.max(0, b.balance ?? 0),
       0
     );
-    vacationBalanceStatus = "AVAILABLE";
+    vacationBalanceStatus = eligible.length > 0 ? "AVAILABLE" : "MISSING";
   } else if (dbInstance) {
     try {
       const accrualRows = await dbInstance
@@ -1627,7 +1636,11 @@ export async function resolveVacationsForPeriod(
         .where(
           and(
             eq(vacationAccruals.userId, userId),
-            eq(vacationAccruals.companyId, companyId)
+            eq(vacationAccruals.companyId, companyId),
+            lte(vacationAccruals.year, Number(endDate.slice(0, 4))),
+            // La columna es timestamp sin zona: el límite exclusivo conserva
+            // todo el día civil final, sin depender de la zona del servidor.
+            lt(vacationAccruals.periodStart, new Date(Date.parse(`${endDate}T00:00:00Z`) + 86_400_000))
           )
         );
 
@@ -1649,7 +1662,9 @@ export async function resolveVacationsForPeriod(
             .where(
               and(
                 eq(leaveBalances.userId, userId),
-                eq(leaveTypes.name, "VACATION")
+                eq(leaveTypes.name, "VACATION"),
+                eq(leaveTypes.companyId, companyId),
+                lte(leaveBalances.year, Number(endDate.slice(0, 4)))
               )
             );
 
