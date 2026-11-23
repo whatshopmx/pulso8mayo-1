@@ -13,7 +13,7 @@ import {
 } from "@/lib/db/schema";
 import { ProductionService } from "@/lib/services/production-service";
 import { getSession } from "@/lib/auth";
-import { GET as getProduccion, POST as postProduccion } from "@/app/api/inventory/production/route";
+import { GET as getProduccion, POST as postProduccion, PATCH as patchProduccion } from "@/app/api/inventory/production/route";
 import { capturarError, crearSimulador, type DbSimulado } from "../../fixtures/db-simulado";
 import { EMPRESA_A, EMPRESA_B, SUCURSAL_A_1, SUCURSAL_A_2, SUCURSAL_B_1 } from "../../fixtures/tenant-isolation";
 
@@ -124,6 +124,55 @@ function base(): Record<string, unknown[]> {
 
 const sesion = (usuario: Record<string, unknown>) =>
   vi.mocked(getSession).mockResolvedValue({ user: usuario } as never);
+
+describe("PROD — actualización de órdenes conserva cierre y alcance", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const patch = (body: Record<string, unknown>) => patchProduccion(new Request("http://localhost", {
+    method: "PATCH", body: JSON.stringify({ orderId: ORDEN, ...body }),
+    headers: { "content-type": "application/json" },
+  }) as never);
+  const admin = () => sesion({ id: "admin-a", role: "ADMIN", companyId: EMPRESA_A, branchId: null });
+
+  it.each(["COMPLETED"])("no reabre una orden %s", async status => {
+    const rows = base(); (rows.productionOrders[0] as Record<string, unknown>).status = status;
+    const state = simularDb(rows); admin();
+    expect((await patch({ status: "PLANNED" })).status).toBe(409);
+    expect(state.escrituras).toHaveLength(0);
+  });
+  it("no completa una orden sin registrar resultado e insumos", async () => {
+    const state = simularDb(base()); admin();
+    expect((await patch({ status: "COMPLETED" })).status).toBe(400);
+    expect(state.escrituras).toHaveLength(0);
+  });
+  it("un gerente no modifica la orden de otra sucursal propia", async () => {
+    const state = simularDb(base());
+    sesion({ id: "manager-a2", role: "GERENTE", companyId: EMPRESA_A, branchId: SUCURSAL_A_2 });
+    expect((await patch({ notes: "ajena" })).status).toBe(404);
+    expect(state.escrituras).toHaveLength(0);
+  });
+  it("sin rol no modifica órdenes", async () => {
+    const state = simularDb(base());
+    sesion({ id: "user-a", companyId: EMPRESA_A });
+    expect((await patch({ status: "CANCELLED" })).status).toBe(403);
+    expect(state.escrituras).toHaveLength(0);
+  });
+  it("cancela una orden abierta con permisos", async () => {
+    const state = simularDb(base()); admin();
+    expect((await patch({ status: "CANCELLED" })).status).toBe(200);
+    expect(state.filas.productionOrders[0]).toMatchObject({ status: "CANCELLED" });
+  });
+  it("conserva la reactivación de una orden cancelada sin producción", async () => {
+    const rows = base(); (rows.productionOrders[0] as Record<string, unknown>).status = "CANCELLED";
+    const state = simularDb(rows); admin();
+    expect((await patch({ status: "PLANNED" })).status).toBe(200);
+    expect(state.filas.productionOrders[0]).toMatchObject({ status: "PLANNED" });
+  });
+  it.each([{ status: "INVALID" }, { plannedQuantity: 0.1 }, { notes: 123 }])("rechaza actualización inválida %j", async body => {
+    const state = simularDb(base()); admin();
+    expect((await patch(body)).status).toBe(400);
+    expect(state.escrituras).toHaveLength(0);
+  });
+});
 
 describe("C17.2 — crear la orden comprueba receta y sucursal", () => {
   beforeEach(() => {

@@ -1,0 +1,2 @@
+ALTER TABLE "production_results" ADD COLUMN "finished_batch_id" uuid;--> statement-breakpoint
+CREATE UNIQUE INDEX "production_results_finished_batch_unique" ON "production_results" USING btree ("finished_batch_id") WHERE "production_results"."finished_batch_id" IS NOT NULL;

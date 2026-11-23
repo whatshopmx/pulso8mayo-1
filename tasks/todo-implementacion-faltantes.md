@@ -219,8 +219,8 @@ Ver [evidencia y límites](evidencia/2026-11-16/CONSOLIDACION/README.md). Se man
 
 ## 5. Producción, conteos y costos de inventario
 
-- [ ] **PROD-00** [R/S] Rastrear modelos y consumidores de producción
-- [ ] **PROD-01.a** [I/M] Crear lote de producto terminado
+- [x] **PROD-00** [R/S] Rastrear modelos y consumidores de producción — aceptado D con `INV-02` cerrado y 67/67 pruebas focales de producción/prep-list. [Evidencia](evidencia/2026-11-22/PROD-00/README.md).
+- [x] **PROD-01.a** [I/M] Crear lote de producto terminado — aceptado V1/V2 (`0161`, alta atómica con costo/caducidad/genealogía/vínculo único, 5/5 PGlite + 67/67 regresión + 1/1 Neon nativo + ESLint). [Evidencia](evidencia/2026-11-22/PROD-01.a/accepted.md).
 - [ ] **PROD-01.b** [I/M] Consumir elaborado sin descontar dos veces
 - [ ] **Checkpoint 5.1** — revisar los últimos 2–3 hijos ejecutados: pruebas del recorrido, tipos/lint, evidencia y regresión aplicable.
 - [ ] **PROD-02** [I/M] Unificar planificación y ejecución visible

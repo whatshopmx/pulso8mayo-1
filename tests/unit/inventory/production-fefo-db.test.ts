@@ -4,8 +4,13 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import * as tables from '@/lib/db/schema';
 import { ProductionService } from '@/lib/services/production-service';
+import { PATCH } from '@/app/api/inventory/production/route';
+import { PrepListService } from '@/lib/services/prep-list-service';
 
 const state = vi.hoisted(() => ({ close: async () => {} }));
+vi.mock('@/lib/auth', () => ({ getSession: async () => ({ user: {
+  id: 'actor-a', role: 'ADMIN', companyId: 'aaaaaaaa-0000-4000-8000-000000000001', branchId: null,
+} }) }));
 vi.mock('@/lib/db', async () => {
   const { PGlite } = await import('@electric-sql/pglite');
   const { drizzle } = await import('drizzle-orm/pglite');
@@ -23,6 +28,7 @@ const itemA2 = 'aaaaaaaa-0000-4000-8000-000000000022';
 const itemB = 'bbbbbbbb-0000-4000-8000-000000000021';
 const recipeA = 'aaaaaaaa-0000-4000-8000-000000000031';
 const recipeB = 'bbbbbbbb-0000-4000-8000-000000000031';
+const otherRecipeA = 'aaaaaaaa-0000-4000-8000-000000000032';
 const orderA = 'aaaaaaaa-0000-4000-8000-000000000041';
 const orderB = 'bbbbbbbb-0000-4000-8000-000000000041';
 const workflowId = 'aaaaaaaa-0000-4000-8000-000000000051';
@@ -50,6 +56,9 @@ const snapshot = () => Promise.all([
   db.select().from(tables.inventoryMovements).orderBy(tables.inventoryMovements.id),
   db.select().from(tables.inventoryWaste).orderBy(tables.inventoryWaste.id),
 ]);
+const patchOrder = (status: string) => PATCH(new Request('http://localhost/api/inventory/production', {
+  method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId: orderA, status }),
+}) as never);
 async function rejectsUnchanged(action: () => Promise<unknown>, statusCode = 409) {
   const before = await snapshot();
   await expect(action()).rejects.toMatchObject({ statusCode });
@@ -72,7 +81,7 @@ beforeAll(async () => {
     ON production_results(workflow_instance_id,recipe_id) WHERE workflow_instance_id IS NOT NULL`));
   await db.execute(sql`INSERT INTO branches (id,company_id) VALUES (${branch},${companyA}),(${otherBranch},${companyA}),(${foreignBranch},${companyB})`);
   await db.execute(sql`INSERT INTO inventory_items (id,company_id,unit) VALUES (${itemA},${companyA},'KG'),(${itemA2},${companyA},'KG'),(${itemB},${companyB},'KG')`);
-  await db.execute(sql`INSERT INTO recipes (id,company_id,name,base_yield,unit) VALUES (${recipeA},${companyA},'Recipe A',1,'PORTION'),(${recipeB},${companyB},'Recipe B',1,'PORTION')`);
+  await db.execute(sql`INSERT INTO recipes (id,company_id,name,base_yield,unit) VALUES (${recipeA},${companyA},'Recipe A',1,'PORTION'),(${recipeB},${companyB},'Recipe B',1,'PORTION'),(${otherRecipeA},${companyA},'Other recipe A',1,'PORTION')`);
 }, 60_000);
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE inventory_batches, production_results, production_ingredients, production_orders, inventory_movements, inventory_waste, recipe_items, unit_conversions`);
@@ -116,6 +125,52 @@ describe('FEFO-04B-3: registro de producción con SQL real', () => {
   });
   it('no completa una orden de otra empresa', async () => {
     await batch(); await rejectsUnchanged(() => record({ orderId: orderB }), 400);
+  });
+  it('una orden completada no permite otro resultado ni un segundo descuento manual', async () => {
+    await batch(); await record();
+    await rejectsUnchanged(() => record(), 409);
+  });
+  it('PATCH no reabre el cierre persistido ni permite consumir una segunda vez', async () => {
+    await batch(); await record(); const before = await snapshot();
+    expect((await patchOrder('PLANNED')).status).toBe(409);
+    expect(await snapshot()).toEqual(before);
+    await rejectsUnchanged(() => record(), 409);
+  });
+  it('la edición de prep list tampoco reabre una producción completada', async () => {
+    await batch(); await record(); const before = await snapshot();
+    await expect(PrepListService.updateLine({ companyId: companyA, branchId: branch, orderId: orderA,
+      patch: { status: 'PLANNED' } })).rejects.toMatchObject({ code: 'ORDER_NOT_FOUND' });
+    expect(await snapshot()).toEqual(before);
+  });
+  it('prep list no puede marcar COMPLETED sin producir', async () => {
+    await batch(); const before = await snapshot();
+    await expect(PrepListService.updateLine({ companyId: companyA, branchId: branch, orderId: orderA,
+      patch: { status: 'COMPLETED' } })).rejects.toMatchObject({ statusCode: 400 });
+    expect(await snapshot()).toEqual(before);
+  });
+  it('cancelar por HTTP impide consumir; reactivar permite un único cierre', async () => {
+    await batch();
+    expect((await patchOrder('CANCELLED')).status).toBe(200);
+    await rejectsUnchanged(() => record(), 409);
+    expect((await patchOrder('PLANNED')).status).toBe(200);
+    await record();
+    expect((await db.select().from(tables.inventoryBatches))[0].currentQuantity).toBe('1.0000');
+    await rejectsUnchanged(() => record(), 409);
+  });
+  it('una orden cancelada no genera producción ni consumo', async () => {
+    await batch();
+    await db.update(tables.productionOrders).set({ status: 'CANCELLED' }).where(eq(tables.productionOrders.id, orderA));
+    await rejectsUnchanged(() => record(), 409);
+  });
+  it('no cierra una orden propia utilizando una receta diferente de la planeada', async () => {
+    await batch();
+    // La receta capturada sigue siendo propia; la incoherencia es de la orden.
+    await db.update(tables.productionOrders).set({ recipeId: otherRecipeA }).where(eq(tables.productionOrders.id, orderA));
+    await rejectsUnchanged(() => record(), 400);
+  });
+  it('un workflow distinto no puede volver a producir una orden completada', async () => {
+    await batch(); await record({ workflowInstanceId: workflowId });
+    await rejectsUnchanged(() => record({ workflowInstanceId: id(999) }), 409);
   });
   it('sin lote explícito aplica FEFO y distribuye cantidad/costo/esperado sin duplicar', async () => {
     await batch(101, { currentQuantity: '0.6000' });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { enforceBranchScope, assertBranchOfCompany } from "@/lib/branch-scope";
-import type { Role } from "@/lib/permissions";
+import { hasPermission, type Role } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { productionOrders, productionResults, productionIngredients, recipes, inventoryItems, inventoryBatches } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -17,6 +17,15 @@ const createOrderSchema = z.object({
     plannedDate: z.string().transform(s => new Date(s)),
     notes: z.string().optional(),
 });
+
+const updateOrderSchema = z.object({
+    orderId: z.string().uuid(),
+    // COMPLETED sólo se escribe al registrar resultado y consumo atómicos.
+    status: z.enum(["PLANNED", "IN_PROGRESS", "CANCELLED"]).optional(),
+    notes: z.string().optional(),
+    plannedQuantity: z.number().int().positive().max(2_147_483_647).optional(),
+}).strict().refine(data => data.status !== undefined || data.notes !== undefined || data.plannedQuantity !== undefined,
+    { message: "Indica un cambio para la orden" });
 
 const recordProductionSchema = z.object({
     orderId: z.string().optional(),
@@ -284,51 +293,40 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 });
         }
 
-        const body = await req.json();
-        const { orderId, status, notes, plannedQuantity } = body;
-
-        if (!orderId || typeof orderId !== "string") {
-            return NextResponse.json({ error: "orderId es requerido" }, { status: 400 });
+        const role = (session.user as { role?: Role }).role;
+        if (!role || !hasPermission(role, "inventory", "update")) {
+            return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
         }
+        const branchId = enforceBranchScope(role, session.user.branchId);
+        const { orderId, ...changes } = updateOrderSchema.parse(await req.json());
+        const scope = and(eq(productionOrders.id, orderId),
+            eq(productionOrders.companyId, session.user.companyId),
+            branchId ? eq(productionOrders.branchId, branchId) : undefined);
 
-        const updateData: Record<string, unknown> = {
-            updatedAt: new Date(),
-        };
-
-        if (status && ["PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(status)) {
-            updateData.status = status;
-            if (status === "COMPLETED") {
-                updateData.completedAt = new Date();
-                updateData.completedBy = session.user.id;
+        const response = await db.transaction(async tx => {
+            // Mismo lock que recordProduction: cancelar/editar no puede pisar
+            // un cierre que acaba de consumir ingredientes.
+            const [order] = await tx.select({ status: productionOrders.status })
+                .from(productionOrders).where(scope).for("update").limit(1);
+            if (!order) {
+                return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
             }
-        }
-
-        if (notes !== undefined) {
-            updateData.notes = notes;
-        }
-
-        if (plannedQuantity !== undefined && Number(plannedQuantity) > 0) {
-            updateData.plannedQuantity = Math.round(Number(plannedQuantity));
-        }
-
-        const [updatedOrder] = await db
-            .update(productionOrders)
-            .set(updateData)
-            .where(
-                and(
-                    eq(productionOrders.id, orderId),
-                    eq(productionOrders.companyId, session.user.companyId)
-                )
-            )
-            .returning();
-
-        if (!updatedOrder) {
-            return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
-        }
-
-        return NextResponse.json({ success: true, order: updatedOrder });
+            if (order.status === "COMPLETED") {
+                return NextResponse.json({ error: "La orden está cerrada y no admite cambios" }, { status: 409 });
+            }
+            const [updatedOrder] = await tx.update(productionOrders)
+                .set({ ...changes, updatedAt: new Date() }).where(scope).returning();
+            return NextResponse.json({ success: true, order: updatedOrder });
+        });
+        return response;
     } catch (error) {
         console.error("Update production order error:", error);
+        if (error instanceof z.ZodError || error instanceof SyntaxError) {
+            return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+        }
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         return NextResponse.json({ error: "Error al actualizar orden" }, { status: 500 });
     }
 }

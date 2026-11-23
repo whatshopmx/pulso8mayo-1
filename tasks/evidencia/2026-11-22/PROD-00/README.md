@@ -2,7 +2,7 @@
 
 Base: `d05eae09d67ed0b190b6785da168a8fb8b564fd0`, más diff local. Al comenzar ya estaban modificados `production-service.ts` y `production-fefo-db.test.ts`: guardas de orden/receta/estado y cuatro regresiones. Se conserva ese trabajo y se amplía la verificación. Sin migraciones ni escrituras en bases externas.
 
-Estado: rastreo documental realizado; **PROD-00 sin aceptar**, porque INV-02 sigue pendiente. Esta preparación no acredita PROD-01.a/b ni PROD-02.
+Estado: **PROD-00 aceptado (D)** tras cerrarse `INV-02` en `2d3f879` y repetirse **67/67** pruebas focales (`exit 0`, 27.35 s). Esta aceptación destraba `PROD-01.a`; no acredita `PROD-01.a/b` ni `PROD-02`.
 
 ## Modelo y consumidores observados
 

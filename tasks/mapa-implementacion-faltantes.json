@@ -4122,15 +4122,15 @@
       ]
     },
     "PROD-00": {
-      "state": "en curso",
+      "state": "aceptado",
       "evidence": [
         {
           "file": "tasks/evidencia/2026-11-22/PROD-00/README.md",
-          "head": "d05eae09d67ed0b190b6785da168a8fb8b564fd0",
-          "environment": "Windows local; preparación, sin aceptar dependencia INV-02",
+          "head": "2d3f8795078a8e58276f156f562ece3e71c1ff05",
+          "environment": "Rastreo de modelos/consumidores (production_orders/results/plans/batches) y decisión documentada con INV-02 aceptado; 67/67 pruebas focales de producción/prep-list exit 0.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/inventory/production-scope.test.ts tests/unit/inventory/production-fefo-db.test.ts lib/inventory/__tests__/prep-list.test.ts",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle tests/unit/inventory/production-scope.test.ts tests/unit/inventory/production-fefo-db.test.ts lib/inventory/__tests__/prep-list.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             }
           ],
@@ -5951,6 +5951,38 @@
             },
             {
               "command": "$env:RUN_RECIPE_POLICY_RUNTIME='1'; node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/recipe-policy-runtime-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            }
+          ],
+          "checks": [
+            "V1",
+            "V2"
+          ]
+        }
+      ]
+    },
+    "PROD-01.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-22/PROD-01.a/accepted.md",
+          "head": "2d3f8795078a8e58276f156f562ece3e71c1ff05",
+          "environment": "V1 PGlite (5/5 + 67/67 regresión focal) + V2 PostgreSQL nativo Neon desechable baseline 0158 + 0159/0160/0161 (1/1 con alta atómica, genealogía, rollback 409, idempotencia y limpieza) + ESLint exit 0. Sin despliegue ni aplicación operativa de 0161.",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle tests/unit/inventory/production-finished-batch-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle tests/unit/inventory/production-scope.test.ts tests/unit/inventory/production-fefo-db.test.ts lib/inventory/__tests__/prep-list.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts tests/integration/production-finished-batch-db.test.ts --maxWorkers=1 --pool=threads",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/production-service.ts tests/unit/inventory/production-finished-batch-db.test.ts tests/integration/production-finished-batch-db.test.ts",
               "exit": 0
             }
           ],

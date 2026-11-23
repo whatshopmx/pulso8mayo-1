@@ -37,7 +37,8 @@ import {
     recipes,
     users,
 } from "@/lib/db/schema";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { ApiError } from "@/lib/api/error";
 import {
     derivePrepLineState,
     groupByStation,
@@ -274,12 +275,19 @@ export class PrepListService {
             status?: typeof productionOrders.$inferInsert["status"];
         };
     }) {
+        if (params.patch.status !== undefined
+            && !["PLANNED", "IN_PROGRESS", "CANCELLED"].includes(params.patch.status)) {
+            throw ApiError.badRequest("Para completar la línea registra la producción; el estado solicitado no es editable.");
+        }
         const [updated] = await db.update(productionOrders)
             .set({ ...params.patch, updatedAt: new Date() } as Partial<typeof productionOrders.$inferInsert>)
             .where(and(
                 eq(productionOrders.id, params.orderId),
                 eq(productionOrders.companyId, params.companyId),
                 eq(productionOrders.branchId, params.branchId),
+                // El UPDATE reevalúa la condición tras esperar un cierre
+                // concurrente; no puede reabrir una producción consumida.
+                ne(productionOrders.status, "COMPLETED"),
             ))
             .returning();
         if (!updated) throw new PrepListError("ORDER_NOT_FOUND", "La línea no existe en esta sucursal");

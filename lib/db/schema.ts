@@ -441,6 +441,8 @@ export const productionResults = pgTable("production_results", {
      */
     expiresAt: timestamp("expires_at"),
     ingredientCost: integer("ingredient_cost").default(0), // Sum of consumed ingredients in cents
+    /** PROD-01.a: lote de producto terminado creado atómicamente por este resultado. */
+    finishedBatchId: uuid("finished_batch_id"),
 
     /**
      * Task 5 (loteprod §6.4). Ciclo de vencimiento en línea sobre el `expiresAt`
@@ -476,6 +478,10 @@ export const productionResults = pgTable("production_results", {
     productionResultsHoldPendingIdx: index("production_results_hold_pending_idx")
         .on(table.expiresAt)
         .where(sql`${table.expiresAt} IS NOT NULL AND ${table.discardedAt} IS NULL`),
+    // PROD-01.a: vínculo 1:1 entre el resultado de producción y el lote terminado.
+    productionResultsFinishedBatchUnique: uniqueIndex("production_results_finished_batch_unique")
+        .on(table.finishedBatchId)
+        .where(sql`${table.finishedBatchId} IS NOT NULL`),
 }));
 
 export const productionIngredients = pgTable("production_ingredients", {

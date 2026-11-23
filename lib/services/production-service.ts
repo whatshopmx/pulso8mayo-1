@@ -2,9 +2,9 @@ import { db } from "@/lib/db";
 import {
     productionOrders, productionResults, productionIngredients,
     inventoryBatches, inventoryItems, inventoryMovements, recipes, recipeItems, salesEntries, branches,
-    unitConversions,
+    unitConversions, recipeConsumptionPolicies,
 } from "@/lib/db/schema";
-import { eq, and, gte, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { ApiError } from "@/lib/api/error";
 import { allocateScopedBatches, type DbExecutor } from "./fefo-allocator";
 
@@ -30,6 +30,10 @@ export interface RecordProductionInput {
     workflowInstanceId?: string;
     producedQuantity: number;
     unit: string;
+    /** PROD-01.a: artículo de inventario del lote terminado a crear (opcional si la política INV-02 lo declara). */
+    finishedItemId?: string;
+    /** PROD-01.a: caducidad explícita del lote terminado; si se omite, hereda hold time de la receta. */
+    finishedExpirationDate?: Date | null;
     notes?: string;
     recordedBy: string;
     ingredients: ProductionIngredientInput[];
@@ -236,25 +240,43 @@ async function assertRecipeOfCompany(
  */
 async function assertOrderOfProduction(
     executor: DbExecutor,
-    companyId: string,
-    branchId: string,
-    orderId: string,
-): Promise<void> {
+    data: RecordProductionInput,
+): Promise<boolean> {
     const [order] = await executor
-        .select({ id: productionOrders.id })
+        .select({ id: productionOrders.id, recipeId: productionOrders.recipeId, status: productionOrders.status })
         .from(productionOrders)
         .where(and(
-            eq(productionOrders.id, orderId),
-            eq(productionOrders.companyId, companyId),
-            eq(productionOrders.branchId, branchId),
+            eq(productionOrders.id, data.orderId!),
+            eq(productionOrders.companyId, data.companyId),
+            eq(productionOrders.branchId, data.branchId),
         ))
+        .for("update")
         .limit(1);
 
     if (!order) {
         throw ApiError.badRequest(
-            `La orden ${orderId} no existe para esta empresa y sucursal.`
+            `La orden ${data.orderId} no existe para esta empresa y sucursal.`
         );
     }
+    if (order.recipeId !== data.recipeId) {
+        throw ApiError.badRequest("La receta capturada no corresponde a la orden de producción.");
+    }
+    if (order.status === "CANCELLED") {
+        throw ApiError.conflict("La orden fue cancelada. No se registró producción ni consumo.");
+    }
+    if (order.status === "COMPLETED") {
+        // Preserve workflow retries only when this exact origin already closed
+        // this order. A new/manual origin cannot consume ingredients again.
+        if (data.workflowInstanceId) {
+            const [existing] = await executor.select({ id: productionResults.id }).from(productionResults)
+                .where(and(eq(productionResults.companyId, data.companyId), eq(productionResults.branchId, data.branchId),
+                    eq(productionResults.orderId, order.id), eq(productionResults.recipeId, data.recipeId),
+                    eq(productionResults.workflowInstanceId, data.workflowInstanceId))).limit(1);
+            if (existing) return true;
+        }
+        throw ApiError.conflict("La orden ya fue completada. No se registró producción ni consumo adicionales.");
+    }
+    return false;
 }
 
 interface NormalizedIngredient {
@@ -407,6 +429,99 @@ async function normalizeIngredients(
     return normalized;
 }
 
+interface FinishedTarget {
+    itemId: string;
+    quantity: number;
+    unit: string;
+}
+
+/**
+ * PROD-01.a: resuelve el artículo de producto terminado y convierte la cantidad
+ * producida a la unidad de inventario antes de abrir el resultado.
+ * Exige insumos reales (>0) para impedir stock ficticio.
+ */
+async function resolveFinishedTarget(
+    executor: DbExecutor,
+    data: RecordProductionInput,
+    ingredients: NormalizedIngredient[],
+): Promise<FinishedTarget | null> {
+    let policyItemId: string | undefined;
+    const canProbePolicy = typeof (executor as { execute?: unknown }).execute === "function";
+    if (canProbePolicy) {
+        const reg = await executor.execute<{ tbl: string | null }>(
+            sql`SELECT to_regclass('public.recipe_consumption_policies') AS tbl`
+        );
+        if (reg.rows?.[0]?.tbl) {
+            const today = new Date().toISOString().slice(0, 10);
+            const [activePolicy] = await executor
+                .select({
+                    mode: recipeConsumptionPolicies.mode,
+                    inventoryItemId: recipeConsumptionPolicies.inventoryItemId,
+                })
+                .from(recipeConsumptionPolicies)
+                .where(and(
+                    eq(recipeConsumptionPolicies.companyId, data.companyId),
+                    eq(recipeConsumptionPolicies.recipeId, data.recipeId),
+                    lte(recipeConsumptionPolicies.effectiveFrom, today),
+                ))
+                .orderBy(desc(recipeConsumptionPolicies.effectiveFrom))
+                .limit(1);
+            if (activePolicy?.mode === "FINISHED_PRODUCT_ON_SALE" && activePolicy.inventoryItemId) {
+                policyItemId = activePolicy.inventoryItemId;
+            }
+        }
+    }
+
+    if (data.finishedItemId && policyItemId && data.finishedItemId !== policyItemId) {
+        throw ApiError.badRequest(
+            "El artículo terminado no coincide con la política de consumo vigente de la receta."
+        );
+    }
+
+    const targetItemId = data.finishedItemId ?? policyItemId;
+    if (!targetItemId) return null;
+
+    if (!Number.isFinite(data.producedQuantity) || data.producedQuantity <= 0) {
+        throw ApiError.badRequest(
+            "La cantidad producida debe ser mayor a cero para crear un lote de producto terminado."
+        );
+    }
+
+    const hasConsumedIngredients = ingredients.some((ing) => ing.actualQuantity > 0);
+    if (!hasConsumedIngredients) {
+        throw ApiError.badRequest(
+            "No se puede crear un lote de producto terminado sin consumo de insumos."
+        );
+    }
+
+    const [finishedItem] = await executor
+        .select({ id: inventoryItems.id, unit: inventoryItems.unit })
+        .from(inventoryItems)
+        .where(and(
+            eq(inventoryItems.id, targetItemId),
+            eq(inventoryItems.companyId, data.companyId),
+        ))
+        .limit(1);
+
+    if (!finishedItem) {
+        throw ApiError.badRequest(
+            `El artículo de producto terminado ${targetItemId} no existe para esta empresa.`
+        );
+    }
+
+    const fromUnit = data.unit?.trim();
+    if (!fromUnit) {
+        throw ApiError.badRequest("La producción debe declarar una unidad válida para crear el lote terminado.");
+    }
+    const toUnit = (finishedItem.unit || fromUnit).trim();
+    const factor = await unitFactor(executor, data.companyId, fromUnit, toUnit, new Map());
+    return {
+        itemId: finishedItem.id,
+        quantity: data.producedQuantity * factor,
+        unit: toUnit,
+    };
+}
+
 /**
  * Cuerpo transaccional de FEFO-04B-3a. No abre transacción: la recibe para
  * que `produceRecipeWithFefo` conserve el lock hasta la última escritura.
@@ -417,15 +532,17 @@ async function recordProductionInTransaction(
 ): Promise<{
     id: string;
     ingredientCost: number;
+    finishedBatchId?: string | null;
     shortfalls: { itemId: string; batchId: string | null; missing: number; unit: string }[];
 } & Record<string, unknown> | null> {
     await assertBranchOfCompany(q, data.companyId, data.branchId);
     await assertRecipeOfCompany(q, data.companyId, data.recipeId);
     if (data.orderId) {
-        await assertOrderOfProduction(q, data.companyId, data.branchId, data.orderId);
+        if (await assertOrderOfProduction(q, data)) return null;
     }
 
     const ingredients = await normalizeIngredients(q, data);
+    const finishedTarget = await resolveFinishedTarget(q, data, ingredients);
 
     // Task 4 (§6.4) — ventana de retención en línea. El vencimiento sale de
     // `now()` del servidor, no del reloj del proceso: `production_date` usa
@@ -553,8 +670,50 @@ async function recordProductionInTransaction(
     }
 
     const ingredientCost = Math.round(ingredientCostExact);
+    let finishedBatchId: string | null = null;
+
+    if (finishedTarget) {
+        const finishedUnitCost = Math.round(ingredientCostExact / finishedTarget.quantity);
+        const parentBatchIds = [...new Set(
+            rows.map((row) => row.batchId).filter((id): id is string => Boolean(id)),
+        )].sort();
+        const expirationDate = data.finishedExpirationDate !== undefined
+            ? data.finishedExpirationDate
+            : (result.expiresAt ?? null);
+
+        const [finishedBatch] = await q.insert(inventoryBatches).values({
+            itemId: finishedTarget.itemId,
+            branchId: data.branchId,
+            lotNumber: `PROD-${result.id.slice(0, 8).toUpperCase()}`,
+            productionDate: result.productionDate ?? now,
+            expirationDate,
+            receivedAt: now,
+            initialQuantity: toQuantity(finishedTarget.quantity),
+            currentQuantity: toQuantity(finishedTarget.quantity),
+            unitCost: finishedUnitCost,
+            status: "AVAILABLE",
+            origin: "PRODUCTION",
+            parentBatchIds,
+            createdAt: now,
+            updatedAt: now,
+        }).returning({ id: inventoryBatches.id });
+
+        finishedBatchId = finishedBatch.id;
+
+        await q.insert(inventoryMovements).values({
+            branchId: data.branchId,
+            itemId: finishedTarget.itemId,
+            batchId: finishedBatch.id,
+            type: "RECEIVING",
+            quantityChange: toQuantity(finishedTarget.quantity),
+            reason: `Alta de producción terminada ${result.id}`,
+            referenceId: result.id,
+            performedBy: data.recordedBy,
+        });
+    }
+
     await q.update(productionResults)
-        .set({ ingredientCost, updatedAt: now })
+        .set(finishedBatchId ? { ingredientCost, finishedBatchId, updatedAt: now } : { ingredientCost, updatedAt: now })
         .where(eq(productionResults.id, result.id));
 
     if (data.orderId) {
@@ -566,5 +725,5 @@ async function recordProductionInTransaction(
             ));
     }
 
-    return { ...result, ingredientCost, shortfalls: [] };
+    return { ...result, ingredientCost, finishedBatchId, shortfalls: [] };
 }
