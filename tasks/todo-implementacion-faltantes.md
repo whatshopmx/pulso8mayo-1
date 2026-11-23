@@ -2,6 +2,8 @@
 
 Plan: [implementación revisada](../plans/2026-11-11-plan-implementacion-faltantes.md). Base: [investigación](../docs/2026-11-11-investigacion-plan-faltantes.md).
 
+Continuación historia de vacaciones 2026-11-23: contrato puro V1, **22** casos nuevos y **61/61** con regresión, lint/tipos estrictos limpios y build de aplicación 455/455 exit 0. Cobertura y corte de conocimiento explícitos, consumo por día/vigencia sin doble descuento, conflictos sin saldo numérico y conservación de historia ante eventos posteriores. Sin activación ni aceptación del historial: persistencia, escritores, puente de permisos, lector y V2/V3 siguen abiertos; se mantienen 80 aceptados. [Contrato, desglose y evidencia](evidencia/2026-11-23/NOM-02.c1.history-contract/README.md).
+
 Checkpoint HTTP/fechas de vacaciones 2026-11-23: **NOM-02.c1.http y NOM-02.c1.civil-days aceptados V1/V2/V3 aisladas; 80 registros aceptados**. Pantalla por alcance/autoservicio, errores y cancelación corregidos; **109/109** focales, **2/2** nativas del archivo runtime y **1/1** final Next/Better Auth/Chromium/PostgreSQL, con fechas 20–22, 503/reintento, logout/401 y limpieza verificados. Build final con tipos/455 páginas exit 0. Sin adopción operativa ni cierre de saldo histórico/NOM-02.c1/filas 09.11 y 10.05. [Evidencia y límites](evidencia/2026-11-23/NOM-02.c1.http-next/README.md).
 
 Checkpoint runtime de vacaciones 2026-11-23: **`NOM-02.c1.http.rls` y `NOM-02.c1.http.runtime` aceptados V1/V2 aisladas; `SEC-00.db-pool-logs` aceptado V1**. 77/77 unitarias, 2/2 nativas de vacaciones con compatibilidad del lector de nómina y barrera sobre dos PIDs, más regresión nativa de producción; tipos/lint/build 455/455 exit 0. `NOM-02.c1.http` queda en V2, sin V3 con sesión/navegador reales. Candidata `0163` solo en bases desechables; sin adopción operativa ni cierre de filas 09.11/10.05. [Evidencia, decisiones y límites](evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md).
@@ -174,6 +176,14 @@ Ver [evidencia y límites](evidencia/2026-11-16/CONSOLIDACION/README.md). Se man
 - [x] **NOM-02.c1.http.rls** [I/M] Preparar RLS y privilegios de solicitudes — aceptado V1/V2 en aislado; candidata 0163, 14 casos SQL de roles, referencias y transiciones, lectura legacy de nómina preservada. Sin migración operativa ni FORCE sobre propietario. [Evidencia](evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md).
 - [x] **NOM-02.c1.http.runtime** [I/M] Conectar rol dedicado y contexto transaccional — aceptado V1/V2 en aislado; URI dueña/legacy/configuración inválida rechazada sin fallback, catálogo denegado al rol, carrera 200/409 con dos PIDs. Auth/dispatcher simulados y V3 pendiente en el recorrido padre. [Evidencia](evidencia/2026-11-23/NOM-02.c1.http-runtime/README.md).
 - [x] **NOM-02.c1.civil-days** [I/M] Conservar días civiles entre API, navegador y cálculo — aceptado V1/V2/V3 aisladas; objetos Date de DB y strings cuentan los mismos días, UI conserva 20–22 contra servidor UTC. Sin reescritura de historia. [Evidencia](evidencia/2026-11-23/NOM-02.c1.http-next/README.md).
+- [ ] **NOM-02.c1.history** [I/P] Reconstruir historia verificable y retirar saldos mutables como fuente de nómina — sin aceptación; [contrato y secuencia](../plans/2026-11-23-vacation-history.md).
+- [ ] **NOM-02.c1.history.contract** [I/M] Reconstrucción pura al corte, por cobertura/vigencia/consumo — V1 22 casos; sin selección SQL. [Evidencia](evidencia/2026-11-23/NOM-02.c1.history-contract/README.md).
+- [ ] **NOM-02.c1.history.schema** [I/M] Persistir fuentes y eventos inmutables con RLS y privilegios mínimos.
+- [ ] **NOM-02.c1.history.grants** [I/M] Administrar aperturas/créditos verificados y cerrar asignaciones sin capacidad administrativa.
+- [ ] **NOM-02.c1.history.decisions** [I/M] Registrar decisiones de vacaciones atómicamente con la historia.
+- [ ] **NOM-02.c1.history.leave** [I/M] Integrar permisos VACATION y sus escritores sin duplicar solicitudes/saldos.
+- [ ] **NOM-02.c1.history.reader** [I/M] Conectar nómina a historia al corte sin fallback mutable; conservar procedencia.
+- [ ] **NOM-02.c1.history.acceptance** [A/M] Aceptar historia integrada con dos empresas, rol independiente, carreras, corrección y nómina.
 - [ ] **NOM-02.d1** [I/M] Calcular ISR ordinario
 - [ ] **Checkpoint 2.2** — revisar los últimos 2–3 hijos ejecutados: pruebas del recorrido, tipos/lint, evidencia y regresión aplicable.
 - [ ] **NOM-02.d2** [I/M] Calcular deducción obrera de seguridad social

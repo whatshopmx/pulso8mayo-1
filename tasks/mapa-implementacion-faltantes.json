@@ -1,6 +1,54 @@
 {
   "tasks": [
     {
+      "id": "NOM-02.c1.history",
+      "title": "Reconstruir vacaciones desde historia verificable y cerrar la dependencia de saldos mutables",
+      "type": "I", "size": "P", "checks": ["V1", "V2", "V3"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http"]
+    },
+    {
+      "id": "NOM-02.c1.history.contract", "parent": "NOM-02.c1.history",
+      "title": "Fijar reconstrucción histórica por cobertura, vigencia, consumo civil y corte de conocimiento",
+      "type": "I", "size": "M", "checks": ["V1"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http", "NOM-02.c1.civil-days"]
+    },
+    {
+      "id": "NOM-02.c1.history.schema", "parent": "NOM-02.c1.history",
+      "title": "Persistir fuentes y eventos inmutables de historia con alcance y privilegios mínimos",
+      "type": "I", "size": "M", "checks": ["V1", "V2"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http", "NOM-02.c1.history.contract", "SEC-00"]
+    },
+    {
+      "id": "NOM-02.c1.history.grants", "parent": "NOM-02.c1.history",
+      "title": "Administrar aperturas y créditos verificados sin asignación de derechos por usuarios sin capacidad",
+      "type": "I", "size": "M", "checks": ["V1", "V2", "V3"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http", "NOM-02.c1.history.schema", "AUD-02", "SEC-00"]
+    },
+    {
+      "id": "NOM-02.c1.history.decisions", "parent": "NOM-02.c1.history",
+      "title": "Registrar aprobación y cancelación de vacaciones atómicamente con su historia",
+      "type": "I", "size": "M", "checks": ["V1", "V2", "V3"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http", "NOM-02.c1.history.grants", "NOM-02.c1.http.runtime"]
+    },
+    {
+      "id": "NOM-02.c1.history.leave", "parent": "NOM-02.c1.history",
+      "title": "Integrar permisos VACATION y sus escritores sin duplicar solicitudes ni saldos históricos",
+      "type": "I", "size": "M", "checks": ["V1", "V2", "V3"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http", "NOM-02.c1.history.decisions"]
+    },
+    {
+      "id": "NOM-02.c1.history.reader", "parent": "NOM-02.c1.history",
+      "title": "Conectar nómina a historia al corte sin fallback a saldos mutables y conservar procedencia",
+      "type": "I", "size": "M", "checks": ["V1", "V2"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http", "NOM-02.c1.history.leave", "NOM-02.c1.history.decisions"]
+    },
+    {
+      "id": "NOM-02.c1.history.acceptance", "parent": "NOM-02.c1.history",
+      "title": "Aceptar historia integrada con dos empresas, rol independiente, carreras, corrección y nómina",
+      "type": "A", "size": "M", "checks": ["V2", "V3"],
+      "dependsOn": ["NOM-02.a", "NOM-02.c1.http", "NOM-02.c1.history.reader", "NOM-02.c1.history.grants"]
+    },
+    {
       "id": "NOM-02.c1.http",
       "title": "Completar alcance y transiciones HTTP de vacaciones con sesión, empresa y sucursal",
       "type": "I",
@@ -806,6 +854,13 @@
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
         "NOM-02.c1.civil-days",
+        "NOM-02.c1.history.contract",
+        "NOM-02.c1.history.schema",
+        "NOM-02.c1.history.grants",
+        "NOM-02.c1.history.decisions",
+        "NOM-02.c1.history.leave",
+        "NOM-02.c1.history.reader",
+        "NOM-02.c1.history.acceptance",
         "NOM-02.c2"
       ]
     },
@@ -831,6 +886,13 @@
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
         "NOM-02.c1.civil-days",
+        "NOM-02.c1.history.contract",
+        "NOM-02.c1.history.schema",
+        "NOM-02.c1.history.grants",
+        "NOM-02.c1.history.decisions",
+        "NOM-02.c1.history.leave",
+        "NOM-02.c1.history.reader",
+        "NOM-02.c1.history.acceptance",
         "NOM-02.c2",
         "NOM-02.d1",
         "NOM-02.d2",
@@ -2781,6 +2843,13 @@
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
         "NOM-02.c1.civil-days",
+        "NOM-02.c1.history.contract",
+        "NOM-02.c1.history.schema",
+        "NOM-02.c1.history.grants",
+        "NOM-02.c1.history.decisions",
+        "NOM-02.c1.history.leave",
+        "NOM-02.c1.history.reader",
+        "NOM-02.c1.history.acceptance",
         "VAL-01.M01-M17.M09"
       ],
       "acceptance": "VAL-01.M01-M17.M09"
@@ -2863,6 +2932,13 @@
         "NOM-02.c1.http.rls",
         "NOM-02.c1.http.runtime",
         "NOM-02.c1.civil-days",
+        "NOM-02.c1.history.contract",
+        "NOM-02.c1.history.schema",
+        "NOM-02.c1.history.grants",
+        "NOM-02.c1.history.decisions",
+        "NOM-02.c1.history.leave",
+        "NOM-02.c1.history.reader",
+        "NOM-02.c1.history.acceptance",
         "VAL-01.M01-M17.M10"
       ],
       "acceptance": "VAL-01.M01-M17.M10"
@@ -5386,6 +5462,16 @@
           { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-next-browser.test.ts", "exit": 0 },
           { "command": "node --use-system-ca node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/vacation-runtime-db.test.ts", "exit": 0 }],
         "checks": ["V1", "V2", "V3"]
+      }]
+    },
+    "NOM-02.c1.history.contract": {
+      "state": "V1",
+      "evidence": [{
+        "file": "tasks/evidencia/2026-11-23/NOM-02.c1.history-contract/README.md",
+        "head": "bc225f37adf7bfbb2bbd3e284c78776dff81bdd5",
+        "environment": "Windows local; contrato puro no seleccionado por nómina, 22 casos históricos y 39 regresiones, tipos estrictos focales y build de aplicación; sin persistencia ni aceptación V2/V3",
+        "commands": [{ "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-history.test.ts tests/unit/payroll/vacation-civil-days.test.ts tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts", "exit": 0 }],
+        "checks": ["V1"]
       }]
     },
     "NOM-02.c1.http": {

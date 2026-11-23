@@ -289,9 +289,11 @@ Entradas de código/documentación: `lib/services/payroll-service.ts`, `lib/serv
 
 #### NOM-02.c1 — Incorporar vacaciones y permisos
 
-**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a. **Verificación:** V1,V2.
+**Tipo/tamaño:** I / M. **Depende de:** NOM-02.a, NOM-02.c1.http, NOM-02.c1.history. **Verificación:** V1,V2.
 
 **Entrega y aceptación:** Saldos, fechas, autorización y concepto salarial quedan enlazados; ausencia de dato no se convierte en vacaciones pagadas ni falta automática.
+
+El [historial verificable](2026-11-23-vacation-history.md) se descompone en contrato, persistencia, administración de créditos, decisiones atómicas, puente VACATION/permisos, lector y aceptación. El saldo mutable filtrado por año/fecha no acredita reconstrucción histórica ni cierra este ticket.
 
 #### NOM-02.c2 — Incorporar bonos e incidencias
 
