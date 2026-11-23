@@ -1827,7 +1827,26 @@ export const vacationRequests = pgTable("vacation_requests", {
     // Audit
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+    pgPolicy("vacation_runtime_read", { for: "select", to: "public",
+        using: sql`public.vacation_request_scope(${table.companyId}, ${table.branchId}, ${table.userId}, 'read')` }),
+    // Existing payroll jobs have a separate purpose role and company context.
+    // The HTTP runtime must never use this role or inherit its privileges.
+    pgPolicy("vacation_payroll_read", { for: "select", to: "public",
+        using: sql`current_user = 'pulso_app'
+            AND ${table.companyId} = nullif(current_setting('app.current_company_id', true), '')::uuid
+            AND (nullif(current_setting('app.current_branch_id', true), '') IS NULL
+                OR ${table.branchId} = nullif(current_setting('app.current_branch_id', true), '')::uuid)` }),
+    pgPolicy("vacation_runtime_insert", { for: "insert", to: "public",
+        withCheck: sql`public.vacation_request_scope(${table.companyId}, ${table.branchId}, ${table.userId}, 'request')
+            AND ${table.status} = 'PENDING' AND ${table.approvedBy} IS NULL AND ${table.approvedAt} IS NULL
+            AND ${table.rejectedBy} IS NULL AND ${table.rejectedAt} IS NULL AND ${table.cancelledAt} IS NULL` }),
+    pgPolicy("vacation_runtime_update", { for: "update", to: "public",
+        using: sql`public.vacation_request_scope(${table.companyId}, ${table.branchId}, ${table.userId}, 'write')`,
+        withCheck: sql`public.vacation_request_scope(${table.companyId}, ${table.branchId}, ${table.userId},
+            CASE WHEN ${table.status} IN ('APPROVED','REJECTED') THEN 'decide'
+                WHEN ${table.status} = 'CANCELLED' THEN 'write' ELSE 'invalid' END)` }),
+]).enableRLS();
 
 // =====================================================
 // EMPLOYEE RECORD MANAGEMENT SYSTEM
