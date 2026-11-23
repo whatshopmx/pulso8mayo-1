@@ -201,6 +201,8 @@ Checkpoint Cobertura / `INV-01.b` 2026-11-22: **COGS, menú, ejecutivo, sus 3 RL
 
 Checkpoint `INV-01.c` servicios y concurrencia 2026-11-22: **`races` y 13 hijos de servicios de recuperación (`contract` → `apply`, incluido R2 privado real en `objects`) aceptados en entorno aislado; 60 registros aceptados**. **97/97** unitarias (14 archivos), **13/13** suites SQL Neon (`pulso_app` NOBYPASSRLS, 65 casos), **1/1** R2 privado real (`sale-recovery-objects-r2-db.test.ts`), **4/4** Playwright controlado y ESLint limpio. Siguen abiertos `INV-01.c.recovery.ui-routes`, `INV-01.c.recovery`, `INV-01.c`, `INV-01.d` y la fila `11.11`. [Aceptación y límites](../tasks/evidencia/2026-11-22/INV-01.c.recovery-services/accepted.md).
 
+Checkpoint `INV-01.c` cierre completo 2026-11-22: **`INV-01.c.recovery.ui-routes`, `INV-01.c.recovery` y padre `INV-01.c` aceptados en entorno aislado; 63 registros aceptados**. Recorrido integrado real (`sale-recovery-next-browser.test.ts`) **1/1** (`exit 0`, 66.22 s) sobre Next producción (`BUILD_ID: 3uHsQamaXwpx8-UdKZkBZ`), Chromium, Better Auth, Neon desechable baseline `0158` y R2 privado real con segregación de funciones, `AUD-02`, oráculos SQL, reintento idempotente, `sign-out` `401` y limpieza verificada. Destraba `INV-01.d` e `INV-02.*`; fila `11.11` sigue abierta hasta aceptar `INV-01.d`. [Aceptación y límites](../tasks/evidencia/2026-11-22/INV-01.c.recovery.ui-routes/accepted.md).
+
 #### INV-01.c — Recuperar fallos y carreras
 
 **Tipo/tamaño:** I / P. **Depende de:** INV-01.b. **Verificación:** V2.

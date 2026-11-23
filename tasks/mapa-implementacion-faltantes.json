@@ -4764,23 +4764,15 @@
       ]
     },
     "INV-01.c": {
-      "state": "en curso",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-11/INV-01.c.races/README.md",
-          "head": "fddc05dd92255d3b816b12e83e074eb31d95d57b",
-          "environment": "br-round-voice-belheola; dos conexiones reales pulso_app y fixtures sintéticas confirmadas",
+          "file": "tasks/evidencia/2026-11-22/INV-01.c.recovery.ui-routes/accepted.md",
+          "head": "05016efdd9d184b52d90192c56d8464bf5669127",
+          "environment": "Padre INV-01.c cerrado en entorno aislado con todos sus hijos acreditados (races + 14 hijos de recuperación + Next/Better Auth/Neon/R2 real, BUILD_ID 3uHsQamaXwpx8-UdKZkBZ). Sin migración en operativo ni aceptación de INV-01.d/fila 11.11.",
           "commands": [
             {
-              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/sale-consumption-concurrency-db.test.ts tests/integration/sale-consumption-application-db.test.ts --maxWorkers=1 --pool=threads",
-              "exit": 0
-            },
-            {
-              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit --project .tmp/tsconfig-inv01-c.json",
-              "exit": 0
-            },
-            {
-              "command": "pnpm.cmd exec eslint tests/integration/sale-consumption-concurrency-db.test.ts",
+              "command": "node .tmp/sale-recovery-next-browser-verify.cjs",
               "exit": 0
             }
           ],
@@ -4791,32 +4783,20 @@
       ]
     },
     "INV-01.c.recovery": {
-      "state": "en curso",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-11/INV-01.c.recovery.contract/README.md",
-          "head": "3a5d60c010cd292d532706d1c368c2ab56b279f4",
-          "environment": "Windows local; contrato puro, sin API ni DB",
+          "file": "tasks/evidencia/2026-11-22/INV-01.c.recovery.ui-routes/accepted.md",
+          "head": "05016efdd9d184b52d90192c56d8464bf5669127",
+          "environment": "Recuperación histórica completa acreditada en entorno aislado (16 dependencias aceptadas; Next producción BUILD_ID 3uHsQamaXwpx8-UdKZkBZ, Chromium, Better Auth, Neon desechable baseline 0158 y R2 reales con limpieza verificada). Sin despliegue operativo.",
           "commands": [
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle lib/services/__tests__/sale-recovery-review.test.ts lib/services/__tests__/sale-consumption-snapshot.test.ts lib/services/__tests__/sale-consumption-contract.test.ts --maxWorkers=1 --pool=threads",
-              "exit": 0
-            },
-            {
-              "command": "NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd exec tsc --noEmit",
-              "exit": 0
-            },
-            {
-              "command": "pnpm.cmd exec eslint lib/services/sale-recovery-review.ts lib/services/__tests__/sale-recovery-review.test.ts",
-              "exit": 0
-            },
-            {
-              "command": "NODE_OPTIONS=\"--max-old-space-size=4096 --use-system-ca\" pnpm.cmd run build",
+              "command": "node .tmp/sale-recovery-next-browser-verify.cjs",
               "exit": 0
             }
           ],
           "checks": [
-            "V1"
+            "V2"
           ]
         }
       ]
@@ -5394,29 +5374,30 @@
       ]
     },
     "INV-01.c.recovery.ui-routes": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-16/CONSOLIDACION/README.md",
-          "head": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
-          "environment": "Windows local + diff; Neon aislado ep-cold-morning-bewqoz3o, runtime pulso_app NOBYPASSRLS para nómina/recovery; EXC sin nueva V2; TypeScript previo exit 0, comprobación final con validadores de producción bloqueada por 7 errores de base; ver consolidación",
+          "file": "tasks/evidencia/2026-11-22/INV-01.c.recovery.ui-routes/accepted.md",
+          "head": "05016efdd9d184b52d90192c56d8464bf5669127",
+          "environment": "V1 unitarias rutas (25/25), V3 Playwright controlado (4/4) y V2/V3 Next producción (BUILD_ID 3uHsQamaXwpx8-UdKZkBZ) + Chromium + Better Auth (dos ADMIN) + Neon desechable baseline 0158 + R2 privado reales (1/1, segregación de funciones, AUD-02, oráculos SQL, reintento idempotente, sign-out 401 y limpieza verificada). Sin despliegue operativo.",
           "commands": [
             {
-              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle lib/services/__tests__/sale-recovery-proposals-route.test.ts tests/unit/inventory/sale-recovery-attestations-route.test.ts tests/unit/inventory/sale-recovery-evidence-route.test.ts --maxWorkers=1 --pool=threads",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom01-contract.test.ts lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/payroll-nom02b-overtime.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/sale-recovery-proposals-route.test.ts lib/services/__tests__/sale-recovery-apply.test.ts lib/services/__tests__/exception-service.test.ts tests/unit/faltantes-traceability.test.ts",
+              "command": "node node_modules/@playwright/test/cli.js test --config tests/playwright-sale-recovery.config.ts",
               "exit": 0
             },
             {
-              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts tests/integration/sale-recovery-e2e-db.test.ts",
+              "command": "node .tmp/sale-recovery-next-browser-verify.cjs",
               "exit": 0
             }
           ],
           "checks": [
             "V1",
-            "V2"
+            "V2",
+            "V3"
           ]
         }
       ]

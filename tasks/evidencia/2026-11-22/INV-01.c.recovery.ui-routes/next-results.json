@@ -1,0 +1,29 @@
+{
+  "head": "05016efdd9d184b52d90192c56d8464bf5669127",
+  "buildId": "3uHsQamaXwpx8-UdKZkBZ",
+  "run": {
+    "exit": 0,
+    "commandExit": 0,
+    "signal": null,
+    "passedCount": 1,
+    "allExpectedPassed": true,
+    "durationMs": 66219.0866,
+    "finishedAt": "2026-11-23T00:34:08.162Z"
+  },
+  "fixture": {
+    "databaseName": "inv_sales_next_73bd14966a28429fb2cbc8b7af061e68",
+    "roleName": "inv_sales_role_7be2c66a240f4d22b655a3d90fb313d7",
+    "databaseCreated": false,
+    "roleCreated": false,
+    "closed": true,
+    "baseline": "0158",
+    "posFiles": false
+  },
+  "tests": [
+    {
+      "name": "Next + Chromium + Better Auth + R2: full historical sale recovery UI flow with segregation of duties and AUD-02",
+      "status": "passed",
+      "durationMs": 66219.0866
+    }
+  ]
+}
