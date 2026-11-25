@@ -47,6 +47,11 @@ import { eq, and, gte, lte, ne, sql } from "drizzle-orm";
 import { getFoodCostByBranch } from "@/lib/services/food-cost-service";
 import { getLaborCostByBranch } from "@/lib/services/labor-cost-service";
 import { getCommissionsByBranch } from "@/lib/services/commission-service";
+import {
+  commissionAmountSourceLabel,
+  commissionReconciliationStatusLabel,
+  type BranchCommissions,
+} from "@/lib/services/commission-types";
 import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
 import { cierreDelPeriodo } from "@/lib/company/period-close";
 import {
@@ -54,6 +59,7 @@ import {
   SECTOR_LABOR_COST_PERCENT,
   line,
   noDataLine,
+  pnlLineSourceForCommission,
   weakestOf,
 } from "@/lib/services/pnl-types";
 import type {
@@ -96,6 +102,85 @@ export function resolvePnlPeriod(startDate?: string, endDate?: string) {
     endDate: endDate_,
     days: daysBetween(startDate_, endDate_),
   };
+}
+
+/**
+ * FIN-06.a: construye el renglón `commissions` y el desglose `commissionsByChannel`
+ * del P&L a partir de `BranchCommissions`, preservando procedencia y estado de
+ * conciliación por separado con etiquetas idénticas a la API de comisiones.
+ */
+export function buildPnlCommissionPresentation(
+  commission: BranchCommissions | undefined,
+  baseCents: number,
+): {
+  commissionsLine: PnLLine;
+  commissionsByChannel: CommissionBreakdownItem[] | undefined;
+} {
+  if (!commission || commission.source === "NO_DATA") {
+    const amountSource = commission?.amountSource ?? "NO_DATA";
+    const reconciliationStatus = commission?.reconciliationStatus ?? "PENDING";
+    return {
+      commissionsLine: {
+        ...noDataLine(
+          commission?.note ??
+            "Sin ventas capturadas en el período: no hay comisiones que calcular.",
+        ),
+        amountSource,
+        reconciliationStatus,
+        amountSourceLabel: commission?.amountSourceLabel ?? commissionAmountSourceLabel(amountSource),
+        reconciliationStatusLabel:
+          commission?.reconciliationStatusLabel ??
+          commissionReconciliationStatusLabel(reconciliationStatus),
+        documentedZero: false,
+        reportedCents: 0,
+        reconciledCents: 0,
+        estimatedCents: 0,
+        discrepancyCents: 0,
+      },
+      commissionsByChannel: commission ? [] : undefined,
+    };
+  }
+
+  const pnlSource = pnlLineSourceForCommission(commission);
+  const commissionsLine: PnLLine = {
+    ...line(
+      commission.totalCommissionCents,
+      baseCents,
+      pnlSource,
+      commission.coveragePercent,
+      commission.note,
+    ),
+    amountSource: commission.amountSource,
+    reconciliationStatus: commission.reconciliationStatus,
+    amountSourceLabel: commission.amountSourceLabel,
+    reconciliationStatusLabel: commission.reconciliationStatusLabel,
+    documentedZero: commission.documentedZero,
+    reportedCents: commission.reportedCommissionCents,
+    reconciledCents: commission.reconciledCommissionCents,
+    estimatedCents: commission.estimatedCommissionCents,
+    discrepancyCents: commission.discrepancyCents,
+  };
+
+  const commissionsByChannel: CommissionBreakdownItem[] = commission.channels.map((c) => ({
+    channel: c.channel,
+    cents: c.commissionCents,
+    rateBps: c.rateBps,
+    measured:
+      c.source === "MEASURED" &&
+      (c.reconciliationStatus === "CONFIRMED" ||
+        (c.documentedZero && c.reconciliationStatus === "NOT_APPLICABLE")),
+    amountSource: c.amountSource,
+    reconciliationStatus: c.reconciliationStatus,
+    amountSourceLabel: c.amountSourceLabel,
+    reconciliationStatusLabel: c.reconciliationStatusLabel,
+    documentedZero: c.documentedZero,
+    reportedCents: c.reportedCents,
+    reconciledCents: c.reconciledCents,
+    estimatedCents: c.estimatedCents,
+    discrepancyCents: c.discrepancyCents,
+  }));
+
+  return { commissionsLine, commissionsByChannel };
 }
 
 export async function getPnLByBranch(
@@ -344,33 +429,14 @@ export async function getPnLByBranch(
           );
 
     // --- Comisiones de canal ----------------------------------------------
-    // `MEASURED` sólo cuando TODO el importe salió de comisiones conciliadas
-    // contra el depósito de la terminal. En cuanto una parte se calcula con la
-    // tarifa, el renglón entero es `ESTIMATED`: es lo más fuerte que se puede
-    // afirmar de una suma con un sumando calculado.
+    // FIN-06.a: declara procedencia del importe y estado de conciliación por
+    // separado; pendiente/discrepante/confirmado y cero documentado conservan
+    // etiquetas coherentes entre API y P&L.
     const commission = commissionByBranch.get(branch.id);
-    const commissionsLine: PnLLine =
-      !commission || commission.source === "NO_DATA"
-        ? noDataLine(
-            commission?.note ??
-              "Sin ventas capturadas en el período: no hay comisiones que calcular.",
-          )
-        : line(
-            commission.totalCommissionCents,
-            baseCents,
-            commission.source === "MEASURED" ? "MEASURED" : "ESTIMATED",
-            commission.coveragePercent,
-            commission.note,
-          );
-
-    const commissionsByChannel: CommissionBreakdownItem[] | undefined = commission
-      ? commission.channels.map((c) => ({
-          channel: c.channel,
-          cents: c.commissionCents,
-          rateBps: c.rateBps,
-          measured: c.source === "MEASURED",
-        }))
-      : undefined;
+    const { commissionsLine, commissionsByChannel } = buildPnlCommissionPresentation(
+      commission,
+      baseCents,
+    );
 
     // --- Utilidad operativa -----------------------------------------------
     // Las comisiones entran en `weakestLine` (criterio F4.4). Consecuencia

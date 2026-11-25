@@ -11,17 +11,36 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { AlertCircle, AlertTriangle, Loader2, TrendingDown } from "lucide-react";
 import { formatCents } from "@/lib/utils";
 import { useBranch } from "@/lib/branch-context";
-import { commissionChannelLabel, formatRateBps } from "@/lib/services/commission-types";
-import type { ChannelCommission } from "@/lib/services/commission-types";
+import {
+  aggregateAmountSource,
+  aggregateReconciliationStatus,
+  commissionChannelLabel,
+  formatCommissionProvenanceTag,
+  formatRateBps,
+} from "@/lib/services/commission-types";
+import type {
+  ChannelCommission,
+  CommissionAmountSource,
+  CommissionReconciliationStatus,
+} from "@/lib/services/commission-types";
 
 interface BranchRow {
   branchId: string;
   branchName: string;
   channels: ChannelCommission[];
   totalCommissionCents: number;
+  reportedCommissionCents?: number;
+  reconciledCommissionCents?: number;
+  estimatedCommissionCents?: number;
+  discrepancyCents?: number;
   coveredSalesCents: number;
   uncoveredSalesCents: number;
   source: "MEASURED" | "ESTIMATED" | "NO_DATA";
+  amountSource?: CommissionAmountSource;
+  reconciliationStatus?: CommissionReconciliationStatus;
+  amountSourceLabel?: string;
+  reconciliationStatusLabel?: string;
+  documentedZero?: boolean;
   coveragePercent: number;
   note: string;
 }
@@ -95,7 +114,14 @@ export function CommissionsByChannelTable() {
   const porCanal = useMemo(() => {
     const acc = new Map<
       string,
-      { baseSalesCents: number; commissionCents: number; rates: Set<number>; measured: boolean }
+      {
+        baseSalesCents: number;
+        commissionCents: number;
+        rates: Set<number>;
+        amountSources: CommissionAmountSource[];
+        reconciliationStatuses: CommissionReconciliationStatus[];
+        documentedZero: boolean;
+      }
     >();
     for (const row of rows) {
       for (const c of row.channels) {
@@ -103,17 +129,38 @@ export function CommissionsByChannelTable() {
           baseSalesCents: 0,
           commissionCents: 0,
           rates: new Set<number>(),
-          measured: true,
+          amountSources: [],
+          reconciliationStatuses: [],
+          documentedZero: true,
         };
         prev.baseSalesCents += c.baseSalesCents;
         prev.commissionCents += c.commissionCents;
         if (c.rateBps !== null) prev.rates.add(c.rateBps);
-        if (c.source !== "MEASURED") prev.measured = false;
+        prev.amountSources.push(
+          c.amountSource ?? (c.source === "MEASURED" ? "CUT_REPORTED" : "RATE_ESTIMATE"),
+        );
+        prev.reconciliationStatuses.push(c.reconciliationStatus ?? "PENDING");
+        if (!c.documentedZero) prev.documentedZero = false;
         acc.set(c.channel, prev);
       }
     }
     return [...acc.entries()]
-      .map(([channel, v]) => ({ channel, ...v }))
+      .map(([channel, v]) => {
+        const amountSource = v.documentedZero
+          ? ("DOCUMENTED_ZERO" as const)
+          : aggregateAmountSource(v.amountSources, false);
+        const reconciliationStatus = aggregateReconciliationStatus(v.reconciliationStatuses);
+        return {
+          channel,
+          baseSalesCents: v.baseSalesCents,
+          commissionCents: v.commissionCents,
+          rates: v.rates,
+          amountSource,
+          reconciliationStatus,
+          provenanceTag: formatCommissionProvenanceTag(amountSource, reconciliationStatus),
+          documentedZero: v.documentedZero,
+        };
+      })
       .sort((a, b) => b.commissionCents - a.commissionCents);
   }, [rows]);
 
@@ -221,16 +268,18 @@ export function CommissionsByChannelTable() {
                           ? formatRateBps([...c.rates][0])
                           : c.rates.size > 1
                             ? "varias"
-                            : "conciliada";
+                            : c.documentedZero
+                              ? "0.00% doc."
+                              : c.amountSource === "BANK_RECONCILED"
+                                ? "conciliada"
+                                : "reportada";
                       return (
                         <TableRow key={c.channel} className="hover:bg-muted/40 transition text-sm">
                           <TableCell className="font-medium">
                             {commissionChannelLabel(c.channel)}
-                            {c.measured && (
-                              <Badge variant="outline" className="ml-2 text-xs py-0">
-                                conciliada
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className="ml-2 text-xs py-0">
+                              {c.provenanceTag}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatCents(c.baseSalesCents)}
@@ -241,7 +290,7 @@ export function CommissionsByChannelTable() {
                                 c.rates.size > 1
                                   ? "En el período rigieron varias vigencias de tarifa. Cada corte se valuó con la suya; un solo porcentaje no las representa."
                                   : c.rates.size === 0
-                                    ? "El importe salió de la comisión conciliada contra el depósito de la terminal, no de una tarifa."
+                                    ? c.provenanceTag
                                     : null
                               }
                             >

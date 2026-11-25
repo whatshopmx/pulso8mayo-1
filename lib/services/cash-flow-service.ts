@@ -8,9 +8,17 @@
 import { db } from "@/lib/db";
 import {
   getAccountAnchorStatus,
-  getComputedAccountBalances,
+  getReconciledAccountBalances,
 } from "./company-bank-account-service";
-import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions, payees, companyBankAccounts } from "@/lib/db/schema";
+import {
+  CASH_FLOW_PROJECTION_DISCLAIMER,
+  cashBalanceSourceLabel,
+  toCashBalanceSource,
+  type CashBalanceSource,
+  type CashFlowProjectionMeta,
+  type ReconciledBankAccountBalance,
+} from "./cash-flow-balance-rules";
+import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions, payees } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray, asc, isNull } from "drizzle-orm";
 import { addCalendarDays, localDateString } from "@/lib/workflows/today";
 import { projectRecurringContracts } from "@/lib/services/recurring-contract-projection";
@@ -64,16 +72,20 @@ export type OpeningBalanceSource = "ACCOUNTS" | "BRANCH" | "COMPANY" | "NONE";
 
 export interface OpeningBalance {
   source: OpeningBalanceSource;
+  /** FIN-01: clasificación explícita (conciliado en banco vs supuesto manual vs sin ancla). */
+  balanceSource: CashBalanceSource;
+  sourceLabel: string;
+  isBankAnchored: boolean;
+  /** Saldo estrictamente conciliado cuando `isBankAnchored === true`; `null` si no existe ancla bancaria. */
+  reconciledBalanceCents: number | null;
+  /** Movimientos bancarios importados aún sin conciliar (`UNMATCHED`) en cuentas ancladas. */
+  unmatchedBankDeltaCents: number;
+  unmatchedBankCount: number;
   /**
    * Cuando el source es ACCOUNTS: desglose por cuenta (solo last-4 — la
-   * regla de las respuestas no cambia).
+   * regla de las respuestas no cambia), con fecha efectiva y saldo conciliado.
    */
-  accountBreakdown?: Array<{
-    id: string;
-    label: string;
-    accountLastFour: string;
-    balanceCents: number;
-  }> | null;
+  accountBreakdown?: ReconciledBankAccountBalance[] | null;
   /** Con fallback: cuantas cuentas activas siguen sin ancla (aviso cuantificado). */
   unanchoredAccountsCount?: number;
   /** Fecha a la que corresponde el saldo capturado */
@@ -163,6 +175,8 @@ export interface CashFlowProjection {
   initialBalanceCents: number | null;
   /** De dónde salió el saldo inicial, para declararlo en pantalla */
   openingBalance: OpeningBalance;
+  /** FIN-01: declaración explícita de que la trayectoria futura es una proyección estimada. */
+  projectionMeta: CashFlowProjectionMeta;
   /** Sobre qué base se estimaron las entradas, para declararlo en pantalla */
   inflow: InflowEstimate;
   /**
@@ -487,29 +501,9 @@ export async function getCashFlowProjection(
   if (!branchId) {
     const anchorStatus = await getAccountAnchorStatus(companyId);
     if (anchorStatus.activeCount > 0 && anchorStatus.anchoredCount === anchorStatus.activeCount) {
-      const balances = await getComputedAccountBalances(companyId);
-      if (balances.size > 0) {
-        const labels = await db
-          .select({
-            id: companyBankAccounts.id,
-            label: companyBankAccounts.label,
-            accountLastFour: companyBankAccounts.accountLastFour,
-          })
-          .from(companyBankAccounts)
-          .where(
-            and(
-              eq(companyBankAccounts.companyId, companyId),
-              eq(companyBankAccounts.active, true)
-            )
-          );
-        accountBreakdown = labels
-          .filter((a) => balances.has(a.id))
-          .map((a) => ({
-            id: a.id,
-            label: a.label,
-            accountLastFour: a.accountLastFour,
-            balanceCents: balances.get(a.id)!.balanceCents,
-          }));
+      const reconciled = await getReconciledAccountBalances(companyId);
+      if (reconciled.length > 0) {
+        accountBreakdown = reconciled;
       }
     } else {
       unanchoredAccountsCount = anchorStatus.activeCount - anchorStatus.anchoredCount;
@@ -525,11 +519,32 @@ export async function getCashFlowProjection(
           ? "COMPANY"
           : "NONE";
 
+  const balanceSource = toCashBalanceSource(openingBalanceSource);
+  const isBankAnchored =
+    openingBalanceSource === "ACCOUNTS" && (accountBreakdown?.length ?? 0) > 0;
+  const reconciledBalanceCents: number | null = isBankAnchored
+    ? (accountBreakdown ?? []).reduce(
+        (sum, a) => sum + (a.reconciledBalanceCents ?? a.balanceCents),
+        0,
+      )
+    : null;
+  const unmatchedBankDeltaCents = isBankAnchored
+    ? (accountBreakdown ?? []).reduce((sum, a) => sum + (a.unmatchedDeltaCents ?? 0), 0)
+    : 0;
+  const unmatchedBankCount = isBankAnchored
+    ? (accountBreakdown ?? []).reduce((sum, a) => sum + (a.unmatchedCount ?? 0), 0)
+    : 0;
+  const bankEffectiveAsOfDate = isBankAnchored
+    ? (accountBreakdown ?? [])
+        .map((a) => a.asOfDate ?? a.openingAsOfDate ?? null)
+        .filter((d): d is string => Boolean(d))
+        .sort()
+        .at(-1) ?? null
+    : null;
+
   const initialBalanceCents: number | null =
-    openingBalanceSource === "ACCOUNTS"
-      ? (accountBreakdown as Array<{ balanceCents: number }>).reduce((sum, a) => sum + a.balanceCents, 0)
-      : (supuesto?.openingBalanceCents ?? null);
-  const openingAsOfDate = supuesto?.asOfDate ?? null;
+    isBankAnchored ? reconciledBalanceCents : (supuesto?.openingBalanceCents ?? null);
+  const openingAsOfDate = isBankAnchored ? bankEffectiveAsOfDate : (supuesto?.asOfDate ?? null);
   const openingAgeInDays = openingAsOfDate
     ? Math.round(
         (Date.parse(`${startDateStr}T00:00:00Z`) -
@@ -1168,12 +1183,25 @@ export async function getCashFlowProjection(
     initialBalanceCents,
     openingBalance: {
       source: openingBalanceSource,
+      balanceSource,
+      sourceLabel: cashBalanceSourceLabel(balanceSource),
+      isBankAnchored,
+      reconciledBalanceCents,
+      unmatchedBankDeltaCents,
+      unmatchedBankCount,
       asOfDate: openingAsOfDate,
       ageInDays: openingAgeInDays,
       isStale:
         openingAgeInDays !== null && openingAgeInDays > OPENING_BALANCE_STALE_DAYS,
       accountBreakdown,
       unanchoredAccountsCount,
+    },
+    projectionMeta: {
+      isEstimate: true,
+      label: "Proyección estimada",
+      hasAbsoluteBalance: initialBalanceCents !== null && inflowBasis !== "NONE",
+      hasBankAnchor: isBankAnchored,
+      disclaimer: CASH_FLOW_PROJECTION_DISCLAIMER,
     },
     inflow: {
       basis: inflowBasis,

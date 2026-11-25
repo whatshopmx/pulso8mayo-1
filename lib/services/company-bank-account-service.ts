@@ -28,13 +28,14 @@
  * a mitad de camino arriesgaría el circuito de pagos por economía de líneas.
  */
 import { createHmac } from "node:crypto";
-import { and, desc, eq, gte, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bankTransactions, companyBankAccounts, users } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
 import { bankNameForCode, validateClabe, type ClabeErrorCode } from "@/lib/banking/clabe";
 import { DekService } from "@/lib/security/dek";
 import { encryptColumnWithDek } from "@/lib/security/column-cipher";
+import type { ReconciledBankAccountBalance } from "./cash-flow-balance-rules";
 
 /** Propósito declarado de la cuenta: por dónde dispersa y por dónde recibe. */
 export type AccountPurpose = "DISPERSION" | "RECEPCION" | "MIXTO";
@@ -444,6 +445,143 @@ export async function getComputedAccountBalances(companyId: string): Promise<
                 openingBalanceCents: a.openingBalanceCents as number,
             },
         ])
+    );
+}
+
+/**
+ * FIN-01: saldos bancarios conciliados por cuenta anclada.
+ *
+ * A diferencia de `getComputedAccountBalances` (que suma todos los movimientos
+ * importados sin distinguir estado), aquí se separa estrictamente:
+ * - `reconciledBalanceCents`: apertura + movimientos `MATCHED` (BAN-04 / BAN-06.a)
+ * - `statementBalanceCents`: apertura + movimientos `MATCHED` + `UNMATCHED` (excl. `IGNORED`)
+ * - `unmatchedDeltaCents` / `unmatchedCount`: movimientos importados aún sin conciliar
+ * - `asOfDate`: fecha del último movimiento conciliado o del ancla de apertura
+ *
+ * Una cuenta sin ancla (`openingBalanceCents` o `openingAsOfDate` nulo) se
+ * excluye por completo: nunca se inventa un saldo absoluto aparente.
+ */
+export async function getReconciledAccountBalances(
+    companyId: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance: any = db
+): Promise<ReconciledBankAccountBalance[]> {
+    const accounts = await dbInstance
+        .select({
+            id: companyBankAccounts.id,
+            label: companyBankAccounts.label,
+            bankName: companyBankAccounts.bankName,
+            accountLastFour: companyBankAccounts.accountLastFour,
+            openingBalanceCents: companyBankAccounts.openingBalanceCents,
+            openingAsOfDate: companyBankAccounts.openingAsOfDate,
+        })
+        .from(companyBankAccounts)
+        .where(
+            and(
+                eq(companyBankAccounts.companyId, companyId),
+                eq(companyBankAccounts.active, true),
+                isNotNull(companyBankAccounts.openingBalanceCents),
+                isNotNull(companyBankAccounts.openingAsOfDate)
+            )
+        );
+
+    if (accounts.length === 0) return [];
+
+    const sums = await dbInstance
+        .select({
+            accountId: bankTransactions.sourceBankAccountId,
+            matchedNetCents: sql<number>`coalesce(sum(case when ${bankTransactions.matchStatus} = 'MATCHED' then ${bankTransactions.amountCents} else 0 end), 0)::int`,
+            unmatchedNetCents: sql<number>`coalesce(sum(case when ${bankTransactions.matchStatus} = 'UNMATCHED' then ${bankTransactions.amountCents} else 0 end), 0)::int`,
+            unmatchedCount: sql<number>`count(*) filter (where ${bankTransactions.matchStatus} = 'UNMATCHED')::int`,
+            latestMatchedDate: sql<string | null>`max(case when ${bankTransactions.matchStatus} = 'MATCHED' then ${bankTransactions.valueDate} else null end)::text`,
+        })
+        .from(bankTransactions)
+        .where(
+            and(
+                eq(bankTransactions.companyId, companyId),
+                ne(bankTransactions.matchStatus, "IGNORED"),
+                inArray(
+                    bankTransactions.sourceBankAccountId,
+                    accounts.map((a: { id: string }) => a.id)
+                ),
+                or(
+                    ...accounts.map((a: { id: string; openingAsOfDate: string | null }) =>
+                        and(
+                            eq(bankTransactions.sourceBankAccountId, a.id),
+                            gte(bankTransactions.valueDate, a.openingAsOfDate as string)
+                        )
+                    )
+                )
+            )
+        )
+        .groupBy(bankTransactions.sourceBankAccountId);
+
+    const byAccount = new Map<
+        string,
+        {
+            matchedNetCents: number;
+            unmatchedNetCents: number;
+            unmatchedCount: number;
+            latestMatchedDate: string | null;
+        }
+    >(
+        sums
+            .filter((s: { accountId: string | null }) => s.accountId !== null)
+            .map(
+                (s: {
+                    accountId: string;
+                    matchedNetCents: number;
+                    unmatchedNetCents: number;
+                    unmatchedCount: number;
+                    latestMatchedDate: string | null;
+                }) => [
+                    s.accountId,
+                    {
+                        matchedNetCents: Number(s.matchedNetCents ?? 0),
+                        unmatchedNetCents: Number(s.unmatchedNetCents ?? 0),
+                        unmatchedCount: Number(s.unmatchedCount ?? 0),
+                        latestMatchedDate: s.latestMatchedDate ? String(s.latestMatchedDate).slice(0, 10) : null,
+                    },
+                ]
+            )
+    );
+
+    return accounts.map(
+        (a: {
+            id: string;
+            label: string;
+            bankName: string;
+            accountLastFour: string;
+            openingBalanceCents: number | null;
+            openingAsOfDate: string | null;
+        }): ReconciledBankAccountBalance => {
+            const agg = byAccount.get(a.id);
+            const opening = a.openingBalanceCents as number;
+            const openingDate = String(a.openingAsOfDate).slice(0, 10);
+            const matchedNet = agg?.matchedNetCents ?? 0;
+            const unmatchedNet = agg?.unmatchedNetCents ?? 0;
+            const reconciledBalanceCents = opening + matchedNet;
+            const statementBalanceCents = reconciledBalanceCents + unmatchedNet;
+            const asOfDate =
+                agg?.latestMatchedDate && agg.latestMatchedDate > openingDate
+                    ? agg.latestMatchedDate
+                    : openingDate;
+
+            return {
+                id: a.id,
+                label: a.label,
+                bankName: a.bankName,
+                accountLastFour: a.accountLastFour,
+                openingAsOfDate: openingDate,
+                asOfDate,
+                openingBalanceCents: opening,
+                reconciledBalanceCents,
+                statementBalanceCents,
+                unmatchedDeltaCents: unmatchedNet,
+                unmatchedCount: agg?.unmatchedCount ?? 0,
+                balanceCents: reconciledBalanceCents,
+            };
+        }
     );
 }
 

@@ -5,6 +5,7 @@ import { ApiHandler } from "@/lib/api/response";
 import {
     confirmDepositMatch,
     confirmMatch,
+    correctAccountedDepositMatch,
     ignoreTransaction,
     importBankStatement,
     listBankTransactions,
@@ -54,6 +55,13 @@ const patchSchema = z.discriminatedUnion("action", [
          * correcta — ambos vuelven a UNMATCHED y liberan la contraparte.
          */
         deposit: z.boolean().optional(),
+    }),
+    z.object({
+        action: z.literal("CORRECT_DEPOSIT_MATCH"),
+        transactionId: z.string().uuid(),
+        reason: z.string().min(5, "El motivo de corrección auditada es obligatorio (mínimo 5 caracteres).").max(500),
+        accountingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        expectedVersion: z.number().int().positive().optional(),
     }),
     z.object({
         action: z.literal("IGNORE"),
@@ -176,6 +184,18 @@ export async function PATCH(req: NextRequest) {
                 transactionId: body.transactionId,
             });
             return ApiHandler.success({ ok: true });
+        }
+
+        if (body.action === "CORRECT_DEPOSIT_MATCH") {
+            const correction = await correctAccountedDepositMatch({
+                companyId: ctx.userCompanyId,
+                transactionId: body.transactionId,
+                actorId: ctx.userId,
+                reason: body.reason,
+                accountingDate: body.accountingDate,
+                expectedVersion: body.expectedVersion,
+            });
+            return ApiHandler.success(correction);
         }
 
         await ignoreTransaction({

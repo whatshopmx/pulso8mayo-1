@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
 import { apiErrorMessage } from "@/lib/api/error";
+import { describeOpeningBalance } from "@/lib/services/cash-flow-balance-rules";
 import type { CashFlowDay, CashFlowProjection } from "@/components/finance/cash-flow-calendar";
 import type { DateRange } from "@/components/finance/period-selector";
 import { ArrowRight, Calendar, Clock, Loader2, RefreshCw, TrendingDown } from "lucide-react";
@@ -19,11 +20,16 @@ import { ArrowRight, Calendar, Clock, Loader2, RefreshCw, TrendingDown } from "l
 const HORIZON_DAYS = 30;
 
 interface Summary {
-  /** `null` cuando nadie lo ha capturado: no hay constante de respaldo. */
+  /** `null` cuando nadie lo ha capturado ni hay ancla bancaria: sin saldo absoluto aparente. */
   initialBalanceCents: number | null;
-  totalInflowCents: number;
+  sourceLabel: string;
+  effectiveAsOfDate: string | null;
+  accountsSummary: string | null;
+  isBankAnchored: boolean;
+  /** `null` cuando no hay historial de ventas (`inflow.basis === "NONE"`). */
+  totalInflowCents: number | null;
   totalOutflowCents: number;
-  /** `null` cuando no hay entradas estimadas y por lo tanto no hay saldo proyectado. */
+  /** `null` cuando falta ancla bancaria o entradas estimadas. */
   endingBalanceCents: number | null;
   /** Día con el saldo acumulado más bajo del horizonte. */
   worstDay: CashFlowDay | null;
@@ -37,8 +43,17 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
   if (!days || days.length === 0) return null;
 
   const overdue = Array.isArray(payload) ? [] : (payload.overdueItems ?? []);
+  const initialBalanceCents = Array.isArray(payload) ? null : payload.initialBalanceCents;
+  const desc = describeOpeningBalance(
+    Array.isArray(payload) ? undefined : payload.openingBalance,
+    initialBalanceCents,
+    Array.isArray(payload) ? undefined : payload.scope,
+  );
 
-  const conSaldo = days.filter((d) => d.cumulativeBalanceCents !== null);
+  const conSaldo =
+    initialBalanceCents === null
+      ? []
+      : days.filter((d) => d.cumulativeBalanceCents !== null);
 
   const worstDay = conSaldo.reduce<CashFlowDay | null>(
     (worst, d) =>
@@ -48,9 +63,17 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
     null,
   );
 
+  const hasInflow = days.some((d) => d.projectedInflowCents !== null);
+
   return {
-    initialBalanceCents: Array.isArray(payload) ? null : payload.initialBalanceCents,
-    totalInflowCents: days.reduce((sum, d) => sum + (d.projectedInflowCents ?? 0), 0),
+    initialBalanceCents,
+    sourceLabel: desc.sourceLabel,
+    effectiveAsOfDate: desc.effectiveAsOfDate,
+    accountsSummary: desc.accountsSummary,
+    isBankAnchored: desc.isBankAnchored,
+    totalInflowCents: hasInflow
+      ? days.reduce((sum, d) => sum + (d.projectedInflowCents ?? 0), 0)
+      : null,
     totalOutflowCents: days.reduce((sum, d) => sum + d.projectedOutflowCents, 0),
     endingBalanceCents: conSaldo.length
       ? conSaldo[conSaldo.length - 1].cumulativeBalanceCents
@@ -151,25 +174,39 @@ export function CashFlowSummaryCard({ branchId, dateRange: _dateRange }: { branc
                 solo en su propia fila en tablet. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <p className="text-xs text-muted-foreground">Saldo inicial</p>
+                <p className="text-xs text-muted-foreground">{summary.sourceLabel}</p>
                 {summary.initialBalanceCents === null ? (
                   <Link
                     href="/dashboard/finance/treasury"
                     className="text-lg font-bold text-primary hover:underline"
                   >
-                    Sin capturar →
+                    Sin ancla bancaria →
                   </Link>
                 ) : (
-                  <p className="text-lg font-bold tabular-nums">
-                    {formatCents(summary.initialBalanceCents)}
-                  </p>
+                  <>
+                    <p className="text-lg font-bold tabular-nums">
+                      {formatCents(summary.initialBalanceCents)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {[
+                        summary.effectiveAsOfDate ? `Al ${summary.effectiveAsOfDate}` : null,
+                        summary.accountsSummary,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </>
                 )}
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Ventas registradas</p>
-                <p className="text-lg font-bold tabular-nums text-foreground">
-                  +{formatCents(summary.totalInflowCents)}
-                </p>
+                <p className="text-xs text-muted-foreground">Entradas estimadas</p>
+                {summary.totalInflowCents === null ? (
+                  <p className="text-lg font-bold text-muted-foreground">Sin estimar</p>
+                ) : (
+                  <p className="text-lg font-bold tabular-nums text-foreground">
+                    +{formatCents(summary.totalInflowCents)}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Salidas proyectadas</p>
@@ -178,10 +215,12 @@ export function CashFlowSummaryCard({ branchId, dateRange: _dateRange }: { branc
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Saldo al día {HORIZON_DAYS}</p>
+                <p className="text-xs text-muted-foreground">
+                  Caja proyectada al día {HORIZON_DAYS} (estimación)
+                </p>
                 {summary.endingBalanceCents === null ? (
                   <p className="text-lg font-bold text-muted-foreground">
-                    Sin estimar
+                    {summary.initialBalanceCents === null ? "Sin ancla" : "Sin estimar"}
                   </p>
                 ) : (
                   <p

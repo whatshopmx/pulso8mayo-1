@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { eq, and, gte, lte, sql, desc, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
 import {
   gatewayTransactions,
   branches,
@@ -12,6 +12,12 @@ import {
   type AcquirerType,
   type ParseGatewayReportResult,
 } from "./gateway-report-parser";
+import {
+  commissionAmountSourceLabel,
+  commissionReconciliationStatusLabel,
+  type CommissionAmountSource,
+  type CommissionReconciliationStatus,
+} from "./commission-types";
 import { ApiError } from "@/lib/api/error";
 
 export interface ImportGatewayReportParams {
@@ -289,54 +295,111 @@ export class GatewayReportService {
    * del cruce manual confirmado — sin cruce, el banco queda 0 y el hueco es
    * visible, no oculto.
    */
-  static async getPlatformCrossReport(params: {
-    companyId: string;
-    acquirer?: AcquirerType;
-    startDate?: string;
-    endDate?: string;
-  }) {
-    const conditions = [
-      eq(bankTransactions.companyId, params.companyId),
-      eq(bankTransactions.matchStatus, "MATCHED"),
-      isNotNull(bankTransactions.matchedGatewayTransactionId),
-    ];
+  static async getPlatformCrossReport(
+    params: {
+      companyId: string;
+      acquirer?: AcquirerType;
+      startDate?: string;
+      endDate?: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance: any = db,
+  ) {
+    const gatewayConditions = [eq(gatewayTransactions.companyId, params.companyId)];
+    if (params.acquirer) {
+      gatewayConditions.push(eq(gatewayTransactions.acquirer, params.acquirer));
+    }
+    if (params.startDate) {
+      gatewayConditions.push(
+        gte(gatewayTransactions.transactionDate, new Date(params.startDate))
+      );
+    }
+    if (params.endDate) {
+      const end = new Date(params.endDate);
+      if (params.endDate.length <= 10) {
+        end.setUTCHours(23, 59, 59, 999);
+      }
+      gatewayConditions.push(lte(gatewayTransactions.transactionDate, end));
+    }
 
-    const gatewayFilter = and(
-      eq(gatewayTransactions.companyId, params.companyId),
-      params.acquirer ? eq(gatewayTransactions.acquirer, params.acquirer) : undefined,
-      params.startDate
-        ? gte(gatewayTransactions.transactionDate, new Date(params.startDate))
-        : undefined,
-      params.endDate
-        ? lte(gatewayTransactions.transactionDate, new Date(params.endDate))
-        : undefined
-    );
-
-    const rows = await db
+    // FIN-06.b: LEFT JOIN desde `gateway_transactions` hacia depósitos MATCHED
+    // en `bank_transactions` para que los importes sin cruce bancario sigan
+    // visibles con `bankMatchedCents = 0`, `unmatchedCount > 0` y diferencia
+    // explícita en lugar de desaparecer del reporte.
+    const rows = await dbInstance
       .select({
         acquirer: gatewayTransactions.acquirer,
-        transactionCount: sql<number>`count(*)::int`,
+        transactionCount: sql<number>`count(${gatewayTransactions.id})::int`,
+        matchedCount: sql<number>`count(${bankTransactions.id})::int`,
         grossCents: sql<number>`coalesce(sum(${gatewayTransactions.grossAmountCents}), 0)::int`,
         feeCents: sql<number>`coalesce(sum(${gatewayTransactions.feeAmountCents}), 0)::int`,
         feeVatCents: sql<number>`coalesce(sum(${gatewayTransactions.feeVatCents}), 0)::int`,
         netCents: sql<number>`coalesce(sum(${gatewayTransactions.netAmountCents}), 0)::int`,
         bankMatchedCents: sql<number>`coalesce(sum(${bankTransactions.amountCents}), 0)::int`,
       })
-      .from(bankTransactions)
-      .innerJoin(
-        gatewayTransactions,
-        eq(gatewayTransactions.id, bankTransactions.matchedGatewayTransactionId)
+      .from(gatewayTransactions)
+      .leftJoin(
+        bankTransactions,
+        and(
+          eq(bankTransactions.matchedGatewayTransactionId, gatewayTransactions.id),
+          eq(bankTransactions.companyId, params.companyId),
+          eq(bankTransactions.matchStatus, "MATCHED"),
+        ),
       )
-      .where(and(...conditions, gatewayFilter))
+      .where(and(...gatewayConditions))
       .groupBy(gatewayTransactions.acquirer)
       .orderBy(desc(sql`coalesce(sum(${gatewayTransactions.netAmountCents}), 0)`));
 
-    return rows.map((row) => ({
-      ...row,
-      /** Comisión efectiva en puntos base (fee / gross). */
-      effectiveRateBps:
-        row.grossCents > 0 ? Math.round((row.feeCents / row.grossCents) * 10_000) : 0,
-    }));
+    return rows.map((row: {
+      acquirer: AcquirerType;
+      transactionCount: number;
+      matchedCount: number;
+      grossCents: number;
+      feeCents: number;
+      feeVatCents: number;
+      netCents: number;
+      bankMatchedCents: number;
+    }) => {
+      const unmatchedCount = Math.max(0, row.transactionCount - row.matchedCount);
+      const totalCommissionCents = row.feeCents + row.feeVatCents;
+      const arithmeticDifferenceCents =
+        row.grossCents - row.feeCents - row.feeVatCents - row.netCents;
+      const bankDifferenceCents = row.bankMatchedCents - row.netCents;
+      const documentedZero = row.grossCents > 0 && totalCommissionCents === 0;
+
+      const hasBankMismatchOnMatched =
+        row.matchedCount === row.transactionCount && Math.abs(bankDifferenceCents) > 1;
+      const hasArithmeticMismatch = Math.abs(arithmeticDifferenceCents) > 1;
+
+      const reconciliationStatus: CommissionReconciliationStatus =
+        hasArithmeticMismatch || hasBankMismatchOnMatched
+          ? "DISCREPANT"
+          : unmatchedCount > 0 || row.matchedCount === 0
+            ? "PENDING"
+            : "CONFIRMED";
+
+      const amountSource: CommissionAmountSource = documentedZero
+        ? "DOCUMENTED_ZERO"
+        : reconciliationStatus === "CONFIRMED"
+          ? "BANK_RECONCILED"
+          : "GATEWAY_REPORTED";
+
+      return {
+        ...row,
+        unmatchedCount,
+        totalCommissionCents,
+        arithmeticDifferenceCents,
+        bankDifferenceCents,
+        documentedZero,
+        amountSource,
+        reconciliationStatus,
+        amountSourceLabel: commissionAmountSourceLabel(amountSource),
+        reconciliationStatusLabel: commissionReconciliationStatusLabel(reconciliationStatus),
+        /** Comisión efectiva en puntos base ((fee + vat) / gross). */
+        effectiveRateBps:
+          row.grossCents > 0 ? Math.round((row.feeCents / row.grossCents) * 10_000) : 0,
+      };
+    });
   }
 
   /**

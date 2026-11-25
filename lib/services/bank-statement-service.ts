@@ -23,14 +23,26 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, desc, eq, gte, lte, sql, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { accountingEvents, bankTransactions, paymentRunItems, paymentRuns, gatewayTransactions, branches } from "@/lib/db/schema";
-import { companyBankAccounts, paymentRunItemTypeEnum } from "@/lib/db/schema";
+import {
+    accountingEvents,
+    accountingJournalLines,
+    accountingJournals,
+    bankTransactions,
+    paymentRunItems,
+    paymentRuns,
+    gatewayTransactions,
+    branches,
+    companyBankAccounts,
+    paymentRunItemTypeEnum,
+} from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
 import { withCompanyContext } from "@/lib/db/tenant-context";
 import { isAccountingPostingEnabled } from "./accounting/expense-adapter";
 import { settleConfirmedTransactionIn } from "./accounting/settlement-adapter";
+import { insertJournalLines, postInTransaction } from "./accounting/journal-service";
+import { AuditService } from "./audit-service";
 
 type PaymentRunItemType = typeof paymentRunItemTypeEnum.enumValues[number];
 
@@ -1094,11 +1106,16 @@ export async function confirmDepositMatch(
 }
 
 /** Deshacer un match de ENTRADA: vuelve a UNMATCHED y libera la fila gateway. */
-export async function unmatchDepositTransaction(input: {
-    companyId: string;
-    transactionId: string;
-}): Promise<void> {
-    await withCompanyContext({ companyId: input.companyId }, async tx => {
+export async function unmatchDepositTransaction(
+    input: {
+        companyId: string;
+        transactionId: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance?: any
+): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = async (tx: any) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.companyId}, 601))`);
         const [fact] = await tx.select({ id: accountingEvents.id }).from(accountingEvents)
             .innerJoin(bankTransactions, and(eq(bankTransactions.companyId, accountingEvents.companyId),
@@ -1126,7 +1143,286 @@ export async function unmatchDepositTransaction(input: {
         if (!updated) {
             throw ApiError.conflict("El movimiento no estaba cruzado o no existe.");
         }
-    });
+    };
+
+    if (dbInstance) {
+        await run(dbInstance);
+    } else {
+        await withCompanyContext({ companyId: input.companyId }, run);
+    }
+}
+
+export interface AuditedDepositCorrectionResult {
+    bankTransactionId: string;
+    gatewayTransactionId: string;
+    originalJournalId: string | null;
+    originalJournalVersion: number | null;
+    reversalJournalId: string | null;
+    auditLogId: string;
+    preservedAccountingEventIds: string[];
+}
+
+/**
+ * BAN-06.b — Corrección auditada de un depósito ya contabilizado (FC-12 + AUD-02).
+ *
+ * Reglas:
+ * 1. Reutiliza el contrato de reversa de FC-06/FC-12 (`reversalOfId` + líneas
+ *    invertidas + `postInTransaction`) cuando existe póliza `POSTED`.
+ * 2. Jamás borra el hecho contable (`accounting_events`) ni la póliza original.
+ * 3. Jamás revierte ni libera saldo dos veces: el cerrojo de empresa (601), la
+ *    verificación de reversa existente y el `WHERE match_status = 'MATCHED'`
+ *    garantizan una única corrección (409 ante repetición o carrera).
+ * 4. Exige actor y motivo válidos con auditoría obligatoria `AUD-02` en la
+ *    misma transacción (`DEPOSIT_CORRECTION`); si falla la auditoría, toda la
+ *    operación hace rollback.
+ */
+export async function correctAccountedDepositMatch(
+    input: {
+        companyId: string;
+        transactionId: string;
+        actorId: string;
+        reason: string;
+        accountingDate?: string;
+        expectedVersion?: number;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance?: any
+): Promise<AuditedDepositCorrectionResult> {
+    if (!input.actorId?.trim()) {
+        throw ApiError.forbidden("Se requiere un actor autenticado para corregir un depósito contabilizado.");
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (reason.length < 5) {
+        throw ApiError.badRequest("El motivo de corrección auditada es obligatorio (mínimo 5 caracteres).");
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = async (tx: any): Promise<AuditedDepositCorrectionResult> => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.companyId}, 601))`);
+
+        const [txRow] = await tx
+            .select({
+                id: bankTransactions.id,
+                matchStatus: bankTransactions.matchStatus,
+                matchedGatewayTransactionId: bankTransactions.matchedGatewayTransactionId,
+                valueDate: bankTransactions.valueDate,
+                amountCents: bankTransactions.amountCents,
+            })
+            .from(bankTransactions)
+            .where(
+                and(
+                    eq(bankTransactions.id, input.transactionId),
+                    eq(bankTransactions.companyId, input.companyId)
+                )
+            )
+            .for("update")
+            .limit(1);
+
+        if (!txRow) {
+            throw ApiError.notFound("El movimiento bancario no existe.");
+        }
+        if (txRow.matchStatus !== "MATCHED" || !txRow.matchedGatewayTransactionId) {
+            throw ApiError.conflict(
+                "El depósito ya fue liberado o no tiene un cruce de pasarela activo."
+            );
+        }
+
+        const gatewayId = txRow.matchedGatewayTransactionId as string;
+
+        const events: Array<{ id: string; status: string }> = await tx
+            .select({ id: accountingEvents.id, status: accountingEvents.status })
+            .from(accountingEvents)
+            .where(
+                and(
+                    eq(accountingEvents.companyId, input.companyId),
+                    eq(accountingEvents.sourceType, "GATEWAY_SETTLEMENT"),
+                    eq(accountingEvents.sourceId, gatewayId)
+                )
+            );
+
+        const [originalJournal] = await tx
+            .select()
+            .from(accountingJournals)
+            .where(
+                and(
+                    eq(accountingJournals.companyId, input.companyId),
+                    eq(accountingJournals.sourceType, "GATEWAY_SETTLEMENT"),
+                    eq(accountingJournals.sourceId, gatewayId),
+                    eq(accountingJournals.status, "POSTED"),
+                    isNull(accountingJournals.reversalOfId)
+                )
+            )
+            .for("update")
+            .limit(1);
+
+        if (events.length === 0 && !originalJournal) {
+            throw ApiError.conflict(
+                "Este depósito no tiene hecho contable asociado; utiliza deshacer cruce normal."
+            );
+        }
+
+        let reversalJournalId: string | null = null;
+        let originalJournalId: string | null = null;
+        let originalJournalVersion: number | null = null;
+
+        if (originalJournal) {
+            originalJournalId = originalJournal.id;
+            originalJournalVersion = originalJournal.version;
+
+            if (
+                input.expectedVersion !== undefined &&
+                originalJournal.version !== input.expectedVersion
+            ) {
+                throw ApiError.conflict(
+                    `Conflicto de versión de póliza (esperada ${input.expectedVersion}, actual ${originalJournal.version}).`
+                );
+            }
+
+            const [existingReversal] = await tx
+                .select({ id: accountingJournals.id })
+                .from(accountingJournals)
+                .where(
+                    and(
+                        eq(accountingJournals.companyId, input.companyId),
+                        eq(accountingJournals.reversalOfId, originalJournal.id)
+                    )
+                )
+                .limit(1);
+
+            if (existingReversal) {
+                throw ApiError.conflict(
+                    "La póliza del depósito ya tiene una reversa registrada; nunca se libera el saldo dos veces."
+                );
+            }
+
+            const lines: Array<{
+                accountId: string;
+                costCenterId: string | null;
+                debitCents: number;
+                creditCents: number;
+                memo: string | null;
+            }> = await tx
+                .select({
+                    accountId: accountingJournalLines.accountId,
+                    costCenterId: accountingJournalLines.costCenterId,
+                    debitCents: accountingJournalLines.debitCents,
+                    creditCents: accountingJournalLines.creditCents,
+                    memo: accountingJournalLines.memo,
+                })
+                .from(accountingJournalLines)
+                .where(
+                    and(
+                        eq(accountingJournalLines.companyId, input.companyId),
+                        eq(accountingJournalLines.journalId, originalJournal.id)
+                    )
+                )
+                .orderBy(asc(accountingJournalLines.lineNumber));
+
+            const reversalDate = input.accountingDate ?? originalJournal.accountingDate;
+            const [reversalDraft] = await tx
+                .insert(accountingJournals)
+                .values({
+                    companyId: input.companyId,
+                    accountingDate: reversalDate,
+                    businessDate: originalJournal.businessDate,
+                    branchId: originalJournal.branchId,
+                    description: `Reversa auditada de póliza ${originalJournal.number ?? originalJournal.id}`,
+                    reversalOfId: originalJournal.id,
+                    createdBy: input.actorId,
+                    updatedBy: input.actorId,
+                })
+                .returning();
+
+            await insertJournalLines(
+                tx,
+                input.companyId,
+                reversalDraft.id,
+                lines.map((line) => ({
+                    accountId: line.accountId,
+                    costCenterId: line.costCenterId,
+                    debitCents: line.creditCents,
+                    creditCents: line.debitCents,
+                    memo: line.memo,
+                }))
+            );
+
+            const postedReversal = await postInTransaction(
+                tx,
+                input.companyId,
+                input.actorId,
+                reversalDraft.id,
+                1,
+                reason
+            );
+            reversalJournalId = postedReversal.id;
+        }
+
+        // Liberar el cruce bancario una única vez (cerrojo optimista sobre estado MATCHED)
+        const [released] = await tx
+            .update(bankTransactions)
+            .set({
+                matchStatus: "UNMATCHED",
+                matchedGatewayTransactionId: null,
+                matchedAt: null,
+                matchedBy: null,
+                matchNotes: `Corrección auditada por ${input.actorId}: ${reason}`,
+            })
+            .where(
+                and(
+                    eq(bankTransactions.id, txRow.id),
+                    eq(bankTransactions.companyId, input.companyId),
+                    eq(bankTransactions.matchStatus, "MATCHED"),
+                    eq(bankTransactions.matchedGatewayTransactionId, gatewayId)
+                )
+            )
+            .returning({ id: bankTransactions.id });
+
+        if (!released) {
+            throw ApiError.conflict(
+                "El depósito cambió de estado concurrentemente; no se liberó el saldo dos veces."
+            );
+        }
+
+        // Auditoría obligatoria AUD-02 en la misma transacción: si falla, revierte todo.
+        const auditLog = await AuditService.logCriticalConfigChange(
+            {
+                companyId: input.companyId,
+                performedBy: input.actorId,
+                fieldName: "DEPOSIT_CORRECTION",
+                oldValue: {
+                    bankTransactionId: txRow.id,
+                    gatewayTransactionId: gatewayId,
+                    amountCents: txRow.amountCents,
+                    originalJournalId,
+                    originalJournalVersion,
+                },
+                newValue: {
+                    action: "CORRECT_DEPOSIT_MATCH",
+                    matchStatus: "UNMATCHED",
+                    reversalJournalId,
+                    preservedAccountingEventIds: events.map((e) => e.id),
+                    accountingDate: input.accountingDate ?? txRow.valueDate,
+                },
+                reason,
+            },
+            tx
+        );
+
+        return {
+            bankTransactionId: txRow.id,
+            gatewayTransactionId: gatewayId,
+            originalJournalId,
+            originalJournalVersion,
+            reversalJournalId,
+            auditLogId: auditLog.id,
+            preservedAccountingEventIds: events.map((e) => e.id),
+        };
+    };
+
+    if (dbInstance) {
+        return run(dbInstance);
+    }
+    return withCompanyContext({ companyId: input.companyId, actorId: input.actorId }, run);
 }
 
 /** Deshacer un match de salida: el cruce bancario se separa de la liquidación manual y conserva la partida/obligación. */

@@ -3,6 +3,10 @@ import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { resolveBranchScope } from "@/lib/branch-scope";
 import { getCommissionsByBranch } from "@/lib/services/commission-service";
+import {
+  commissionAmountSourceLabel,
+  commissionReconciliationStatusLabel,
+} from "@/lib/services/commission-types";
 import { resolvePnlPeriod } from "@/lib/services/pnl-service";
 import { db } from "@/lib/db";
 import { branches } from "@/lib/db/schema";
@@ -59,16 +63,33 @@ export const GET = withTenantAuth(async (req, { auth }) => {
 
   const items = visibles.map((b) => {
     const c = byBranch.get(b.id);
+    const amountSource = c?.amountSource ?? "NO_DATA";
+    const reconciliationStatus = c?.reconciliationStatus ?? "PENDING";
     return {
       branchId: b.id,
       branchName: b.name,
       channels: c?.channels ?? [],
       totalCommissionCents: c?.totalCommissionCents ?? 0,
+      totalFeeBaseCents: c?.totalFeeBaseCents ?? 0,
+      totalFeeVatCents: c?.totalFeeVatCents ?? 0,
+      totalExpectedNetCents: c?.totalExpectedNetCents ?? 0,
+      totalBankMatchedCents: c?.totalBankMatchedCents ?? 0,
+      reportedCommissionCents: c?.reportedCommissionCents ?? 0,
+      reconciledCommissionCents: c?.reconciledCommissionCents ?? 0,
+      estimatedCommissionCents: c?.estimatedCommissionCents ?? 0,
+      discrepancyCents: c?.discrepancyCents ?? 0,
       coveredSalesCents: c?.coveredSalesCents ?? 0,
       uncoveredSalesCents: c?.uncoveredSalesCents ?? 0,
       // Sin cortes en el período no hay nada que estimar y tampoco nada que
       // afirmar: `NO_DATA` es la lectura honesta, no un cero.
       source: c?.source ?? "NO_DATA",
+      amountSource,
+      reconciliationStatus,
+      amountSourceLabel: c?.amountSourceLabel ?? commissionAmountSourceLabel(amountSource),
+      reconciliationStatusLabel:
+        c?.reconciliationStatusLabel ??
+        commissionReconciliationStatusLabel(reconciliationStatus),
+      documentedZero: c?.documentedZero ?? false,
       coveragePercent: c?.coveragePercent ?? 0,
       note: c?.note ?? "Sin cortes de venta capturados en el período.",
     };

@@ -12,7 +12,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, Loader2, AlertTriangle, AlertCircle, Download } from "lucide-react";
 import { formatCents } from "@/lib/utils";
-import { commissionChannelLabel, formatRateBps } from "@/lib/services/commission-types";
+import {
+  commissionChannelLabel,
+  formatCommissionProvenanceTag,
+  formatRateBps,
+} from "@/lib/services/commission-types";
 import { noDataLine } from "@/lib/services/pnl-types";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 import type { DateRange } from "@/components/finance/period-selector";
@@ -268,15 +272,17 @@ function CommissionCell({ item, inspect }: { item: BranchPnLItem; inspect?: Insp
   const detalle =
     breakdown.length > 0
       ? breakdown
-          .map(
-            (c) =>
-              `${commissionChannelLabel(c.channel)}: ${formatCents(c.cents)}` +
-              (c.measured
-                ? " (conciliada)"
-                : c.rateBps !== null
-                  ? ` (${formatRateBps(c.rateBps)})`
-                  : " (varias tarifas en el período)"),
-          )
+          .map((c) => {
+            const provenance =
+              c.amountSource && c.reconciliationStatus
+                ? formatCommissionProvenanceTag(c.amountSource, c.reconciliationStatus)
+                : c.measured
+                  ? "Conciliada en banco · Confirmada"
+                  : c.rateBps !== null
+                    ? formatRateBps(c.rateBps)
+                    : "varias tarifas en el período";
+            return `${commissionChannelLabel(c.channel)}: ${formatCents(c.cents)} (${provenance})`;
+          })
           .join(" · ")
       : null;
 

@@ -22,11 +22,20 @@
 // con la tarifa cuando no. Ninguno de los dos es un pasivo contable.
 
 import { ApiError } from "@/lib/api/error";
-import { commissionChannelLabel } from "./commission-types";
+import {
+  commissionChannelLabel,
+  type CommissionAmountSource,
+  type CommissionReconciliationStatus,
+} from "./commission-types";
 import { getCommissionsByBranch } from "./commission-service";
 import { getLaborCostByBranch } from "./labor-cost-service";
 import { getPnLByBranch } from "./pnl-service";
-import type { BranchPnL, LineSource, PnLLine } from "./pnl-types";
+import {
+  pnlLineSourceForCommission,
+  type BranchPnL,
+  type LineSource,
+  type PnLLine,
+} from "./pnl-types";
 
 export const DERIVED_PNL_LINES = ["labor", "commissions", "operatingProfit"] as const;
 export type DerivedPnlLine = (typeof DERIVED_PNL_LINES)[number];
@@ -46,8 +55,18 @@ export interface CalculationComponent {
   /** Tarifa aplicada en bps; `null` si el rango abarcó varias vigencias. */
   rateBps?: number | null;
   vatBps?: number | null;
-  /** Parte medida (conciliada con la terminal) del importe del canal. */
+  /** Parte documentada (reportada + conciliada) del importe del canal. */
   measuredCents?: number;
+  /** FIN-06.a: desglose separado de reportado vs conciliado y etiquetas coherentes. */
+  reportedCents?: number;
+  reconciledCents?: number;
+  estimatedCents?: number;
+  discrepancyCents?: number;
+  amountSource?: CommissionAmountSource;
+  reconciliationStatus?: CommissionReconciliationStatus;
+  amountSourceLabel?: string;
+  reconciliationStatusLabel?: string;
+  documentedZero?: boolean;
 }
 
 export interface PnlCalculation {
@@ -193,7 +212,7 @@ async function commissionsDetail(p: Input, line: PnLLine): Promise<PnlCalculatio
   const branchCommissions = (await getCommissionsByBranch(p.companyId, p.period.startDate, p.period.endDate))
     .find((row) => row.branchId === p.branchId);
 
-  if ((branchCommissions?.source ?? "NO_DATA") !== line.source
+  if (pnlLineSourceForCommission(branchCommissions) !== line.source
     || (branchCommissions?.coveragePercent ?? 0) !== line.coveragePercent) {
     throw ApiError.conflict("Los datos de comisiones cambiaron durante la consulta. Vuelve a consultar el detalle.");
   }
@@ -202,11 +221,20 @@ async function commissionsDetail(p: Input, line: PnLLine): Promise<PnlCalculatio
     key: channel.channel,
     label: commissionChannelLabel(channel.channel),
     cents: channel.commissionCents,
-    source: channel.source,
+    source: pnlLineSourceForCommission(channel),
     baseCents: channel.baseSalesCents,
     rateBps: channel.rateBps,
     vatBps: channel.vatBps,
     measuredCents: channel.measuredCents,
+    reportedCents: channel.reportedCents,
+    reconciledCents: channel.reconciledCents,
+    estimatedCents: channel.estimatedCents,
+    discrepancyCents: channel.discrepancyCents,
+    amountSource: channel.amountSource,
+    reconciliationStatus: channel.reconciliationStatus,
+    amountSourceLabel: channel.amountSourceLabel,
+    reconciliationStatusLabel: channel.reconciliationStatusLabel,
+    documentedZero: channel.documentedZero,
   }));
 
   // `NO_DATA` no tiene canales valuados: el renglón es cero porque no hay

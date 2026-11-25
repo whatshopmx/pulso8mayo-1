@@ -9,6 +9,11 @@
 // seguro de mostrar si cada renglón declara de dónde salió. Un número inventado
 // etiquetado es aceptable; sin etiquetar, no.
 
+import type {
+  CommissionAmountSource,
+  CommissionReconciliationStatus,
+} from "./commission-types";
+
 /**
  * Procedencia de un renglón del P&L.
  *
@@ -67,6 +72,17 @@ export interface PnLLine {
   coveragePercent: number;
   /** Explicación en español del método: "12 de 14 turnos capturados". */
   note: string;
+  /** FIN-06.a: procedencia del importe de comisión separada de la conciliación. */
+  amountSource?: CommissionAmountSource;
+  /** FIN-06.a: estado de conciliación separado de la procedencia. */
+  reconciliationStatus?: CommissionReconciliationStatus;
+  amountSourceLabel?: string;
+  reconciliationStatusLabel?: string;
+  documentedZero?: boolean;
+  reportedCents?: number;
+  reconciledCents?: number;
+  estimatedCents?: number;
+  discrepancyCents?: number;
 }
 
 export interface BranchPnL {
@@ -141,8 +157,50 @@ export interface CommissionBreakdownItem {
   cents: number;
   /** Tarifa aplicada en bps, o `null` si el rango abarcó varias vigencias. */
   rateBps: number | null;
-  /** `true` si el importe salió de la comisión conciliada y no de la tarifa. */
+  /** `true` si el importe salió de una comisión confirmada/conciliada y no de una tarifa. */
   measured: boolean;
+  /** FIN-06.a: procedencia y estado de conciliación separados y coherentes con API. */
+  amountSource?: CommissionAmountSource;
+  reconciliationStatus?: CommissionReconciliationStatus;
+  amountSourceLabel?: string;
+  reconciliationStatusLabel?: string;
+  documentedZero?: boolean;
+  reportedCents?: number;
+  reconciledCents?: number;
+  estimatedCents?: number;
+  discrepancyCents?: number;
+}
+
+/**
+ * FIN-06.a: traduce el estado de comisiones de una sucursal al `LineSource` del P&L
+ * sin marcar como `MEASURED` (firme) un importe únicamente reportado o discrepante.
+ */
+export function pnlLineSourceForCommission(
+  commission:
+    | {
+        source: "MEASURED" | "ESTIMATED" | "NO_DATA";
+        reconciliationStatus: CommissionReconciliationStatus;
+        documentedZero: boolean;
+        uncoveredSalesCents?: number;
+        coveragePercent?: number;
+      }
+    | undefined,
+): LineSource {
+  if (!commission || commission.source === "NO_DATA") return "NO_DATA";
+  if (commission.source === "ESTIMATED") return "ESTIMATED";
+  if (
+    (commission.uncoveredSalesCents ?? 0) > 0 ||
+    (typeof commission.coveragePercent === "number" && commission.coveragePercent < 100)
+  ) {
+    return "DERIVED";
+  }
+  if (
+    commission.reconciliationStatus === "CONFIRMED" ||
+    (commission.documentedZero && commission.reconciliationStatus === "NOT_APPLICABLE")
+  ) {
+    return "MEASURED";
+  }
+  return "DERIVED";
 }
 
 /** Constantes sectoriales HORECA. Solo se usan como último recurso, etiquetadas. */

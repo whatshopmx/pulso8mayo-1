@@ -26,35 +26,47 @@
 
 import { db } from "@/lib/db";
 import {
+  aggregatorSettlements,
+  bankTransactions,
   branches,
   channelCommissionRates,
   dailySalesCuts,
   users,
   gatewayTransactions,
 } from "@/lib/db/schema";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api/error";
 import { assertBranchOfCompany } from "@/lib/branch-scope";
+import { normalizeSettlementChannel } from "@/lib/services/aggregator-settlement-rules";
 import {
   COMMISSION_CHANNELS,
   MAX_RATE_BPS,
+  aggregateAmountSource,
+  aggregateReconciliationStatus,
+  commissionAmountSourceLabel,
   commissionOf,
+  commissionReconciliationStatusLabel,
   commissionWithVatOf,
   commissionChannelLabel,
+  formatCommissionProvenanceTag,
   formatRateBps,
   isCommissionChannel,
 } from "@/lib/services/commission-types";
 import type {
   BranchCommissions,
   ChannelCommission,
+  CommissionAmountSource,
   CommissionRate,
+  CommissionReconciliationStatus,
   CommissionSource,
 } from "@/lib/services/commission-types";
 
 export type {
   BranchCommissions,
   ChannelCommission,
+  CommissionAmountSource,
   CommissionRate,
+  CommissionReconciliationStatus,
 } from "@/lib/services/commission-types";
 
 /**
@@ -303,87 +315,162 @@ function channelBases(cut: {
 }
 
 interface ChannelAcc {
-  /** Venta a la que SÍ se le pudo aplicar una tarifa (o conciliar una comisión). */
+  /** Venta a la que SÍ se le pudo aplicar una tarifa (o documentar una comisión). */
   coveredBaseCents: number;
-  /** Venta que quedó sin valuar por no haber tarifa vigente en su fecha. */
+  /** Venta que quedó sin valuar por no haber tarifa vigente ni reporte en su fecha. */
   uncoveredBaseCents: number;
-  measuredCents: number;
+  feeBaseCents: number;
+  feeVatCents: number;
+  expectedNetCents: number;
+  bankMatchedCents: number;
+  reportedCents: number;
+  reconciledCents: number;
   estimatedCents: number;
+  discrepancyCents: number;
+  cutReportedCount: number;
   ratesApplied: Set<number>;
   /** IVAs aplicados. Igual que `ratesApplied`: si hay más de uno, no se rotula. */
   vatApplied: Set<number>;
   cutsCount: number;
+  amountSources: CommissionAmountSource[];
+  reconciliationStatuses: CommissionReconciliationStatus[];
+  documentedZero: boolean;
+}
+
+function emptyChannelAcc(): ChannelAcc {
+  return {
+    coveredBaseCents: 0,
+    uncoveredBaseCents: 0,
+    feeBaseCents: 0,
+    feeVatCents: 0,
+    expectedNetCents: 0,
+    bankMatchedCents: 0,
+    reportedCents: 0,
+    reconciledCents: 0,
+    estimatedCents: 0,
+    discrepancyCents: 0,
+    cutReportedCount: 0,
+    ratesApplied: new Set<number>(),
+    vatApplied: new Set<number>(),
+    cutsCount: 0,
+    amountSources: [],
+    reconciliationStatuses: [],
+    documentedZero: false,
+  };
 }
 
 /**
  * Comisiones del período por sucursal y canal.
  *
- * Se resuelve en dos consultas (tarifas + cortes) y el cruce se hace en memoria:
- * la tarifa depende de la fecha de CADA corte, así que un `SUM` en SQL tendría
- * que unir por rango de vigencia y devolvería lo mismo con un plan peor. Para un
- * mes de una cadena de 15 sucursales son ~900 cortes.
+ * FIN-06.a: separa explícitamente la procedencia del importe (`amountSource`:
+ * tarifa estimada, reporte en corte/pasarela/agregador, conciliación bancaria o
+ * cero documentado) del estado de conciliación (`reconciliationStatus`:
+ * pendiente, discrepante, confirmado o no aplica).
  */
 export async function getCommissionsByBranch(
   companyId: string,
   from: string,
   to: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dbInstance: any = db,
 ): Promise<BranchCommissions[]> {
   const startDay = from.slice(0, 10);
   const endDay = to.slice(0, 10);
 
-  const [rateRows, cuts, gatewayRows] = await Promise.all([
-    db
-      .select({
-        channel: channelCommissionRates.channel,
-        branchId: channelCommissionRates.branchId,
-        rateBps: channelCommissionRates.rateBps,
-        vatBps: channelCommissionRates.vatBps,
-        effectiveFrom: channelCommissionRates.effectiveFrom,
-      })
-      .from(channelCommissionRates)
-      .where(eq(channelCommissionRates.companyId, companyId))
-      .orderBy(asc(channelCommissionRates.effectiveFrom)),
+  const ratesQuery = dbInstance
+    .select({
+      channel: channelCommissionRates.channel,
+      branchId: channelCommissionRates.branchId,
+      rateBps: channelCommissionRates.rateBps,
+      vatBps: channelCommissionRates.vatBps,
+      effectiveFrom: channelCommissionRates.effectiveFrom,
+    })
+    .from(channelCommissionRates)
+    .where(eq(channelCommissionRates.companyId, companyId))
+    .orderBy(asc(channelCommissionRates.effectiveFrom));
 
-    db
-      .select({
-        branchId: dailySalesCuts.branchId,
-        businessDate: dailySalesCuts.businessDate,
-        cashSales: dailySalesCuts.cashSales,
-        cardSales: dailySalesCuts.cardSales,
-        aggregatorSales: dailySalesCuts.aggregatorSales,
-        commissionCents: dailySalesCuts.commissionCents,
-      })
-      .from(dailySalesCuts)
-      .where(
-        and(
-          eq(dailySalesCuts.companyId, companyId),
-          gte(dailySalesCuts.businessDate, startDay),
-          lte(dailySalesCuts.businessDate, endDay),
-        ),
+  const cutsQuery = dbInstance
+    .select({
+      branchId: dailySalesCuts.branchId,
+      businessDate: dailySalesCuts.businessDate,
+      cashSales: dailySalesCuts.cashSales,
+      cardSales: dailySalesCuts.cardSales,
+      aggregatorSales: dailySalesCuts.aggregatorSales,
+      commissionCents: dailySalesCuts.commissionCents,
+    })
+    .from(dailySalesCuts)
+    .where(
+      and(
+        eq(dailySalesCuts.companyId, companyId),
+        gte(dailySalesCuts.businessDate, startDay),
+        lte(dailySalesCuts.businessDate, endDay),
       ),
+    );
 
-    db
-      .select({
-        branchId: gatewayTransactions.branchId,
-        grossAmountCents: gatewayTransactions.grossAmountCents,
-        feeAmountCents: gatewayTransactions.feeAmountCents,
-        feeVatCents: gatewayTransactions.feeVatCents,
-      })
-      .from(gatewayTransactions)
-      .where(
-        and(
-          eq(gatewayTransactions.companyId, companyId),
-          gte(gatewayTransactions.transactionDate, new Date(startDay)),
-          lte(gatewayTransactions.transactionDate, new Date(`${endDay}T23:59:59.999Z`)),
-        ),
+  const gatewayQuery = dbInstance
+    .select({
+      id: gatewayTransactions.id,
+      branchId: gatewayTransactions.branchId,
+      grossAmountCents: gatewayTransactions.grossAmountCents,
+      feeAmountCents: gatewayTransactions.feeAmountCents,
+      feeVatCents: gatewayTransactions.feeVatCents,
+      netAmountCents: gatewayTransactions.netAmountCents,
+    })
+    .from(gatewayTransactions)
+    .where(
+      and(
+        eq(gatewayTransactions.companyId, companyId),
+        gte(gatewayTransactions.transactionDate, new Date(startDay)),
+        lte(gatewayTransactions.transactionDate, new Date(`${endDay}T23:59:59.999Z`)),
       ),
+    );
+
+  const bankMatchQuery = dbInstance.select({
+    id: bankTransactions.id,
+    matchedGatewayTransactionId: bankTransactions.matchedGatewayTransactionId,
+    amountCents: bankTransactions.amountCents,
+  });
+
+  const settlementQuery = dbInstance.select({
+    id: aggregatorSettlements.id,
+    branchId: aggregatorSettlements.branchId,
+    channel: aggregatorSettlements.channel,
+    grossSalesCents: aggregatorSettlements.grossSalesCents,
+    commissionCents: aggregatorSettlements.commissionCents,
+    netDepositedCents: aggregatorSettlements.netDepositedCents,
+    varianceCents: aggregatorSettlements.varianceCents,
+    status: aggregatorSettlements.status,
+  });
+
+  const [rateRows, cuts, gatewayRows, bankMatchRows, settlementRows] = await Promise.all([
+    ratesQuery,
+    cutsQuery,
+    gatewayQuery,
+    bankMatchQuery && typeof bankMatchQuery.from === "function"
+      ? bankMatchQuery
+          .from(bankTransactions)
+          .where(
+            and(
+              eq(bankTransactions.companyId, companyId),
+              eq(bankTransactions.matchStatus, "MATCHED"),
+              isNotNull(bankTransactions.matchedGatewayTransactionId),
+            ),
+          )
+      : Promise.resolve([]),
+    settlementQuery && typeof settlementQuery.from === "function"
+      ? settlementQuery
+          .from(aggregatorSettlements)
+          .where(
+            and(
+              eq(aggregatorSettlements.companyId, companyId),
+              lte(aggregatorSettlements.periodStart, endDay),
+              gte(aggregatorSettlements.periodEnd, startDay),
+            ),
+          )
+      : Promise.resolve([]),
   ]);
 
   // Vigencias por (sucursal, canal), ya ordenadas ascendente por la consulta.
-  // `branchId` nulo es la serie del grupo, y es a la que se cae cuando la
-  // sucursal no tiene la suya (A6.1): un grupo que abrió su sucursal 12 con una
-  // tarifa de arranque distinta antes no podía representarlo, y esa sucursal
-  // salía con la tarifa de las otras once.
   const ratesByKey = new Map<
     string,
     Array<{ effectiveFrom: string; rateBps: number; vatBps: number }>
@@ -415,77 +502,252 @@ export async function getCommissionsByBranch(
     if (cut.commissionCents !== null && !bases.has("tpv")) bases.set("tpv", 0);
 
     for (const [channel, baseCents] of bases) {
-      const acc = channels.get(channel) ?? {
-        coveredBaseCents: 0,
-        uncoveredBaseCents: 0,
-        measuredCents: 0,
-        estimatedCents: 0,
-        ratesApplied: new Set<number>(),
-        vatApplied: new Set<number>(),
-        cutsCount: 0,
-      };
+      const acc = channels.get(channel) ?? emptyChannelAcc();
       acc.cutsCount += 1;
 
       if (channel === "tpv" && cut.commissionCents !== null) {
-        acc.measuredCents += cut.commissionCents;
+        acc.cutReportedCount += 1;
+        acc.reportedCents += cut.commissionCents;
+        acc.feeBaseCents += cut.commissionCents;
+        acc.expectedNetCents += baseCents - cut.commissionCents;
         acc.coveredBaseCents += baseCents;
+        acc.amountSources.push(cut.commissionCents === 0 ? "DOCUMENTED_ZERO" : "CUT_REPORTED");
+        acc.reconciliationStatuses.push("PENDING");
+        acc.documentedZero = acc.reportedCents === 0 && acc.estimatedCents === 0;
       } else {
         const vigencia = vigenciaPara(channel, cut.branchId, cut.businessDate);
         const rateBps = vigencia?.rateBps ?? null;
         if (vigencia === null || rateBps === null) {
-          // Cubierto/no cubierto se acumula por CORTE y no por canal: una tarifa
-          // que empieza a mitad del mes deja fuera sólo los cortes anteriores a
-          // su vigencia, y marcar el canal entero como cubierto inflaría la
-          // cobertura que el P&L usa para decidir si el renglón es confiable.
           acc.uncoveredBaseCents += baseCents;
         } else {
-          // Con IVA: es lo que el agregador descuenta del depósito, y por lo
-          // tanto lo que le cuesta al restaurante.
-          acc.estimatedCents += commissionWithVatOf(baseCents, rateBps, vigencia.vatBps);
+          const feeBase = commissionOf(baseCents, rateBps);
+          const totalWithVat = commissionWithVatOf(baseCents, rateBps, vigencia.vatBps);
+          const feeVat = totalWithVat - feeBase;
+          acc.estimatedCents += totalWithVat;
+          acc.feeBaseCents += feeBase;
+          acc.feeVatCents += feeVat;
+          acc.expectedNetCents += baseCents - totalWithVat;
           acc.ratesApplied.add(rateBps);
           acc.vatApplied.add(vigencia.vatBps);
           acc.coveredBaseCents += baseCents;
+          acc.amountSources.push("RATE_ESTIMATE");
+          acc.reconciliationStatuses.push("PENDING");
+          acc.documentedZero = false;
         }
       }
 
-    channels.set(channel, acc);
+      channels.set(channel, acc);
     }
   }
 
-  // Integrar transacciones medidas de reportes de pasarelas (Clip, MP, bancos)
-  const gatewayByBranch = new Map<string, { feeCents: number; grossCents: number }>();
+  // Mapa de depósitos bancarios conciliados por transacción de pasarela.
+  const bankByGatewayId = new Map<string, { id: string; amountCents: number }>();
+  for (const b of bankMatchRows) {
+    if (b.matchedGatewayTransactionId) {
+      bankByGatewayId.set(b.matchedGatewayTransactionId, {
+        id: b.id,
+        amountCents: b.amountCents,
+      });
+    }
+  }
+
+  // Integrar transacciones documentadas de reportes de pasarelas (Clip, MP, bancos)
+  // separando importe reportado vs conciliado en banco y estado de conciliación.
+  const gatewayByBranch = new Map<
+    string,
+    {
+      txCount: number;
+      grossCents: number;
+      feeBaseCents: number;
+      feeVatCents: number;
+      expectedNetCents: number;
+      bankMatchedCents: number;
+      reportedCents: number;
+      reconciledCents: number;
+      discrepancyCents: number;
+      statuses: CommissionReconciliationStatus[];
+      allZeroFee: boolean;
+    }
+  >();
+
   for (const g of gatewayRows) {
-    const prev = gatewayByBranch.get(g.branchId) ?? { feeCents: 0, grossCents: 0 };
-    gatewayByBranch.set(g.branchId, {
-      feeCents: prev.feeCents + g.feeAmountCents + g.feeVatCents,
-      grossCents: prev.grossCents + g.grossAmountCents,
-    });
+    const prev = gatewayByBranch.get(g.branchId) ?? {
+      txCount: 0,
+      grossCents: 0,
+      feeBaseCents: 0,
+      feeVatCents: 0,
+      expectedNetCents: 0,
+      bankMatchedCents: 0,
+      reportedCents: 0,
+      reconciledCents: 0,
+      discrepancyCents: 0,
+      statuses: [],
+      allZeroFee: true,
+    };
+
+    const feeTotal = g.feeAmountCents + g.feeVatCents;
+    const expectedNet = g.grossAmountCents - feeTotal;
+    const reportedNet = typeof g.netAmountCents === "number" ? g.netAmountCents : expectedNet;
+    const arithmeticDiff = reportedNet - expectedNet;
+    const matchedBank = g.id ? bankByGatewayId.get(g.id) : undefined;
+
+    prev.txCount += 1;
+    prev.grossCents += g.grossAmountCents;
+    prev.feeBaseCents += g.feeAmountCents;
+    prev.feeVatCents += g.feeVatCents;
+    prev.expectedNetCents += reportedNet;
+    if (feeTotal !== 0) prev.allZeroFee = false;
+
+    if (matchedBank) {
+      prev.bankMatchedCents += matchedBank.amountCents;
+      const bankDiff = matchedBank.amountCents - reportedNet;
+      if (Math.abs(bankDiff) > 1 || Math.abs(arithmeticDiff) > 1) {
+        prev.reportedCents += feeTotal;
+        prev.discrepancyCents += Math.abs(bankDiff) > 1 ? bankDiff : arithmeticDiff;
+        prev.statuses.push("DISCREPANT");
+      } else {
+        prev.reconciledCents += feeTotal;
+        prev.statuses.push("CONFIRMED");
+      }
+    } else if (Math.abs(arithmeticDiff) > 1) {
+      prev.reportedCents += feeTotal;
+      prev.discrepancyCents += arithmeticDiff;
+      prev.statuses.push("DISCREPANT");
+    } else {
+      prev.reportedCents += feeTotal;
+      prev.statuses.push("PENDING");
+    }
+
+    gatewayByBranch.set(g.branchId, prev);
   }
 
   for (const [branchId, gw] of gatewayByBranch) {
     const channels = byBranch.get(branchId) ?? new Map<string, ChannelAcc>();
     byBranch.set(branchId, channels);
 
-    // A documented zero fee also replaces an estimate for these sales.
-    if (gw.grossCents > 0) {
-      const tpvAcc = channels.get("tpv") ?? {
-        coveredBaseCents: 0,
-        uncoveredBaseCents: 0,
-        measuredCents: 0,
-        estimatedCents: 0,
-        ratesApplied: new Set<number>(),
-        vatApplied: new Set<number>(),
-        cutsCount: 0,
-      };
+    // Una comisión documentada (incluido cero documentado) sustituye la estimación por tarifa.
+    if (gw.grossCents > 0 || gw.txCount > 0) {
+      const tpvAcc = channels.get("tpv") ?? emptyChannelAcc();
+      const hasBankConfirmed = gw.statuses.includes("CONFIRMED");
 
-      // Si no había medición manual en cortes, la medición del reporte de pasarela toma prioridad
-      if (tpvAcc.measuredCents === 0) {
-        tpvAcc.measuredCents = gw.feeCents;
+      // Si no había comisión reportada manualmente en cortes (o si la pasarela ya fue
+      // conciliada contra banco), el reporte/conciliación de pasarela toma prioridad.
+      if (tpvAcc.cutReportedCount === 0 || hasBankConfirmed) {
+        tpvAcc.feeBaseCents = gw.feeBaseCents;
+        tpvAcc.feeVatCents = gw.feeVatCents;
+        tpvAcc.expectedNetCents = gw.expectedNetCents;
+        tpvAcc.bankMatchedCents = gw.bankMatchedCents;
+        tpvAcc.reportedCents = gw.reportedCents;
+        tpvAcc.reconciledCents = gw.reconciledCents;
+        tpvAcc.discrepancyCents = gw.discrepancyCents;
         tpvAcc.coveredBaseCents = Math.max(tpvAcc.coveredBaseCents, gw.grossCents);
-        tpvAcc.estimatedCents = 0; // Desplaza estimación por medición real
+        tpvAcc.uncoveredBaseCents = 0;
+        tpvAcc.estimatedCents = 0;
+        tpvAcc.ratesApplied.clear();
+        tpvAcc.vatApplied.clear();
+        tpvAcc.documentedZero = gw.allZeroFee;
+
+        const gwStatus = aggregateReconciliationStatus(gw.statuses);
+        const gwAmountSource: CommissionAmountSource = gw.allZeroFee
+          ? "DOCUMENTED_ZERO"
+          : gwStatus === "CONFIRMED" && gw.reportedCents === 0
+            ? "BANK_RECONCILED"
+            : "GATEWAY_REPORTED";
+
+        tpvAcc.amountSources = [gwAmountSource];
+        tpvAcc.reconciliationStatuses = [gwStatus];
         channels.set("tpv", tpvAcc);
       }
     }
+  }
+
+  // Integrar liquidaciones documentadas de agregadores (`aggregator_settlements`).
+  const settlementsByBranchChannel = new Map<
+    string,
+    {
+      branchId: string;
+      channel: string;
+      grossCents: number;
+      feeBaseCents: number;
+      expectedNetCents: number;
+      reportedCents: number;
+      reconciledCents: number;
+      discrepancyCents: number;
+      statuses: CommissionReconciliationStatus[];
+      allZeroFee: boolean;
+    }
+  >();
+
+  for (const s of settlementRows) {
+    const channel = normalizeSettlementChannel(s.channel);
+    const key = `${s.branchId}::${channel}`;
+    const prev = settlementsByBranchChannel.get(key) ?? {
+      branchId: s.branchId,
+      channel,
+      grossCents: 0,
+      feeBaseCents: 0,
+      expectedNetCents: 0,
+      reportedCents: 0,
+      reconciledCents: 0,
+      discrepancyCents: 0,
+      statuses: [],
+      allZeroFee: true,
+    };
+
+    const arithmeticDiff = s.grossSalesCents - s.commissionCents - s.netDepositedCents;
+    const isDiscrepant = s.status === "DISCREPANCY" || Math.abs(arithmeticDiff) > 1;
+    const isConfirmed = !isDiscrepant && s.status === "RECONCILED";
+
+    prev.grossCents += s.grossSalesCents;
+    prev.feeBaseCents += s.commissionCents;
+    prev.expectedNetCents += s.netDepositedCents;
+    if (s.commissionCents !== 0) prev.allZeroFee = false;
+
+    if (isConfirmed) {
+      prev.reconciledCents += s.commissionCents;
+      prev.statuses.push("CONFIRMED");
+    } else if (isDiscrepant) {
+      prev.reportedCents += s.commissionCents;
+      prev.discrepancyCents +=
+        s.status === "DISCREPANCY" && typeof s.varianceCents === "number"
+          ? s.varianceCents
+          : arithmeticDiff;
+      prev.statuses.push("DISCREPANT");
+    } else {
+      prev.reportedCents += s.commissionCents;
+      prev.statuses.push("PENDING");
+    }
+
+    settlementsByBranchChannel.set(key, prev);
+  }
+
+  for (const agg of settlementsByBranchChannel.values()) {
+    const channels = byBranch.get(agg.branchId) ?? new Map<string, ChannelAcc>();
+    byBranch.set(agg.branchId, channels);
+
+    const acc = channels.get(agg.channel) ?? emptyChannelAcc();
+    acc.feeBaseCents = agg.feeBaseCents;
+    acc.feeVatCents = 0;
+    acc.expectedNetCents = agg.expectedNetCents;
+    acc.bankMatchedCents = 0;
+    acc.reportedCents = agg.reportedCents;
+    acc.reconciledCents = agg.reconciledCents;
+    acc.discrepancyCents = agg.discrepancyCents;
+    acc.coveredBaseCents = Math.max(acc.coveredBaseCents, agg.grossCents);
+    acc.uncoveredBaseCents = 0;
+    acc.estimatedCents = 0;
+    acc.ratesApplied.clear();
+    acc.vatApplied.clear();
+    acc.documentedZero = agg.allZeroFee;
+
+    const aggStatus = aggregateReconciliationStatus(agg.statuses);
+    const aggAmountSource: CommissionAmountSource = agg.allZeroFee
+      ? "DOCUMENTED_ZERO"
+      : "AGGREGATOR_REPORTED";
+
+    acc.amountSources = [aggAmountSource];
+    acc.reconciliationStatuses = [aggStatus];
+    channels.set(agg.channel, acc);
   }
 
   const result: BranchCommissions[] = [];
@@ -495,7 +757,6 @@ export async function getCommissionsByBranch(
     let coveredSalesCents = 0;
     let uncoveredSalesCents = 0;
     let anyEstimated = false;
-    let anyMeasured = false;
 
     for (const [channel, acc] of channels) {
       // El efectivo sin tarifa no es un hueco de información: es un canal que
@@ -505,9 +766,10 @@ export async function getCommissionsByBranch(
         uncoveredSalesCents += acc.uncoveredBaseCents;
       }
 
-      const valued = acc.coveredBaseCents > 0 || acc.measuredCents !== 0;
+      const measuredCents = acc.reportedCents + acc.reconciledCents;
+      const valued = acc.coveredBaseCents > 0 || measuredCents !== 0 || acc.documentedZero;
 
-      // Un canal sin tarifa y sin comisión capturada se OMITE del desglose: la
+      // Un canal sin tarifa y sin comisión documentada se OMITE del desglose: la
       // alternativa —listarlo en cero— se lee como "Rappi no nos cobró nada".
       if (!valued) continue;
 
@@ -515,19 +777,44 @@ export async function getCommissionsByBranch(
 
       const source: CommissionSource = acc.estimatedCents > 0 ? "ESTIMATED" : "MEASURED";
       if (source === "ESTIMATED") anyEstimated = true;
-      else anyMeasured = true;
+
+      const commissionCents = measuredCents + acc.estimatedCents;
+      const documentedZero =
+        commissionCents === 0 &&
+        acc.uncoveredBaseCents === 0 &&
+        (acc.documentedZero || acc.amountSources.every((s) => s === "DOCUMENTED_ZERO"));
+
+      const amountSource: CommissionAmountSource = documentedZero
+        ? "DOCUMENTED_ZERO"
+        : aggregateAmountSource(acc.amountSources, acc.uncoveredBaseCents > 0);
+      const reconciliationStatus: CommissionReconciliationStatus =
+        acc.uncoveredBaseCents > 0 && !acc.reconciliationStatuses.includes("DISCREPANT")
+          ? "PENDING"
+          : aggregateReconciliationStatus(acc.reconciliationStatuses);
 
       lines.push({
         channel,
         // Sólo la venta valuada: así `comisión ≈ base × tarifa` se puede
         // verificar a mano desde la pantalla, que es el punto de publicarla.
         baseSalesCents: acc.coveredBaseCents,
-        commissionCents: acc.measuredCents + acc.estimatedCents,
-        measuredCents: acc.measuredCents,
+        commissionCents,
+        feeBaseCents: acc.feeBaseCents,
+        feeVatCents: acc.feeVatCents,
+        expectedNetCents: acc.expectedNetCents,
+        bankMatchedCents: acc.bankMatchedCents,
+        measuredCents,
+        reportedCents: acc.reportedCents,
+        reconciledCents: acc.reconciledCents,
         estimatedCents: acc.estimatedCents,
+        discrepancyCents: acc.discrepancyCents,
         rateBps: acc.ratesApplied.size === 1 ? [...acc.ratesApplied][0] : null,
         vatBps: acc.vatApplied.size === 1 ? [...acc.vatApplied][0] : null,
         source,
+        amountSource,
+        reconciliationStatus,
+        amountSourceLabel: commissionAmountSourceLabel(amountSource),
+        reconciliationStatusLabel: commissionReconciliationStatusLabel(reconciliationStatus),
+        documentedZero,
         cutsCount: acc.cutsCount,
       });
     }
@@ -535,50 +822,95 @@ export async function getCommissionsByBranch(
     lines.sort((a, b) => b.commissionCents - a.commissionCents);
 
     const totalCommissionCents = lines.reduce((s, l) => s + l.commissionCents, 0);
+    const totalFeeBaseCents = lines.reduce((s, l) => s + l.feeBaseCents, 0);
+    const totalFeeVatCents = lines.reduce((s, l) => s + l.feeVatCents, 0);
+    const totalExpectedNetCents = lines.reduce((s, l) => s + l.expectedNetCents, 0);
+    const totalBankMatchedCents = lines.reduce((s, l) => s + l.bankMatchedCents, 0);
+    const reportedCommissionCents = lines.reduce((s, l) => s + l.reportedCents, 0);
+    const reconciledCommissionCents = lines.reduce((s, l) => s + l.reconciledCents, 0);
+    const estimatedCommissionCents = lines.reduce((s, l) => s + l.estimatedCents, 0);
+    const discrepancyCents = lines.reduce((s, l) => s + l.discrepancyCents, 0);
     const comisionable = coveredSalesCents + uncoveredSalesCents;
     const coveragePercent = comisionable > 0 ? (coveredSalesCents / comisionable) * 100 : 100;
 
     let source: BranchCommissions["source"];
+    let amountSource: CommissionAmountSource;
+    let reconciliationStatus: CommissionReconciliationStatus;
+    let documentedZero: boolean;
     let note: string;
 
     if (lines.length === 0) {
       if (uncoveredSalesCents > 0) {
         source = "NO_DATA";
+        amountSource = "NO_DATA";
+        reconciliationStatus = "PENDING";
+        documentedZero = false;
         note =
-          "Hay venta por canales que cobran comisión (tarjeta o agregadores) y ninguna tarifa " +
-          "configurada para el período. La comisión no se estima: configúrala en Comisiones por Canal.";
+          "Sin datos · Pendiente de conciliar. Hay venta por canales que cobran comisión " +
+          "(tarjeta o agregadores) y ninguna tarifa ni reporte configurado para el período.";
       } else {
-        // Ni tarjeta ni agregadores en el período: no hay comisión que estimar
-        // y decir NO_DATA aquí sería marcar como incompleto un renglón que está
-        // completo en cero.
         source = "MEASURED";
-        note = "Sin ventas por canales con comisión en el período (sólo mostrador).";
+        amountSource = "DOCUMENTED_ZERO";
+        reconciliationStatus = "NOT_APPLICABLE";
+        documentedZero = true;
+        note =
+          "Comisión documentada cero: sin ventas por canales con comisión en el período (sólo mostrador).";
       }
     } else {
       source = anyEstimated ? "ESTIMATED" : "MEASURED";
+      documentedZero =
+        totalCommissionCents === 0 &&
+        uncoveredSalesCents === 0 &&
+        lines.every((l) => l.documentedZero);
+      amountSource = documentedZero
+        ? "DOCUMENTED_ZERO"
+        : aggregateAmountSource(
+            lines.map((l) => l.amountSource),
+            uncoveredSalesCents > 0,
+          );
+      reconciliationStatus =
+        uncoveredSalesCents > 0 && !lines.some((l) => l.reconciliationStatus === "DISCREPANT")
+          ? "PENDING"
+          : aggregateReconciliationStatus(lines.map((l) => l.reconciliationStatus));
+
+      const provenanceTag = formatCommissionProvenanceTag(amountSource, reconciliationStatus);
       const detalle = lines
         .map(
           (l) =>
             `${commissionChannelLabel(l.channel)}${l.rateBps !== null ? ` ${formatRateBps(l.rateBps)}` : ""}`,
         )
         .join(", ");
+
       note =
-        source === "MEASURED"
-          ? `Comisión conciliada contra el depósito de la terminal en ${lines[0].cutsCount} corte(s).`
-          : `Calculada con la tarifa vigente en la fecha de cada corte, IVA incluido (${detalle}).` +
-            (anyMeasured ? " Incluye comisiones ya conciliadas con la terminal." : "") +
-            (uncoveredSalesCents > 0
-              ? ` No cubre ${formatMXN(uncoveredSalesCents)} de venta en canales sin tarifa configurada.`
-              : "");
+        `${provenanceTag} (${detalle}).` +
+        (discrepancyCents !== 0
+          ? ` Diferencia detectada en conciliación: ${formatMXN(discrepancyCents)}.`
+          : "") +
+        (uncoveredSalesCents > 0
+          ? ` No cubre ${formatMXN(uncoveredSalesCents)} de venta en canales sin tarifa ni reporte.`
+          : "");
     }
 
     result.push({
       branchId,
       channels: lines,
       totalCommissionCents,
+      totalFeeBaseCents,
+      totalFeeVatCents,
+      totalExpectedNetCents,
+      totalBankMatchedCents,
+      reportedCommissionCents,
+      reconciledCommissionCents,
+      estimatedCommissionCents,
+      discrepancyCents,
       coveredSalesCents,
       uncoveredSalesCents,
       source,
+      amountSource,
+      reconciliationStatus,
+      amountSourceLabel: commissionAmountSourceLabel(amountSource),
+      reconciliationStatusLabel: commissionReconciliationStatusLabel(reconciliationStatus),
+      documentedZero,
       coveragePercent: Math.max(0, Math.min(100, Math.round(coveragePercent))),
       note,
     });

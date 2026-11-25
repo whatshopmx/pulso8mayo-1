@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/empty-state";
-import { OpeningBalanceCard } from "@/components/finance/opening-balance-card";
+import { OpeningBalanceCard, type OpeningBalanceInfo } from "@/components/finance/opening-balance-card";
+import type { CashFlowProjectionMeta } from "@/lib/services/cash-flow-balance-rules";
 import { CashFlowHero } from "@/components/finance/cash-flow-hero";
 import { CashFlowMitigationWorkbench } from "@/components/finance/cash-flow-mitigation-workbench";
 import { ExpenseRowActions } from "@/components/finance/expense-row-actions";
@@ -112,14 +113,10 @@ export interface CashFlowProjection {
   weeklyAggregation: WeeklyAggregation[];
   overdueItems: OutflowItem[];
   upcomingItems: OutflowItem[];
-  /** `null` cuando nadie ha capturado el saldo: ya no hay constante de respaldo. */
+  /** `null` cuando nadie ha capturado el saldo ni existe ancla bancaria. */
   initialBalanceCents: number | null;
-  openingBalance?: {
-    source: "BRANCH" | "COMPANY" | "NONE";
-    asOfDate: string | null;
-    ageInDays: number | null;
-    isStale: boolean;
-  };
+  openingBalance?: OpeningBalanceInfo;
+  projectionMeta?: CashFlowProjectionMeta;
   inflow?: InflowEstimate;
   /**
    * Contratos recurrentes proyectados (renta, luz, agua). Aparte del total de

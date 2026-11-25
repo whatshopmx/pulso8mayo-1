@@ -6687,6 +6687,102 @@
           "checks": ["V2", "V3"]
         }
       ]
+    },
+    "BAN-06.b": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/BAN-06.b/README.md",
+          "head": "45a4cadfd2a45c87f9307e5fd4f0fb3e1515d9ed",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS con triggers FC-08/FC-11/FC-12 y AUD-02 (DEPOSIT_CORRECTION) en rollback; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/ban06b-deposit-correction-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/finance/ban06b-deposit-correction-http.test.ts lib/services/__tests__/bank-statement-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/bank-statement-service.ts app/api/finance/bank-transactions/route.ts tests/unit/finance/ban06b-deposit-correction-http.test.ts tests/integration/ban06b-deposit-correction-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
+    },
+    "FIN-06.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/FIN-06.a/README.md",
+          "head": "45a4cadfd2a45c87f9307e5fd4f0fb3e1515d9ed",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS en rollback; procedencia y estado de conciliación separados (pendiente/discrepante/confirmado/cero documentado/sin datos) coherentes en API, P&L y UI; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/fin06a-reported-vs-reconciled.test.ts lib/services/__tests__/commission-audit.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/fin06a-reported-vs-reconciled-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/commission-types.ts lib/services/commission-service.ts lib/services/pnl-types.ts lib/services/pnl-service.ts lib/services/pnl-derived-detail-service.ts app/api/finance/commissions/route.ts components/finance/commissions-by-channel-table.tsx components/finance/pnl-branch-table.tsx lib/services/__tests__/fin06a-reported-vs-reconciled.test.ts tests/integration/fin06a-reported-vs-reconciled-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "FIN-06.b": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/FIN-06.b/README.md",
+          "head": "45a4cadfd2a45c87f9307e5fd4f0fb3e1515d9ed",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS en rollback; tarifa estimada vs reportada vs conciliada, cuadre neto/bruto/IVA/diferencia en comisiones y platform-report, faltante total/parcial nunca firme; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/fin06b-commissions-channel-acceptance-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run tests/unit/finance/fin06b-commissions-channel-http.test.ts lib/services/__tests__/fin06a-reported-vs-reconciled.test.ts lib/services/__tests__/commission-audit.test.ts lib/services/__tests__/gateway-report-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/commission-types.ts lib/services/commission-service.ts lib/services/gateway-report-service.ts lib/services/pnl-types.ts app/api/finance/commissions/route.ts tests/unit/finance/fin06b-commissions-channel-http.test.ts tests/integration/fin06b-commissions-channel-acceptance-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
+    },
+    "FIN-01": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/FIN-01/README.md",
+          "head": "45a4cadfd2a45c87f9307e5fd4f0fb3e1515d9ed",
+          "environment": "Windows local; saldo bancario conciliado (MATCHED) separado de movimientos UNMATCHED y caja proyectada etiquetada como estimación; sin ancla bancaria no calcula saldo absoluto ni runway aparente; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/fin01-reconciled-vs-projected-cash.test.ts tests/unit/finance/fin01-cash-flow-balance-http.test.ts lib/services/__tests__/account-balance-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/cash-flow-balance-rules.ts lib/services/company-bank-account-service.ts lib/services/cash-flow-service.ts components/finance/opening-balance-card.tsx components/finance/cash-flow-hero.tsx components/finance/cash-flow-summary-card.tsx components/finance/cash-flow-calendar.tsx lib/services/__tests__/fin01-reconciled-vs-projected-cash.test.ts tests/unit/finance/fin01-cash-flow-balance-http.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V3"]
+        }
+      ]
     }
   }
 }

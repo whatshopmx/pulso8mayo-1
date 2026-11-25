@@ -88,35 +88,147 @@ export interface CommissionRate {
 }
 
 /**
- * Procedencia del importe de comisión de un canal.
+ * Procedencia del importe de comisión de un canal (compatibilidad con P&L Fase 4).
  *
- * - `MEASURED`  — salió de `daily_sales_cuts.commission_cents`, es decir, de lo
- *                 que la terminal cobró de verdad y alguien capturó.
+ * - `MEASURED`  — salió de un importe documentado (corte, pasarela, agregador o
+ *                 conciliación bancaria) y no de una tarifa estimada.
  * - `ESTIMATED` — se calculó con la tarifa vigente. Es un cálculo, no una
  *                 medición, y así debe presentarse siempre.
  */
 export type CommissionSource = "MEASURED" | "ESTIMATED";
 
+/**
+ * FIN-06.a — Procedencia explícita del importe de comisión, separada del estado
+ * de conciliación bancaria/liquidación.
+ */
+export type CommissionAmountSource =
+  | "RATE_ESTIMATE"
+  | "CUT_REPORTED"
+  | "GATEWAY_REPORTED"
+  | "AGGREGATOR_REPORTED"
+  | "BANK_RECONCILED"
+  | "DOCUMENTED_ZERO"
+  | "NO_DATA";
+
+/**
+ * FIN-06.a — Estado de conciliación de la comisión, independiente de la
+ * procedencia del importe.
+ */
+export type CommissionReconciliationStatus =
+  | "PENDING"
+  | "DISCREPANT"
+  | "CONFIRMED"
+  | "NOT_APPLICABLE";
+
+export const COMMISSION_AMOUNT_SOURCE_LABELS: Record<CommissionAmountSource, string> = {
+  RATE_ESTIMATE: "Tarifa estimada",
+  CUT_REPORTED: "Reportada en corte",
+  GATEWAY_REPORTED: "Reportada por pasarela",
+  AGGREGATOR_REPORTED: "Reportada por agregador",
+  BANK_RECONCILED: "Conciliada en banco",
+  DOCUMENTED_ZERO: "Comisión documentada cero",
+  NO_DATA: "Sin datos",
+};
+
+export const COMMISSION_RECONCILIATION_STATUS_LABELS: Record<
+  CommissionReconciliationStatus,
+  string
+> = {
+  PENDING: "Pendiente de conciliar",
+  DISCREPANT: "Discrepante",
+  CONFIRMED: "Confirmada",
+  NOT_APPLICABLE: "No aplica",
+};
+
+export function commissionAmountSourceLabel(source: CommissionAmountSource): string {
+  return COMMISSION_AMOUNT_SOURCE_LABELS[source];
+}
+
+export function commissionReconciliationStatusLabel(
+  status: CommissionReconciliationStatus,
+): string {
+  return COMMISSION_RECONCILIATION_STATUS_LABELS[status];
+}
+
+/**
+ * Etiqueta coherente para API, P&L y UI combinando procedencia + estado de conciliación.
+ * Nunca etiqueta como "conciliada" un importe solo reportado o pendiente.
+ */
+export function formatCommissionProvenanceTag(
+  amountSource: CommissionAmountSource,
+  reconciliationStatus: CommissionReconciliationStatus,
+): string {
+  const sourceLabel = commissionAmountSourceLabel(amountSource);
+  if (reconciliationStatus === "NOT_APPLICABLE") {
+    return sourceLabel;
+  }
+  return `${sourceLabel} · ${commissionReconciliationStatusLabel(reconciliationStatus)}`;
+}
+
+/** Prioridad conservadora del estado de conciliación al agregar múltiples canales/filas. */
+export function aggregateReconciliationStatus(
+  statuses: readonly CommissionReconciliationStatus[],
+): CommissionReconciliationStatus {
+  if (statuses.length === 0) return "NOT_APPLICABLE";
+  if (statuses.includes("DISCREPANT")) return "DISCREPANT";
+  if (statuses.includes("PENDING")) return "PENDING";
+  if (statuses.includes("CONFIRMED")) return "CONFIRMED";
+  return "NOT_APPLICABLE";
+}
+
+/** Prioridad conservadora de la procedencia del importe al agregar canales de una sucursal. */
+export function aggregateAmountSource(
+  sources: readonly CommissionAmountSource[],
+  hasUncoveredSales: boolean,
+): CommissionAmountSource {
+  if (sources.length === 0) {
+    return hasUncoveredSales ? "NO_DATA" : "DOCUMENTED_ZERO";
+  }
+  if (sources.includes("NO_DATA")) return "NO_DATA";
+  if (sources.includes("RATE_ESTIMATE")) return "RATE_ESTIMATE";
+  if (sources.every((s) => s === "DOCUMENTED_ZERO")) return "DOCUMENTED_ZERO";
+  const nonZero = sources.filter((s) => s !== "DOCUMENTED_ZERO");
+  if (nonZero.every((s) => s === "BANK_RECONCILED")) return "BANK_RECONCILED";
+  if (nonZero.includes("GATEWAY_REPORTED")) return "GATEWAY_REPORTED";
+  if (nonZero.includes("AGGREGATOR_REPORTED")) return "AGGREGATOR_REPORTED";
+  if (nonZero.includes("CUT_REPORTED")) return "CUT_REPORTED";
+  return "BANK_RECONCILED";
+}
+
 export interface ChannelCommission {
   channel: string;
   /** Venta bruta del canal en el período (la base sobre la que se aplica la tarifa). */
   baseSalesCents: number;
-  /** `measuredCents + estimatedCents`. */
+  /** `estimatedCents + reportedCents + reconciledCents` (`measuredCents + estimatedCents`). */
   commissionCents: number;
-  /** Parte que vino capturada del corte. */
+  /** FIN-06.b: comisión base sin IVA según fuente (`feeBaseCents + feeVatCents === commissionCents`). */
+  feeBaseCents: number;
+  /** FIN-06.b: IVA sobre comisión según fuente. */
+  feeVatCents: number;
+  /** FIN-06.b: neto esperado según fuente (`bruto - comisión - IVA`, o neto reportado). */
+  expectedNetCents: number;
+  /** FIN-06.b: abono efectivamente conciliado en banco (`0` si no hay cruce bancario). */
+  bankMatchedCents: number;
+  /** Parte documentada (reportada + conciliada en banco). */
   measuredCents: number;
+  /** Parte reportada (corte/pasarela/agregador) aún pendiente o discrepante de conciliación. */
+  reportedCents: number;
+  /** Parte confirmada mediante conciliación bancaria o liquidación conciliada sin discrepancia. */
+  reconciledCents: number;
   /** Parte calculada con la tarifa vigente. */
   estimatedCents: number;
+  /** Diferencia detectada en centavos frente a banco o cuadre aritmético (0 si no hay discrepancia). */
+  discrepancyCents: number;
   /**
    * Tarifa aplicada, o `null` cuando el rango abarcó varias vigencias (o cuando
-   * todo el importe fue capturado). Un solo número no puede representar dos
+   * todo el importe fue documentado). Un solo número no puede representar dos
    * tarifas distintas y devolver la última sería atribuirle al mes entero una
    * tasa que sólo rigió parte de él.
    */
   rateBps: number | null;
   /**
    * IVA aplicado sobre la comisión, en bps (A6.1). `null` con el mismo criterio
-   * que `rateBps`: varias vigencias en el rango, o importe capturado.
+   * que `rateBps`: varias vigencias en el rango, o importe documentado.
    *
    * Existe porque el agregador cobra el IVA **sobre** su comisión: una tarifa
    * del 27.5% le cuesta al restaurante 31.9% de la venta, y `commissionCents`
@@ -125,6 +237,14 @@ export interface ChannelCommission {
    */
   vatBps: number | null;
   source: CommissionSource;
+  /** FIN-06.a: procedencia explícita del importe, separada de conciliación. */
+  amountSource: CommissionAmountSource;
+  /** FIN-06.a: estado explícito de conciliación, separado de la procedencia. */
+  reconciliationStatus: CommissionReconciliationStatus;
+  amountSourceLabel: string;
+  reconciliationStatusLabel: string;
+  /** `true` cuando el importe $0 está documentado explícitamente (nunca dato faltante). */
+  documentedZero: boolean;
   /** Cortes del período que aportaron venta a este canal. */
   cutsCount: number;
 }
@@ -133,21 +253,44 @@ export interface BranchCommissions {
   branchId: string;
   channels: ChannelCommission[];
   totalCommissionCents: number;
-  /** Venta de canales con tarifa configurada (o con comisión capturada). */
+  /** FIN-06.b: suma de comisión base sin IVA de los canales valuados. */
+  totalFeeBaseCents: number;
+  /** FIN-06.b: suma de IVA de comisión de los canales valuados. */
+  totalFeeVatCents: number;
+  /** FIN-06.b: suma de neto esperado de los canales valuados. */
+  totalExpectedNetCents: number;
+  /** FIN-06.b: suma de abonos efectivamente conciliados en banco. */
+  totalBankMatchedCents: number;
+  /** Total de comisiones reportadas (pendientes o discrepantes, no confirmadas en banco). */
+  reportedCommissionCents: number;
+  /** Total de comisiones confirmadas con conciliación. */
+  reconciledCommissionCents: number;
+  /** Total de comisiones calculadas por tarifa configurada. */
+  estimatedCommissionCents: number;
+  /** Suma de discrepancias detectadas en el período. */
+  discrepancyCents: number;
+  /** Venta de canales con tarifa configurada (o con comisión documentada). */
   coveredSalesCents: number;
   /**
-   * Venta de canales SIN tarifa configurada. No se estimó nada sobre ella: el
-   * renglón del P&L está incompleto por ese monto, y decirlo es la diferencia
-   * entre "no pagamos comisiones" y "no sabemos cuánto pagamos".
+   * Venta de canales SIN tarifa configurada ni reporte. No se estimó nada sobre
+   * ella: el renglón del P&L está incompleto por ese monto, y decirlo es la
+   * diferencia entre "no pagamos comisiones" y "no sabemos cuánto pagamos".
    */
   uncoveredSalesCents: number;
   /**
-   * `MEASURED` sólo si todo el importe vino capturado; `ESTIMATED` si algo se
+   * `MEASURED` sólo si todo el importe vino documentado; `ESTIMATED` si algo se
    * calculó con tarifa; `NO_DATA` si hay venta por canales con comisión y
-   * ninguna tarifa configurada.
+   * ninguna tarifa ni reporte configurado.
    */
   source: CommissionSource | "NO_DATA";
-  /** % de la venta con canal comisionable que sí tiene tarifa (0-100). */
+  /** FIN-06.a: procedencia agregada del importe de la sucursal. */
+  amountSource: CommissionAmountSource;
+  /** FIN-06.a: estado agregado de conciliación de la sucursal. */
+  reconciliationStatus: CommissionReconciliationStatus;
+  amountSourceLabel: string;
+  reconciliationStatusLabel: string;
+  documentedZero: boolean;
+  /** % de la venta con canal comisionable que sí tiene tarifa o reporte (0-100). */
   coveragePercent: number;
   note: string;
 }
