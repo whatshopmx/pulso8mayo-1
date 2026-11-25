@@ -23,7 +23,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, desc, eq, gte, inArray, lte, sql, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accountingEvents, bankTransactions, paymentRunItems, paymentRuns, gatewayTransactions, branches } from "@/lib/db/schema";
 import { companyBankAccounts, paymentRunItemTypeEnum } from "@/lib/db/schema";
@@ -251,34 +251,40 @@ export function parseBankStatementCsv(csvText: string): ParseResult {
     return { rows, errors };
 }
 
-/** Fingerprint estable: cuenta+fecha+referencia+monto. Reimportar es no-op. */
+/** Fingerprint estable: empresa+cuenta+fecha+referencia+monto. Reimportar es no-op. */
 export function buildFingerprint(input: {
+    companyId?: string;
     sourceBankAccountId: string | null;
     valueDate: string;
     reference: string | null;
     amountCents: number;
 }): string {
-    const key = [
+    const parts = [
+        ...(input.companyId ? [input.companyId] : []),
         input.sourceBankAccountId ?? "no-account",
         input.valueDate,
         input.reference ?? "",
         input.amountCents,
-    ].join("|");
-    return createHash("sha256").update(key).digest("hex");
+    ];
+    return createHash("sha256").update(parts.join("|")).digest("hex");
 }
 
 // ── Servicio ────────────────────────────────────────────────────────────────
 
-export async function importBankStatement(input: {
-    companyId: string;
-    csvText: string;
-    sourceBankAccountId?: string | null;
-    importedBy: string;
-}): Promise<{ importedCount: number; duplicateCount: number; errorCount: number }> {
+export async function importBankStatement(
+    input: {
+        companyId: string;
+        csvText: string;
+        sourceBankAccountId?: string | null;
+        importedBy: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance: any = db
+): Promise<{ importedCount: number; duplicateCount: number; errorCount: number; errors: ParseError[] }> {
     // La cuenta del catálogo es de la empresa del importador — un id ajeno no
     // se acepta ni revela su existencia.
     if (input.sourceBankAccountId) {
-        const [account] = await db
+        const [account] = await dbInstance
             .select({ id: companyBankAccounts.id })
             .from(companyBankAccounts)
             .where(
@@ -302,12 +308,13 @@ export async function importBankStatement(input: {
 
     for (const row of rows) {
         const fingerprint = buildFingerprint({
+            companyId: input.companyId,
             sourceBankAccountId: input.sourceBankAccountId ?? null,
             valueDate: row.valueDate,
             reference: row.reference,
             amountCents: row.amountCents,
         });
-        const inserted = await db
+        const inserted = await dbInstance
             .insert(bankTransactions)
             .values({
                 companyId: input.companyId,
@@ -327,7 +334,7 @@ export async function importBankStatement(input: {
         else duplicateCount++;
     }
 
-    return { importedCount, duplicateCount, errorCount: errors.length };
+    return { importedCount, duplicateCount, errorCount: errors.length, errors };
 }
 
 export interface BankTransactionItem {
@@ -635,10 +642,18 @@ export function scoreDepositCandidate(
  *
  * La sugerencia nunca es confirmación: sólo nombra candidatos.
  */
-export async function suggestDepositMatches(params: {
-    companyId: string;
-    transactionId?: string;
-}): Promise<{ transactionId: string; candidates: DepositMatchCandidate[] }[]> {
+export async function suggestDepositMatches(
+    params: {
+        companyId: string;
+        transactionId?: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance: any = db
+): Promise<{
+    transactionId: string;
+    candidates: DepositMatchCandidate[];
+    pendingReason?: "GROUPED_DEPOSIT_UNSUPPORTED" | null;
+}[]> {
     const conditions = [
         eq(bankTransactions.companyId, params.companyId),
         eq(bankTransactions.matchStatus, "UNMATCHED"),
@@ -649,7 +664,12 @@ export async function suggestDepositMatches(params: {
         conditions.push(eq(bankTransactions.id, params.transactionId));
     }
 
-    const txs = await db
+    const txs: Array<{
+        id: string;
+        valueDate: string;
+        amountCents: number;
+        sourceBankAccountId: string | null;
+    }> = await dbInstance
         .select({
             id: bankTransactions.id,
             valueDate: bankTransactions.valueDate,
@@ -674,7 +694,17 @@ export async function suggestDepositMatches(params: {
             MATCH_DATE_WINDOW_DAYS * 86_400_000
     );
 
-    const gatewayRows = await db
+    const gatewayRows: Array<{
+        id: string;
+        acquirer: string;
+        externalId: string | null;
+        authorizationCode: string | null;
+        netAmountCents: number;
+        settlementDate: string | null;
+        destinationBankAccountId: string | null;
+        destinationAccountLastFour: string | null;
+        branchName: string | null;
+    }> = await dbInstance
         .select({
             id: gatewayTransactions.id,
             acquirer: gatewayTransactions.acquirer,
@@ -701,32 +731,29 @@ export async function suggestDepositMatches(params: {
         );
 
     // Una fila gateway ya puede estar cruzada por otro movimiento bancario.
-    const alreadyMatchedGatewayIds = new Set(
-        (
-            await db
-                .select({ id: bankTransactions.matchedGatewayTransactionId })
-                .from(bankTransactions)
-                .where(
-                    and(
-                        eq(bankTransactions.companyId, params.companyId),
-                        eq(bankTransactions.matchStatus, "MATCHED"),
-                        isNotNull(bankTransactions.matchedGatewayTransactionId)
-                    )
-                )
-        ).map((r) => r.id as string)
-    );
+    const matchedRows: Array<{ id: string | null }> = await dbInstance
+        .select({ id: bankTransactions.matchedGatewayTransactionId })
+        .from(bankTransactions)
+        .where(
+            and(
+                eq(bankTransactions.companyId, params.companyId),
+                eq(bankTransactions.matchStatus, "MATCHED"),
+                isNotNull(bankTransactions.matchedGatewayTransactionId)
+            )
+        );
+    const alreadyMatchedGatewayIds = new Set(matchedRows.map((r) => r.id as string));
 
     const suggestions = txs.map((tx) => {
-        const candidates = gatewayRows
-            .filter(
-                (gw) =>
-                    // La cuenta destino declarada de la fila gateway debe ser
-                    // exactamente la cuenta del movimiento bancario: dinero
-                    // que cayó en otra cuenta no concilia aquí.
-                    gw.destinationBankAccountId !== null &&
-                    gw.destinationBankAccountId === tx.sourceBankAccountId &&
-                    !alreadyMatchedGatewayIds.has(gw.id)
-            )
+        const sameAccountUnmatched = gatewayRows.filter(
+            (gw) =>
+                // La cuenta destino declarada de la fila gateway debe ser
+                // exactamente la cuenta del movimiento bancario: dinero
+                // que cayó en otra cuenta no concilia aquí.
+                gw.destinationBankAccountId !== null &&
+                gw.destinationBankAccountId === tx.sourceBankAccountId &&
+                !alreadyMatchedGatewayIds.has(gw.id)
+        );
+        const candidates = sameAccountUnmatched
             .map((gw) => ({
                 gw,
                 scored: scoreDepositCandidate(
@@ -748,25 +775,68 @@ export async function suggestDepositMatches(params: {
                 settlementDate: c.gw.settlementDate,
                 dateDiffDays: c.scored.dateDiffDays,
             }));
-        return { transactionId: tx.id, candidates };
+
+        // BAN-06.a: depósito agrupado (suma exacta de 2+ liquidaciones en la ventana)
+        // no inventa vínculo 1↔N y declara pendiente explícito.
+        let pendingReason: "GROUPED_DEPOSIT_UNSUPPORTED" | null = null;
+        if (candidates.length === 0 && sameAccountUnmatched.length >= 2) {
+            const inWindow = sameAccountUnmatched.filter((gw) => {
+                if (!gw.settlementDate) return false;
+                const diff = Math.abs(
+                    Math.round(
+                        (new Date(`${gw.settlementDate}T00:00:00Z`).getTime() -
+                            new Date(`${tx.valueDate}T00:00:00Z`).getTime()) /
+                            86_400_000
+                    )
+                );
+                return diff <= MATCH_DATE_WINDOW_DAYS;
+            });
+            // Comprobar si existe un subconjunto de >=2 liquidaciones cuya suma
+            // coincide exactamente con el depósito bancario (acotado a 16 filas).
+            const sample = inWindow.slice(0, 16).map((g) => g.netAmountCents);
+            let groupedFound = false;
+            const dfs = (idx: number, count: number, sum: number) => {
+                if (groupedFound || sum > tx.amountCents) return;
+                if (count >= 2 && sum === tx.amountCents) {
+                    groupedFound = true;
+                    return;
+                }
+                for (let i = idx; i < sample.length && !groupedFound; i++) {
+                    if (sample[i] > 0) dfs(i + 1, count + 1, sum + sample[i]);
+                }
+            };
+            if (sample.length >= 2) dfs(0, 0, 0);
+            if (groupedFound) {
+                pendingReason = "GROUPED_DEPOSIT_UNSUPPORTED";
+            }
+        }
+
+        return { transactionId: tx.id, candidates, pendingReason };
     });
 
     return suggestions;
 }
 
-/** Confirmar un match de salidas: atómico, con cerrojos optimistas en ambos lados. */
-export async function confirmMatch(input: {
-    companyId: string;
-    transactionId: string;
-    paymentRunItemId: string;
-    userId: string;
-    notes?: string;
-}): Promise<void> {
-    await db.transaction(async (tx) => {
+/** Confirmar un match de salidas: atómico, con cerrojos optimistas y advisory lock en ambos lados. */
+export async function confirmMatch(
+    input: {
+        companyId: string;
+        transactionId: string;
+        paymentRunItemId: string;
+        userId: string;
+        notes?: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance?: any
+): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = async (tx: any) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.companyId}, 602))`);
         const [txRow] = await tx
             .select({
                 id: bankTransactions.id,
                 matchStatus: bankTransactions.matchStatus,
+                matchedPaymentRunItemId: bankTransactions.matchedPaymentRunItemId,
                 amountCents: bankTransactions.amountCents,
                 valueDate: bankTransactions.valueDate,
             })
@@ -782,8 +852,13 @@ export async function confirmMatch(input: {
 
         if (!txRow) throw ApiError.notFound("El movimiento bancario no existe.");
         if (txRow.matchStatus !== "UNMATCHED") {
-            throw ApiError.badRequest(
+            throw ApiError.conflict(
                 "Este movimiento ya fue cruzado o ignorado. Recarga la bandeja."
+            );
+        }
+        if (txRow.amountCents >= 0) {
+            throw ApiError.badRequest(
+                "Sólo los movimientos negativos (egresos) cruzan contra partidas de corrida."
             );
         }
 
@@ -834,12 +909,12 @@ export async function confirmMatch(input: {
             )
             .limit(1);
         if (clash) {
-            throw ApiError.badRequest(
+            throw ApiError.conflict(
                 "Esta partida ya está cruzada por otro movimiento del estado de cuenta."
             );
         }
 
-        await tx
+        const updated = await tx
             .update(bankTransactions)
             .set({
                 matchStatus: "MATCHED",
@@ -848,8 +923,27 @@ export async function confirmMatch(input: {
                 matchedBy: input.userId,
                 matchNotes: input.notes?.trim() || null,
             })
-            .where(eq(bankTransactions.id, txRow.id));
-    });
+            .where(
+                and(
+                    eq(bankTransactions.id, txRow.id),
+                    eq(bankTransactions.companyId, input.companyId),
+                    eq(bankTransactions.matchStatus, "UNMATCHED")
+                )
+            )
+            .returning({ id: bankTransactions.id });
+
+        if (updated.length === 0) {
+            throw ApiError.conflict(
+                "El movimiento cambió de estado durante el cruce. Recarga y vuelve a intentarlo."
+            );
+        }
+    };
+
+    if (dbInstance) {
+        await run(dbInstance);
+    } else {
+        await withCompanyContext({ companyId: input.companyId, actorId: input.userId }, run);
+    }
 }
 
 /**
@@ -867,14 +961,19 @@ export async function confirmMatch(input: {
  *     criterio de SUGERENCIA, la ventana real la decide el banco.
  *   - La fila gateway no puede estar ya cruzada por otro movimiento.
  */
-export async function confirmDepositMatch(input: {
-    companyId: string;
-    transactionId: string;
-    gatewayTransactionId: string;
-    userId: string;
-    notes?: string;
-}): Promise<void> {
-    await withCompanyContext({ companyId: input.companyId, actorId: input.userId }, async (tx) => {
+export async function confirmDepositMatch(
+    input: {
+        companyId: string;
+        transactionId: string;
+        gatewayTransactionId: string;
+        userId: string;
+        notes?: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance?: any
+): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = async (tx: any) => {
         // Same ordering as settlement recovery: company, source, configuration.
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.companyId}, 601))`);
         const [txRow] = await tx
@@ -985,7 +1084,13 @@ export async function confirmDepositMatch(input: {
         if (isAccountingPostingEnabled()) {
             await settleConfirmedTransactionIn(tx, input.companyId, input.userId, input.gatewayTransactionId);
         }
-    });
+    };
+
+    if (dbInstance) {
+        await run(dbInstance);
+    } else {
+        await withCompanyContext({ companyId: input.companyId, actorId: input.userId }, run);
+    }
 }
 
 /** Deshacer un match de ENTRADA: vuelve a UNMATCHED y libera la fila gateway. */
@@ -1024,31 +1129,45 @@ export async function unmatchDepositTransaction(input: {
     });
 }
 
-/** Deshacer un match: el cruce era un juicio de pareja, no un hecho contable. */
-export async function unmatchTransaction(input: {
-    companyId: string;
-    transactionId: string;
-}): Promise<void> {
-    const [updated] = await db
-        .update(bankTransactions)
-        .set({
-            matchStatus: "UNMATCHED",
-            matchedPaymentRunItemId: null,
-            matchedAt: null,
-            matchedBy: null,
-            matchNotes: null,
-        })
-        .where(
-            and(
-                eq(bankTransactions.id, input.transactionId),
-                eq(bankTransactions.companyId, input.companyId),
-                isNull(bankTransactions.matchedGatewayTransactionId),
-                eq(bankTransactions.matchStatus, "MATCHED")
+/** Deshacer un match de salida: el cruce bancario se separa de la liquidación manual y conserva la partida/obligación. */
+export async function unmatchTransaction(
+    input: {
+        companyId: string;
+        transactionId: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance?: any
+): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = async (tx: any) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.companyId}, 602))`);
+        const [updated] = await tx
+            .update(bankTransactions)
+            .set({
+                matchStatus: "UNMATCHED",
+                matchedPaymentRunItemId: null,
+                matchedAt: null,
+                matchedBy: null,
+                matchNotes: null,
+            })
+            .where(
+                and(
+                    eq(bankTransactions.id, input.transactionId),
+                    eq(bankTransactions.companyId, input.companyId),
+                    isNull(bankTransactions.matchedGatewayTransactionId),
+                    eq(bankTransactions.matchStatus, "MATCHED")
+                )
             )
-        )
-        .returning({ id: bankTransactions.id });
-    if (!updated) {
-        throw ApiError.badRequest("El movimiento no estaba cruzado o no existe.");
+            .returning({ id: bankTransactions.id });
+        if (!updated) {
+            throw ApiError.conflict("El movimiento no estaba cruzado o no existe.");
+        }
+    };
+
+    if (dbInstance) {
+        await run(dbInstance);
+    } else {
+        await withCompanyContext({ companyId: input.companyId }, run);
     }
 }
 

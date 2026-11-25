@@ -97,13 +97,15 @@ function fingerprintAccount(accountNumber: string, dek: Buffer): string {
 
 export async function listCompanyBankAccounts(
     companyId: string,
-    options: { activeOnly?: boolean } = {}
+    options: { activeOnly?: boolean } = {},
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance: any = db
 ): Promise<SafeCompanyBankAccount[]> {
     const conditions = [eq(companyBankAccounts.companyId, companyId)];
     if (options.activeOnly) {
         conditions.push(eq(companyBankAccounts.active, true));
     }
-    return db
+    return dbInstance
         .select(SAFE_COLUMNS)
         .from(companyBankAccounts)
         .leftJoin(users, eq(users.id, companyBankAccounts.registeredBy))
@@ -111,21 +113,25 @@ export async function listCompanyBankAccounts(
         .orderBy(desc(companyBankAccounts.createdAt));
 }
 
-export async function createCompanyBankAccount(input: {
-    companyId: string;
-    label: string;
-    /** Número de cuenta — el origen real del pago. Cifrado en reposo. */
-    accountNumber: string;
-    /** Código Banxico; obligatorio si no se captura CLABE. */
-    bankCode?: string;
-    /** CLABE propia opcional (cifrada, referencia SPEI de contexto). */
-    clabe?: string | null;
-    currency?: string;
-    /** Propósito declarado; default MIXTO — las cuentas viejas no pierden capacidad. */
-    purpose?: AccountPurpose;
-    notes?: string;
-    registeredBy: string;
-}): Promise<SafeCompanyBankAccount> {
+export async function createCompanyBankAccount(
+    input: {
+        companyId: string;
+        label: string;
+        /** Número de cuenta — el origen real del pago. Cifrado en reposo. */
+        accountNumber: string;
+        /** Código Banxico; obligatorio si no se captura CLABE. */
+        bankCode?: string;
+        /** CLABE propia opcional (cifrada, referencia SPEI de contexto). */
+        clabe?: string | null;
+        currency?: string;
+        /** Propósito declarado; default MIXTO — las cuentas viejas no pierden capacidad. */
+        purpose?: AccountPurpose;
+        notes?: string;
+        registeredBy: string;
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dbInstance: any = db
+): Promise<SafeCompanyBankAccount> {
     const label = input.label?.trim();
     if (!label) {
         throw ApiError.badRequest("La etiqueta de la cuenta es obligatoria.");
@@ -146,7 +152,7 @@ export async function createCompanyBankAccount(input: {
     // La misma cuenta activa no puede registrarse dos veces: es la única
     // guarda sin que el dedupe dependa del banco (dos filas para la misma
     // cuenta no enripecen el histórico de origen).
-    const [duplicate] = await db
+    const [duplicate] = await dbInstance
         .select({ id: companyBankAccounts.id, label: companyBankAccounts.label })
         .from(companyBankAccounts)
         .where(
@@ -196,7 +202,7 @@ export async function createCompanyBankAccount(input: {
         );
     }
 
-    const [inserted] = await db
+    const [inserted] = await dbInstance
         .insert(companyBankAccounts)
         .values({
             companyId: input.companyId,
@@ -235,7 +241,7 @@ export async function createCompanyBankAccount(input: {
             createdAt: companyBankAccounts.createdAt,
         });
 
-    const [registeredBy] = await db
+    const [registeredBy] = await dbInstance
         .select({ name: users.name })
         .from(users)
         .where(eq(users.id, input.registeredBy))

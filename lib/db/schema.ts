@@ -4586,6 +4586,12 @@ export const payrollRuns = pgTable("payroll_runs", {
     aguinaldoFiscalYear: integer("aguinaldo_fiscal_year"),
     /** Autorización versionada; NULL en corridas legacy/ordinarias, nunca se reconstruye desde datos vivos. */
     aguinaldoSnapshot: jsonb("aguinaldo_snapshot").$type<AguinaldoSnapshotCabecera>(),
+    /** NOM-03: control optimista y snapshot inmutable de nómina ordinaria. */
+    snapshotVersion: integer("snapshot_version").notNull().default(0),
+    inputFingerprint: text("input_fingerprint"),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at"),
+    ordinarySnapshot: jsonb("ordinary_snapshot"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -4608,8 +4614,15 @@ export const payrollPayslips = pgTable("payroll_payslips", {
     overtimePayCents: integer("overtime_pay_cents").notNull().default(0),
     /** Aguinaldo timbrado en este payslip (CFDI 002, nómina extraordinaria); 0 en nómina ordinaria. */
     aguinaldoCents: integer("aguinaldo_cents").notNull().default(0),
+    bonusesCents: integer("bonuses_cents").notNull().default(0),
+    isrRetenidoCents: integer("isr_retenido_cents").notNull().default(0),
+    imssObreroCents: integer("imss_obrero_cents").notNull().default(0),
+    loanDeductionsCents: integer("loan_deductions_cents").notNull().default(0),
     totalPercepcionesCents: integer("total_percepciones_cents").notNull().default(0),
     totalDeduccionesCents: integer("total_deducciones_cents").notNull().default(0),
+    netPayCents: integer("net_pay_cents").notNull().default(0),
+    /** NOM-03/NOM-04.a: recibo congelado al aprobar; recibo y exportación consumen esta misma fuente. */
+    ordinarySnapshot: jsonb("ordinary_snapshot"),
     
     cfdiUuid: text("cfdi_uuid"),
     cfdiStatus: text("cfdi_status"),
@@ -4653,6 +4666,87 @@ export const payrollAguinaldoDispersiones = pgTable("payroll_aguinaldo_dispersio
 }, (table) => ({
     anioEmpresaIdx: index("payroll_aguinaldo_dispersiones_company_year_idx")
         .on(table.companyId, table.anioFiscal, table.userId),
+}));
+
+/** NOM-02.c2 — Bonos e incidencias aprobadas de nómina con versionado e idempotencia. */
+export const payrollAdjustments = pgTable("payroll_adjustments", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").references(() => branches.id),
+    userId: text("user_id").notNull().references(() => users.id),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    kind: text("kind").notNull(), // BONUS | INCIDENCE_EARNING | INCIDENCE_DEDUCTION
+    conceptCode: text("concept_code").notNull(),
+    conceptName: text("concept_name").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    taxTreatment: text("tax_treatment").notNull().default("FULLY_TAXABLE"), // FULLY_TAXABLE | EXEMPT | PARTIAL_EXEMPT
+    exemptAmountCents: integer("exempt_amount_cents").notNull().default(0),
+    status: text("status").notNull().default("PENDING"), // PENDING | APPROVED | REJECTED | CANCELLED
+    appliedRunId: uuid("applied_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    version: integer("version").notNull().default(1),
+    idempotencyKey: text("idempotency_key").notNull(),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at"),
+    cancelledBy: text("cancelled_by"),
+    cancelledAt: timestamp("cancelled_at"),
+    cancelReason: text("cancel_reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    companyIdempotencyUnique: uniqueIndex("payroll_adjustments_company_idem_unique")
+        .on(table.companyId, table.idempotencyKey),
+    companyPeriodUserIdx: index("payroll_adjustments_company_period_user_idx")
+        .on(table.companyId, table.userId, table.periodStart, table.periodEnd),
+}));
+
+/** NOM-02.d3 — Préstamos y descuentos autorizados con saldo, límite legal y trazabilidad. */
+export const payrollLoans = pgTable("payroll_loans", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    userId: text("user_id").notNull().references(() => users.id),
+    loanType: text("loan_type").notNull(), // COMPANY_LOAN | SALARY_ADVANCE | INFONAVIT | FONACOT | ALIMONY | OTHER_AUTHORIZED
+    satDeductionCode: text("sat_deduction_code").notNull().default("004"),
+    conceptName: text("concept_name").notNull(),
+    principalCents: integer("principal_cents").notNull(),
+    remainingBalanceCents: integer("remaining_balance_cents").notNull(),
+    installmentCents: integer("installment_cents").notNull(),
+    maxDeductionPct: integer("max_deduction_pct").notNull().default(30),
+    status: text("status").notNull().default("ACTIVE"), // ACTIVE | PAUSED | PAID_OFF | CANCELLED
+    authorizedBy: text("authorized_by").notNull(),
+    authorizedAt: timestamp("authorized_at").defaultNow().notNull(),
+    reason: text("reason").notNull(),
+    cancelledBy: text("cancelled_by"),
+    cancelledAt: timestamp("cancelled_at"),
+    cancelReason: text("cancel_reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    companyUserStatusIdx: index("payroll_loans_company_user_status_idx")
+        .on(table.companyId, table.userId, table.status),
+}));
+
+/** NOM-02.d3 — Historial de cuotas aplicadas por período (impide doble cobro por período). */
+export const payrollLoanInstallments = pgTable("payroll_loan_installments", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    loanId: uuid("loan_id").notNull().references(() => payrollLoans.id),
+    userId: text("user_id").notNull().references(() => users.id),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    runId: uuid("run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    scheduledCents: integer("scheduled_cents").notNull(),
+    appliedCents: integer("applied_cents").notNull(),
+    balanceBeforeCents: integer("balance_before_cents").notNull(),
+    balanceAfterCents: integer("balance_after_cents").notNull(),
+    status: text("status").notNull().default("APPLIED"), // APPLIED | ADJUSTED | REVERSED
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+    uniqueAppliedPerPeriod: uniqueIndex("payroll_loan_installments_applied_period_unique")
+        .on(table.companyId, table.loanId, table.periodStart, table.periodEnd)
+        .where(sql`${table.status} = 'APPLIED'`),
+    companyPeriodUserIdx: index("payroll_loan_installments_company_period_user_idx")
+        .on(table.companyId, table.userId, table.periodStart, table.periodEnd),
 }));
 
 // ---------------------------------------------------------------------------
@@ -4708,6 +4802,8 @@ export const aggregatorSettlements = pgTable("aggregator_settlements", {
     grossSalesCents: integer("gross_sales_cents").notNull(),
     commissionCents: integer("commission_cents").notNull(),
     netDepositedCents: integer("net_deposited_cents").notNull(),
+    /** BAN-05: cuenta bancaria destino donde debe aterrizar la liquidación del agregador. */
+    destinationBankAccountId: uuid("destination_bank_account_id"),
     posSalesCents: integer("pos_sales_cents"),
     varianceCents: integer("variance_cents"),
     status: aggregatorSettlementStatusEnum("status").notNull().default('PENDING'),

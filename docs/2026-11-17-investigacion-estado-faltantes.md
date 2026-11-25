@@ -1,5 +1,15 @@
 # Investigación del estado de implementación de faltantes
 
+## Actualización de implementación — 2026-11-25
+
+Revisión sobre HEAD `732a815` (2026-11-23) más el árbol local al 2026-11-25. El validador documental (`scripts/validate-faltantes.ts`) reporta **239 filas, 86 tareas base, 127 hijos y 102 registros aceptados**, con cero errores.
+
+- **Puerta 1 cerrada en entorno aislado (2026-11-22, commiteado):** `INV-01.b` (manual, bulk, UI, smart-link, storage POS con runtime `NOBYPASSRLS` y cobertura COGS/menú/ejecutivo), `INV-01.c` (carreras `SERIALIZABLE` y recuperación histórica con Next/R2/Better Auth reales), `INV-01.d` (13/13 recorridos reales) e `INV-02` (políticas de consumo).
+- **Producción hasta `PROD-02` aceptada en entorno aislado (2026-11-22, commiteado):** `PROD-00`, `PROD-01.a` (`0161`), `PROD-01.b` (`0162`), `Checkpoint 5.1` y `PROD-02`. Trabajo de `REC-03A` en curso en el árbol local.
+- **Puerta 2 (Nómina) cerrada en entorno aislado (2026-11-23/25):** `NOM-02.c1.history` (`0163`/`0164`, commiteado) y en árbol local sin commitear `NOM-02.c1`, `c2`, `d1` (ISR), `d2` (IMSS), `d3` (préstamos), `e` (carga patronal real sustituyendo el 35% fijo), `NOM-06` (guardia real de completitud), `NOM-03` (`0165`/`0166`, snapshot inmutable), `NOM-04.a` (recibos/exportación desde snapshot), `NOM-04.b` (timbrado CFDI desde el mismo snapshot aprobado en `POST /api/finance/fiscal/timbrar-nomina`, llamada HTTP remota al sandbox de FiscalAPI pendiente explícita) y `NOM-05` (`0168`, obligaciones netas por empleado/período aprobado, pagos parciales idempotentes, conciliación `BAN-04` e independencia CFDI↔pago).
+- **Frente 3 hasta `Checkpoint 3.1` aceptado en entorno aislado (2026-11-25, árbol local):** `SEC-05.tesoreria` (`0167_sec05_tesoreria_rls.sql` en 8 tablas de tesorería/banca), `BAN-01` (cifrado en reposo, errores por línea visibles `errors[]`, fingerprint por empresa e idempotencia) y `BAN-04` (matching de egresos atómico con `pg_advisory_xact_lock`, carrera concurrente real en PostgreSQL y separación entre liquidación manual y conciliación bancaria).
+- **Pendientes estructurales:** consolidar/commitear el árbol local (`0165`–`0168`), continuar Frente 3 (`BAN-05`→`BAN-06.a/b`→`FIN-06.a/b`→`FIN-01`), `Checkpoint 4.1`/excepciones restantes, `REC-03A/B`/inventario restante, Frentes 6–8 y aplicación operativa de migraciones (`OPS-03`).
+
 ## Actualización de implementación — 2026-11-18
 
 Revisión sobre HEAD `9bf4089` más el árbol local compartido. Los apartados del 17 de noviembre que siguen se conservan como fotografía histórica; esta actualización prevalece para los puntos siguientes.

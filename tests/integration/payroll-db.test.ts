@@ -352,7 +352,18 @@ describe("NOM-01 V2 + NOM-02.a V2: Base salarial, congelamiento e inmutabilidad 
       // Prima festivo trabajado (Art. 75 LFT): 1 festivo laborado x 50,000 x 2 = 100,000 centavos ($1,000.00 MXN)
       expect(payroll.holidayPayCents).toBe(100000);
       expect(payroll.totalPercepcionesCents).toBe(800000); // 700,000 + 100,000
-      expect(payroll.totalDeduccionesCents).toBe(0);
+      // NOM-02.d1 + NOM-02.d2 + NOM-02.e: ISR ordinario, IMSS obrero y carga patronal por ramas
+      expect(payroll.isrBreakdown.status).toBe("CALCULATED");
+      expect(payroll.isrBreakdown.tableVersion).toBe("RMF_2026_ANEXO_8_ART_96");
+      expect(payroll.isrRetenidoCents).toBeGreaterThan(0);
+      expect(payroll.imssWorkerBreakdown.status).toBe("CALCULATED");
+      expect(payroll.imssWorkerBreakdown.quotedDays).toBe(14);
+      expect(payroll.imssObreroCents).toBeGreaterThan(0);
+      expect(payroll.totalDeduccionesCents).toBe(payroll.isrRetenidoCents + payroll.imssObreroCents);
+      expect(payroll.employerSocialSecurityBreakdown.status).toBe("ESTIMATED");
+      expect(payroll.employerSocialSecurityCents).toBe(
+        payroll.employerSocialSecurityBreakdown.totalEmployerBurdenCents
+      );
 
       // Desglose de asistencia
       expect(payroll.attendanceBreakdown).toBeDefined();
@@ -854,6 +865,24 @@ describe("NOM-01 V2 + NOM-02.a V2: Base salarial, congelamiento e inmutabilidad 
         await expect(
           calculateEmployeePayroll(ctx.userIdB, periodStart, periodEnd, { dbInstance: tx })
         ).rejects.toThrow(/no tiene contrato vigente|no encontrado o sin empresa asignada/i);
+      });
+    });
+
+    it("NOM-02.d1 V2: bloquea pre-timbrado cuando falta tarifa oficial de ISR (ejercicio 2027)", async () => {
+      await runWithIsolation(async (tx, ctx) => {
+        const validation = await validatePayrollPreStamping(
+          ctx.companyIdA,
+          "2027-05-01",
+          "2027-05-15",
+          undefined,
+          { dbInstance: tx }
+        );
+        expect(validation.canStamp).toBe(false);
+        const missingIsr = validation.validationErrors.find(
+          (e) => e.code === "MISSING_ISR_CONFIG" && e.severity === "BLOCKING"
+        );
+        expect(missingIsr).toBeDefined();
+        expect(missingIsr?.error).toContain("2027");
       });
     });
   });

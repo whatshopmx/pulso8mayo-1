@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
-import { aggregatorSettlements, dailySalesCuts } from "@/lib/db/schema";
+import { aggregatorSettlements, branches, companyBankAccounts, dailySalesCuts } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, type SQL } from "drizzle-orm";
+import { ApiError } from "@/lib/api/error";
 import {
   computeSettlementVarianceCents,
   normalizeSettlementChannel,
@@ -30,6 +31,8 @@ export interface CreateAggregatorSettlementInput {
   grossSalesCents: number;
   commissionCents: number;
   netDepositedCents: number;
+  /** BAN-05: cuenta propia destino declarada para la liquidación (opcional). */
+  destinationBankAccountId?: string | null;
   notes?: string;
 }
 
@@ -82,13 +85,43 @@ export function posSalesSumExprForChannel(channel: string): SQL<number> {
  * Calcula la suma de ventas registradas en cortes del POS para ESE canal y periodo.
  */
 export async function createAndReconcileAggregatorSettlement(
-  input: CreateAggregatorSettlementInput
+  input: CreateAggregatorSettlementInput,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dbInstance: any = db
 ) {
   const channel = normalizeSettlementChannel(input.channel);
 
+  const [branch] = await dbInstance
+    .select({ id: branches.id })
+    .from(branches)
+    .where(and(eq(branches.id, input.branchId), eq(branches.companyId, input.companyId)))
+    .limit(1);
+  if (!branch) {
+    throw ApiError.badRequest("La sucursal seleccionada no pertenece a esta empresa.");
+  }
+
+  if (input.destinationBankAccountId) {
+    const [account] = await dbInstance
+      .select({ id: companyBankAccounts.id })
+      .from(companyBankAccounts)
+      .where(
+        and(
+          eq(companyBankAccounts.id, input.destinationBankAccountId),
+          eq(companyBankAccounts.companyId, input.companyId),
+          eq(companyBankAccounts.active, true)
+        )
+      )
+      .limit(1);
+    if (!account) {
+      throw ApiError.badRequest(
+        "La cuenta destino no existe en el catálogo activo de esta empresa."
+      );
+    }
+  }
+
   // 1. Venta del canal según los cortes de Pulso en el rango. Se acota siempre
   //    por (company, branch, fecha) y por el canal de la liquidación.
-  const [posSum] = await db
+  const [posSum] = await dbInstance
     .select({ totalPosSales: posSalesSumExprForChannel(channel) })
     .from(dailySalesCuts)
     .where(
@@ -110,7 +143,7 @@ export async function createAndReconcileAggregatorSettlement(
   });
   const status = settlementStatusForVariance(varianceCents);
 
-  const [settlement] = await db
+  const [settlement] = await dbInstance
     .insert(aggregatorSettlements)
     .values({
       companyId: input.companyId,
@@ -121,6 +154,7 @@ export async function createAndReconcileAggregatorSettlement(
       grossSalesCents: input.grossSalesCents,
       commissionCents: input.commissionCents,
       netDepositedCents: input.netDepositedCents,
+      destinationBankAccountId: input.destinationBankAccountId ?? null,
       posSalesCents,
       varianceCents,
       status,

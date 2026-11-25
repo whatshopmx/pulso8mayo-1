@@ -5579,66 +5579,27 @@
       }]
     },
     "NOM-02.c1": {
-      "state": "código implementado",
+      "state": "aceptado",
       "evidence": [
         {
-          "file": "tasks/evidencia/2026-11-22/NOM-02.c1-period-balance/README.md",
-          "head": "ef061c4f89ac51f5923cc5d425a5f305c55eba51",
-          "environment": "Windows local; V1 con consultas PGlite y build; saldos históricos y aceptación nativa pendientes",
-          "commands": [{
-            "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/payroll/vacation-period-balance-db.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/payroll-nom02b-overtime.test.ts",
-            "exit": 0
-          }],
-          "checks": ["V1"]
-        },
-        {
-          "file": "tasks/evidencia/2026-11-16/CONSOLIDACION/README.md",
-          "head": "189376a50f9f20c20a41200e7e66a51ca74d40c0",
-          "environment": "Windows local + diff; Neon aislado ep-cold-morning-bewqoz3o, runtime pulso_app NOBYPASSRLS para nómina/recovery; EXC sin nueva V2; TypeScript previo exit 0, comprobación final con validadores de producción bloqueada por 7 errores de base; ver consolidación",
+          "file": "tasks/evidencia/2026-11-24/NOM-02.c1/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS (rollback); dependencias NOM-02.a, NOM-02.c1.http y NOM-02.c1.history aceptadas",
           "commands": [
             {
-              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts tests/unit/payroll/vacation-history-reader-db.test.ts",
               "exit": 0
             },
             {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom01-contract.test.ts lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/payroll-nom02b-overtime.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts lib/services/__tests__/sale-recovery-proposals-route.test.ts lib/services/__tests__/sale-recovery-apply.test.ts lib/services/__tests__/exception-service.test.ts tests/unit/faltantes-traceability.test.ts",
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-nom02c1-balance-db.test.ts",
               "exit": 0
             },
             {
-              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts tests/integration/sale-recovery-e2e-db.test.ts",
+              "command": "eslint lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts tests/integration/payroll-nom02c1-balance-db.test.ts",
               "exit": 0
             }
           ],
-          "checks": [
-            "V1",
-            "V2"
-          ]
-        },
-        {
-          "file": "tasks/evidencia/2026-11-17/NOM-02.c1-balance-status/README.md",
-          "head": "368264cd5b20c33e99b97ced902695413bbe28ce",
-          "environment": "Windows local (V1 con dbInstance simulado) + Neon aislado ep-cold-morning-bewqoz3o con pulso_app NOBYPASSRLS (V2 regresión de nómina)",
-          "commands": [
-            {
-              "command": "pnpm.cmd exec vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02c1-balance-status.test.ts lib/services/__tests__/payroll-nom02c1-vacations.test.ts",
-              "exit": 0
-            },
-            {
-              "command": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit --incremental false",
-              "exit": 0
-            },
-            {
-              "command": "pnpm.cmd exec eslint lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02c1-balance-status.test.ts",
-              "exit": 0
-            },
-            {
-              "command": "NODE_OPTIONS=--use-system-ca pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts",
-              "exit": 0
-            }
-          ],
-          "checks": [
-            "V1"
-          ]
+          "checks": ["V1", "V2"]
         }
       ]
     },
@@ -6353,6 +6314,377 @@
             "V2",
             "V3"
           ]
+        }
+      ]
+    },
+    "NOM-02.d1": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-02.d1/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS (rollback); tablas oficiales RMF 2026 Anexo 8 Art. 96 + Decreto Subsidio DOF 31-dic-2025",
+          "commands": [
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02d1-isr.test.ts lib/__tests__/isr-annual-withholding.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "eslint lib/services/payroll-isr-service.ts lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02d1-isr.test.ts tests/integration/payroll-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "NOM-02.d2": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-02.d2/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS (rollback); cuotas obreras LSS 2026 + UMA INEGI 2025/2026",
+          "commands": [
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02d2-imss.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "eslint lib/services/payroll-imss-service.ts lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02d2-imss.test.ts tests/integration/payroll-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "NOM-02.e": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-02.e/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS (rollback); carga patronal LSS + INFONAVIT + ISN sustituyendo 35% fijo",
+          "commands": [
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02e-burden.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "eslint lib/services/payroll-imss-service.ts lib/services/labor-cost-service.ts lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02e-burden.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "NOM-02.c2": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-02.c2/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS (migración 0165 en rollback)",
+          "commands": [
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02c2-adjustments.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-nom02c2-d3-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "eslint lib/services/payroll-adjustments-service.ts lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02c2-adjustments.test.ts tests/integration/payroll-nom02c2-d3-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "NOM-02.d3": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-02.d3/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS (migración 0165 en rollback)",
+          "commands": [
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom02d3-loans.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-nom02c2-d3-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "eslint lib/services/payroll-loans-service.ts lib/services/payroll-service.ts lib/services/__tests__/payroll-nom02d3-loans.test.ts tests/integration/payroll-nom02c2-d3-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "NOM-06": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-06/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local; V1 evaluación de completitud y ceros justificados + V3 rutas HTTP /api/payroll/validate y /api/payroll/run",
+          "commands": [
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom06-completeness.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "eslint lib/services/payroll-completeness-service.ts lib/services/payroll-service.ts lib/services/__tests__/payroll-nom06-completeness.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V3"]
+        }
+      ]
+    },
+    "NOM-03": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-03/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS (migración 0166 en rollback) + V3 API",
+          "commands": [
+            {
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-nom03-snapshot-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom03-nom04a-snapshot.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "drizzle-kit check",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
+    },
+    "NOM-04.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-24/NOM-04.a/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS; recibos y POST /api/payroll/export consumen el mismo snapshot inmutable",
+          "commands": [
+            {
+              "command": "vitest run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom03-nom04a-snapshot.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "NODE_OPTIONS=--use-system-ca vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/payroll-nom03-snapshot-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "eslint lib/services/payroll-snapshot-service.ts app/api/payroll/export/route.ts lib/services/__tests__/payroll-nom03-nom04a-snapshot.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V3"]
+        }
+      ]
+    },
+    "NOM-04.b": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/NOM-04.b/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS; timbrado CFDI desde snapshot inmutable aprobado (ordinary_snapshot) con contrato FiscalAPI v4 controlado (sin llamada HTTP externa al sandbox remoto en esta corrida)",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/payroll-nom04b-timbrado.test.ts lib/services/__tests__/payroll-nom03-nom04a-snapshot.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/payroll-nom04b-timbrado-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/fiscal-service.ts lib/services/payroll-snapshot-service.ts app/api/finance/fiscal/timbrar-nomina/route.ts lib/services/__tests__/payroll-nom04b-timbrado.test.ts tests/integration/payroll-nom04b-timbrado-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2", "V3"]
+        }
+      ]
+    },
+    "SEC-05.tesoreria": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/SEC-05.tesoreria/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS; migración candidata 0167_sec05_tesoreria_rls.sql en rollback sobre 8 tablas bancarias y de pagos con 2 empresas",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/sec05-tesoreria-rls-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/finance/sec05-tesoreria-http.test.ts tests/unit/finance/treasury-authorization.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js tests/unit/finance/sec05-tesoreria-http.test.ts tests/integration/sec05-tesoreria-rls-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
+    },
+    "BAN-01": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/BAN-01/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS con 0167_sec05_tesoreria_rls.sql; muestra CSV sintética formato MX identificada explícitamente (sin archivo bancario real de cliente)",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/ban01-bank-accounts-import-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/finance/ban01-bank-import-http.test.ts lib/services/__tests__/bank-statement-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/bank-statement-service.ts lib/services/company-bank-account-service.ts tests/unit/finance/ban01-bank-import-http.test.ts tests/integration/ban01-bank-accounts-import-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
+    },
+    "BAN-04": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/BAN-04/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado (pulso_app NOBYPASSRLS con 0167_sec05_tesoreria_rls.sql y carrera real con dos conexiones concurrentes); sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/ban04-outflow-matching-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/finance/ban04-outflow-matching-http.test.ts lib/services/__tests__/bank-statement-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/bank-statement-service.ts tests/unit/finance/ban04-outflow-matching-http.test.ts tests/integration/ban04-outflow-matching-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
+    },
+    "NOM-05": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/NOM-05/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS con 0166+0167+0168 en rollback; pago parcial, repetición idempotente, conciliación BAN-04 e independencia CFDI↔pago; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/nom05-payroll-obligations-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/finance/nom05-payroll-obligations-http.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/db/schema/treasury.ts lib/services/payroll-treasury-service.ts app/api/finance/treasury/payroll/obligations/route.ts tests/unit/finance/nom05-payroll-obligations-http.test.ts tests/integration/nom05-payroll-obligations-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
+    },
+    "BAN-05": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/BAN-05/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado bajo pulso_app NOBYPASSRLS con 0167+0169 en rollback; corte/terminal/agregador con etapas SALE/SETTLEMENT/DEPOSIT y ambigüedad pendiente",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads lib/services/__tests__/ban05-expected-income.test.ts lib/services/__tests__/aggregator-settlement-rules.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/ban05-expected-income-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/expected-income-service.ts lib/services/aggregator-settlement-service.ts lib/services/__tests__/ban05-expected-income.test.ts tests/integration/ban05-expected-income-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "BAN-06.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-25/BAN-06.a/README.md",
+          "head": "732a815136f0273ee267e564eb58a53fe6fa4548",
+          "environment": "Windows local + Neon aislado (pulso_app NOBYPASSRLS con 0167+0169 y carrera concurrente real con dos conexiones); sugerir no confirma, depósito agrupado queda GROUPED_DEPOSIT_UNSUPPORTED",
+          "commands": [
+            {
+              "command": "node --use-system-ca --max-old-space-size=4096 node_modules/vitest/vitest.mjs run --configLoader bundle --config vitest.integration.config.ts --maxWorkers=1 --pool=threads tests/integration/ban06a-deposit-reconciliation-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --configLoader bundle --maxWorkers=1 --pool=threads tests/unit/finance/ban06a-deposit-reconciliation-http.test.ts lib/services/__tests__/bank-statement-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/bank-statement-service.ts tests/unit/finance/ban06a-deposit-reconciliation-http.test.ts tests/integration/ban06a-deposit-reconciliation-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
         }
       ]
     }

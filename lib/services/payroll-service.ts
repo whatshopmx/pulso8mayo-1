@@ -33,6 +33,31 @@ import { AGUINALDO_DAYS_VIGENTE } from "@/lib/company/labor-reform-status-catalo
 import { differenceInDays, parseISO, addDays, format, startOfWeek } from "date-fns";
 import { diaCivilEnZona } from "./aguinaldo-days-adapter";
 import { resolveSeveranceMinimumWage, type MinimumWageZone } from "./severance-minimum-wage";
+import {
+  resolveOrdinaryIsrForPeriod,
+  type OrdinaryIsrBreakdown,
+  type PayrollPeriodicity,
+} from "./payroll-isr-service";
+import {
+  resolveEmployerSocialSecurityForPeriod,
+  resolveWorkerImssForPeriod,
+  type WorkerImssBreakdown,
+} from "./payroll-imss-service";
+import {
+  resolvePayrollAdjustmentsForPeriod,
+  type PayrollAdjustmentRecord,
+  type PayrollAdjustmentsBreakdown,
+} from "./payroll-adjustments-service";
+import {
+  resolvePayrollLoansForPeriod,
+  type PayrollLoanInstallmentRecord,
+  type PayrollLoanRecord,
+  type PayrollLoansBreakdown,
+} from "./payroll-loans-service";
+import {
+  evaluatePayrollCompleteness,
+  type PayrollCompletenessReport,
+} from "./payroll-completeness-service";
 
 export interface ValidatedPayrollPeriod {
   startDate: string;
@@ -1002,6 +1027,43 @@ export async function validatePayrollPreStamping(
     });
   }
 
+  // 2b. Verificar que exista tarifa oficial de ISR vigente para el ejercicio del período (NOM-02.d1)
+  const isrConfigProbe = resolveOrdinaryIsrForPeriod({
+    taxableBaseCents: 100_000,
+    periodStart: startDate,
+    periodEnd: endDate,
+  });
+  if (isrConfigProbe.status === "MISSING_CONFIG") {
+    validationErrors.push({
+      userId: "PERIOD_CHECK",
+      employeeName: "Período de Nómina",
+      error:
+        isrConfigProbe.blockingReason ??
+        `Falta configuración oficial de tarifa ISR para el período ${startDate} - ${endDate}.`,
+      code: "MISSING_ISR_CONFIG",
+      severity: "BLOCKING",
+    });
+  }
+
+  // 2c. Verificar que exista UMA oficial vigente para IMSS obrero/patronal (NOM-02.d2 / NOM-02.e)
+  const imssConfigProbe = resolveWorkerImssForPeriod({
+    dailySalaryCents: 50_000,
+    minimumWageDailyCents: 31_504,
+    periodStart: startDate,
+    periodEnd: endDate,
+  });
+  if (imssConfigProbe.status === "MISSING_CONFIG") {
+    validationErrors.push({
+      userId: "PERIOD_CHECK",
+      employeeName: "Período de Nómina",
+      error:
+        imssConfigProbe.blockingReason ??
+        `Falta configuración oficial de UMA/IMSS para el período ${startDate} - ${endDate}.`,
+      code: "MISSING_IMSS_CONFIG",
+      severity: "BLOCKING",
+    });
+  }
+
   const activeStaff = await dbInstance
     .select({
       userId: users.id,
@@ -1034,6 +1096,7 @@ export async function validatePayrollPreStamping(
     );
 
   let totalGrossSalaryCents = 0;
+  let totalEmployerSocialSecurityCents = 0;
   const totalTipsCents = 0;
   let verifiedEmployees = 0;
 
@@ -1178,6 +1241,17 @@ export async function validatePayrollPreStamping(
       const unpaidDeduction = attendance.unpaidAbsenceDays * contractRes.dailySalaryCents;
       const employeeGross = Math.max(0, contractRes.baseSalaryCents - unpaidDeduction);
       totalGrossSalaryCents += employeeGross;
+
+      const empBurden = resolveEmployerSocialSecurityForPeriod({
+        dailySalaryCents: contractRes.dailySalaryCents,
+        minimumWageDailyCents: attendance.operationalZone.minimumWageDailyCents,
+        isnTaxableBaseCents: employeeGross,
+        periodStart: startDate,
+        periodEnd: endDate,
+        unpaidAbsenceDays: attendance.unpaidAbsenceDays,
+        allowEstimatedWorkRisk: true,
+      });
+      totalEmployerSocialSecurityCents += empBurden.totalEmployerBurdenCents;
     }
 
     if (!hasBlockingError) {
@@ -1197,8 +1271,7 @@ export async function validatePayrollPreStamping(
     }
   }
 
-  // Carga social patronal estimada (IMSS + Infonavit + ISN = 35% del salario base) (Módulo 7.3)
-  const totalEmployerSocialSecurityCents = Math.round(totalGrossSalaryCents * 0.35);
+  // Carga social patronal acumulada desde resolveEmployerSocialSecurityForPeriod (NOM-02.e, sustituye 35% fijo)
   const totalRealLaborCostCents = totalGrossSalaryCents + totalEmployerSocialSecurityCents + totalTipsCents;
 
   const blockingErrorsCount = validationErrors.filter((e) => e.severity === "BLOCKING").length;
@@ -2045,6 +2118,21 @@ export async function calculateEmployeePayroll(
     vacationBonusPercent?: number;
     vacationBreakdown?: VacationPeriodBreakdown;
     vacationsInput?: Partial<ResolveVacationsInput>;
+    leaveBreakdown?: LeavePeriodBreakdown;
+    leavesInput?: Partial<ResolveLeavesInput>;
+    adjustmentsInput?: {
+      preloadedAdjustments?: readonly PayrollAdjustmentRecord[];
+      currentRunId?: string | null;
+    };
+    loansInput?: {
+      preloadedLoans?: readonly PayrollLoanRecord[];
+      preloadedInstallments?: readonly PayrollLoanInstallmentRecord[];
+    };
+    employerBurdenConfig?: {
+      workRiskPremiumPercent?: number | null;
+      statePayrollTaxPercent?: number | null;
+      allowEstimatedWorkRisk?: boolean;
+    };
   }
 ) {
   const dbInstance = options?.dbInstance ?? db;
@@ -2186,16 +2274,142 @@ export async function calculateEmployeePayroll(
     vacationRequests: options?.vacationsInput?.vacationRequests ?? (options?.attendanceInput?.vacations as any),
     vacationAccruals: options?.vacationsInput?.vacationAccruals,
     leaveBalances: options?.vacationsInput?.leaveBalances,
+    useVerifiedHistory: options?.vacationsInput?.useVerifiedHistory,
+    vacationHistory: options?.vacationsInput?.vacationHistory,
+    historyCutoff: options?.vacationsInput?.historyCutoff,
+    historyActorId: options?.vacationsInput?.historyActorId,
     dbInstance,
   }));
   const vacationPrimeCents = vacationBreakdown.vacationPrimeCents;
   const vacationDays = vacationBreakdown.vacationDaysTaken;
 
-  const totalPercepcionesCents = baseSalaryCents + tipsCents + holidayPayCents + overtimePayCents + vacationPrimeCents;
+  // Paid / unpaid leave resolution linked to authorization & dates
+  const leaveBreakdown = options?.leaveBreakdown ?? (await resolveLeavesForPeriod({
+    userId,
+    companyId: user.companyId,
+    startDate,
+    endDate,
+    timezone: attendance.operationalZone.timezone,
+    leaveRequests: options?.leavesInput?.leaveRequests ?? (options?.attendanceInput?.leaves as any),
+    dbInstance,
+  }));
 
-  // Carga Patronal Real (35% IMSS/Infonavit/ISN sobre base + festivos) (Módulo 7.3)
-  const employerSocialSecurityCents = Math.round((baseSalaryCents + holidayPayCents) * 0.35);
+  // Bonos e incidencias aprobadas (NOM-02.c2)
+  const adjustmentsBreakdown = await resolvePayrollAdjustmentsForPeriod({
+    companyId: user.companyId,
+    userId,
+    periodStart: startDate,
+    periodEnd: endDate,
+    currentRunId: options?.adjustmentsInput?.currentRunId,
+    preloadedAdjustments: options?.adjustmentsInput?.preloadedAdjustments,
+    dbInstance,
+  });
+  const bonusesAndIncidencesCents = adjustmentsBreakdown.totalBonusAndEarningCents;
+  const incidenceDeductionsCents = adjustmentsBreakdown.totalIncidenceDeductionCents;
+
+  const totalPercepcionesCents =
+    baseSalaryCents +
+    tipsCents +
+    holidayPayCents +
+    overtimePayCents +
+    vacationPrimeCents +
+    bonusesAndIncidencesCents;
+
+  // Base gravable de ISR desde el desglose fiscal (respeta exenciones LISR Art. 93)
+  const preIsrDesglose = construirDesgloseNomina({
+    baseSalaryCents,
+    propinasCents: tipsCents,
+    holidayPayCents,
+    overtimePayCents,
+    overtimeBreakdown,
+    vacationPrimeCents,
+    vacationBreakdown,
+    adjustmentsBreakdown,
+  });
+  const taxableBaseCents = preIsrDesglose.desglosePercepciones.reduce(
+    (acc, item) => acc + item.taxedAmount,
+    0
+  );
+  const mappedPeriodicity: PayrollPeriodicity | undefined =
+    contractResolution.periodicity === "WEEKLY"
+      ? "WEEKLY"
+      : contractResolution.periodicity === "BIWEEKLY"
+        ? "QUINCENAL"
+        : contractResolution.periodicity === "MONTHLY"
+          ? "MONTHLY"
+          : undefined;
+  const isrBreakdown = resolveOrdinaryIsrForPeriod({
+    taxableBaseCents,
+    periodStart: startDate,
+    periodEnd: endDate,
+    periodDays: calendarDays,
+    periodicity: mappedPeriodicity,
+  });
+  const isrRetenidoCents = isrBreakdown.isrRetenidoCents;
+
+  // Deducción obrera de seguridad social IMSS (NOM-02.d2)
+  const imssWorkerBreakdown = resolveWorkerImssForPeriod({
+    dailySalaryCents: salarioDiarioCents,
+    minimumWageDailyCents: attendance.operationalZone.minimumWageDailyCents,
+    periodStart: startDate,
+    periodEnd: endDate,
+    periodDays: calendarDays,
+    unpaidAbsenceDays: attendance.unpaidAbsenceDays,
+    vacationBonusPercent: options?.vacationBonusPercent,
+  });
+  const imssObreroCents = imssWorkerBreakdown.totalWorkerImssCents;
+
+  // Préstamos y descuentos autorizados (NOM-02.d3)
+  const loansBreakdown = await resolvePayrollLoansForPeriod({
+    companyId: user.companyId,
+    userId,
+    periodStart: startDate,
+    periodEnd: endDate,
+    periodGrossPayCents: totalPercepcionesCents,
+    periodMinimumWageCents:
+      attendance.operationalZone.minimumWageDailyCents * attendance.payableDays,
+    preloadedLoans: options?.loansInput?.preloadedLoans,
+    preloadedInstallments: options?.loansInput?.preloadedInstallments,
+    dbInstance,
+  });
+  const loanDeductionsCents = loansBreakdown.totalLoanDeductionsCents;
+
+  const totalDeduccionesCents =
+    isrRetenidoCents + imssObreroCents + incidenceDeductionsCents + loanDeductionsCents;
+
+  // Carga Patronal calculada por ramas LSS + INFONAVIT + ISN (NOM-02.e, sustituye 35% fijo)
+  const employerSocialSecurityBreakdown = resolveEmployerSocialSecurityForPeriod({
+    dailySalaryCents: salarioDiarioCents,
+    minimumWageDailyCents: attendance.operationalZone.minimumWageDailyCents,
+    isnTaxableBaseCents:
+      baseSalaryCents +
+      holidayPayCents +
+      overtimePayCents +
+      vacationPrimeCents +
+      bonusesAndIncidencesCents,
+    periodStart: startDate,
+    periodEnd: endDate,
+    periodDays: calendarDays,
+    unpaidAbsenceDays: attendance.unpaidAbsenceDays,
+    workRiskPremiumPercent: options?.employerBurdenConfig?.workRiskPremiumPercent,
+    statePayrollTaxPercent: options?.employerBurdenConfig?.statePayrollTaxPercent,
+    allowEstimatedWorkRisk: options?.employerBurdenConfig?.allowEstimatedWorkRisk ?? true,
+    vacationBonusPercent: options?.vacationBonusPercent,
+  });
+  const employerSocialSecurityCents = employerSocialSecurityBreakdown.totalEmployerBurdenCents;
   const realLaborCostCents = totalPercepcionesCents + employerSocialSecurityCents;
+
+  // NOM-06: Evaluación de completitud y justificación explícita de ceros
+  const completeness: PayrollCompletenessReport = evaluatePayrollCompleteness({
+    overtimeBreakdown,
+    vacationBreakdown,
+    leaveBreakdown,
+    adjustmentsBreakdown,
+    isrBreakdown,
+    imssWorkerBreakdown,
+    loansBreakdown,
+    employerSocialSecurityBreakdown,
+  });
 
   return {
     baseSalaryCents,
@@ -2206,11 +2420,23 @@ export async function calculateEmployeePayroll(
     vacationPrimeCents,
     vacationDays,
     vacationBreakdown,
+    leaveBreakdown,
+    bonusesAndIncidencesCents,
+    incidenceDeductionsCents,
+    adjustmentsBreakdown,
+    loanDeductionsCents,
+    loansBreakdown,
     holidayDaysWorked,
+    isrRetenidoCents,
+    isrBreakdown,
+    imssObreroCents,
+    imssWorkerBreakdown,
     totalPercepcionesCents,
-    totalDeduccionesCents: 0,
+    totalDeduccionesCents,
     employerSocialSecurityCents,
+    employerSocialSecurityBreakdown,
     realLaborCostCents,
+    completeness,
     /** Datos reales del contrato para el CFDI (SBC y fecha de contratación). */
     salarioDiarioCents,
     fechaContratacion: contract?.startDate
@@ -2258,6 +2484,12 @@ export function construirDesgloseNomina(payroll: {
   overtimeBreakdown?: OvertimeBreakdown;
   vacationPrimeCents?: number;
   vacationBreakdown?: VacationPeriodBreakdown;
+  isrRetenidoCents?: number;
+  isrBreakdown?: OrdinaryIsrBreakdown;
+  imssObreroCents?: number;
+  imssWorkerBreakdown?: WorkerImssBreakdown;
+  adjustmentsBreakdown?: PayrollAdjustmentsBreakdown;
+  loansBreakdown?: PayrollLoansBreakdown;
 }): {
   desglosePercepciones: NominaPercepcion[];
   desgloseDeducciones: NominaDeduccion[];
@@ -2345,7 +2577,67 @@ export function construirDesgloseNomina(payroll: {
     });
   }
 
-  return { desglosePercepciones, desgloseDeducciones: [] };
+  // Bonos e incidencias aprobadas (NOM-02.c2)
+  if (payroll.adjustmentsBreakdown?.applied.length) {
+    for (const adj of payroll.adjustmentsBreakdown.applied) {
+      if (adj.kind !== "INCIDENCE_DEDUCTION") {
+        desglosePercepciones.push({
+          earningTypeCode: adj.conceptCode,
+          code: adj.conceptCode,
+          concept: adj.conceptName,
+          taxedAmount: adj.taxedAmountCents,
+          exemptAmount: adj.exemptAmountCents,
+        });
+      }
+    }
+  }
+
+  const desgloseDeducciones: NominaDeduccion[] = [];
+  const imssCents =
+    payroll.imssObreroCents ?? payroll.imssWorkerBreakdown?.totalWorkerImssCents ?? 0;
+  if (imssCents > 0) {
+    desgloseDeducciones.push({
+      deductionTypeCode: "001",
+      code: "001",
+      concept: "Seguridad social (IMSS cuota obrera LSS)",
+      amount: imssCents,
+    });
+  }
+  const isrCents = payroll.isrRetenidoCents ?? payroll.isrBreakdown?.isrRetenidoCents ?? 0;
+  if (isrCents > 0) {
+    desgloseDeducciones.push({
+      deductionTypeCode: "002",
+      code: "002",
+      concept: "ISR retenido (Art. 96 LISR)",
+      amount: isrCents,
+    });
+  }
+  if (payroll.adjustmentsBreakdown?.applied.length) {
+    for (const adj of payroll.adjustmentsBreakdown.applied) {
+      if (adj.kind === "INCIDENCE_DEDUCTION" && adj.amountCents > 0) {
+        desgloseDeducciones.push({
+          deductionTypeCode: adj.conceptCode,
+          code: adj.conceptCode,
+          concept: adj.conceptName,
+          amount: adj.amountCents,
+        });
+      }
+    }
+  }
+  if (payroll.loansBreakdown?.deductions.length) {
+    for (const loan of payroll.loansBreakdown.deductions) {
+      if (!loan.alreadyAppliedInPeriod && loan.appliedCents > 0) {
+        desgloseDeducciones.push({
+          deductionTypeCode: loan.satDeductionCode,
+          code: loan.satDeductionCode,
+          concept: loan.conceptName,
+          amount: loan.appliedCents,
+        });
+      }
+    }
+  }
+
+  return { desglosePercepciones, desgloseDeducciones };
 }
 
 export async function executePayrollRun(
@@ -2427,6 +2719,12 @@ export async function executePayrollRun(
       }
 
       const payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate, options);
+      if (!payrollCalc.completeness.canApprove) {
+        const reasons = payrollCalc.completeness.blockingIssues
+          .map((issue) => `${issue.code}: ${issue.message} (${issue.recoveryAction})`)
+          .join("; ");
+        throw new Error(`Resultado incompleto bloquea timbrado para ${emp.name || emp.userId}: ${reasons}`);
+      }
       const desglose = construirDesgloseNomina(payrollCalc);
       
       // Timbrar nómina

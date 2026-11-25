@@ -585,9 +585,23 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
  * actualiza su fila: por eso el índice es por período y no por folio, que un
  * rechazo sin UUID bloquearía.
  */
+export interface TimbrarNominaOptions {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dbInstance?: any;
+  fetchImpl?: typeof fetch;
+}
+
 export async function timbrarNomina(
-  input: NominaTimbradoInput
+  input: NominaTimbradoInput,
+  options?: TimbrarNominaOptions
 ): Promise<NominaTimbradoResult> {
+  const fetchFn = options?.fetchImpl ?? fetch;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const runInCompany = <T>(fn: (tx: any) => Promise<T>): Promise<T> =>
+    options?.dbInstance
+      ? fn(options.dbInstance)
+      : withCompanyContext({ companyId: input.companyId, actorId: input.performedBy }, fn);
+
   if (/^\d{4}-AGU$/.test(input.periodo)) {
     // Un intento durable por obligación: jamás cambiar serie para evadir dedup.
     const fila = await entregarAguinaldo(input, async () => {
@@ -600,7 +614,7 @@ export async function timbrarNomina(
           throw new Error("Los conceptos fiscales no coinciden con el neto autorizado.");
         }
       } catch (error) { throw new AguinaldoNoEnviadoError(error instanceof Error ? error.message : String(error)); }
-      const response = await fetch(`${baseUrl}/invoices`, {
+      const response = await fetchFn(`${baseUrl}/invoices`, {
         method: "POST", headers: { "X-API-KEY": apiKey!, ...(tenant ? { "X-TENANT-KEY": tenant } : {}),
           "X-TIME-ZONE": "America/Mexico_City", "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(preparada.payload),
@@ -623,8 +637,7 @@ export async function timbrarNomina(
     });
     return comoResultado(fila);
   }
-  const scope = { companyId: input.companyId, actorId: input.performedBy };
-  const yaTimbrado = await withCompanyContext(scope, (tx) => tx
+  const yaTimbrado = await runInCompany<(typeof cfdiNominaTimbrados.$inferSelect)[]>((tx) => tx
     .select()
     .from(cfdiNominaTimbrados)
     .where(
@@ -671,7 +684,7 @@ export async function timbrarNomina(
       updatedAt: new Date(),
     };
 
-    const [fila] = await withCompanyContext(scope, (tx) => tx
+    const [fila] = await runInCompany<(typeof cfdiNominaTimbrados.$inferSelect)[]>((tx) => tx
       .insert(cfdiNominaTimbrados)
       .values(valores)
       .onConflictDoUpdate({
@@ -692,7 +705,7 @@ export async function timbrarNomina(
 
     // `setWhere` bloqueó el UPDATE, así que no hubo `RETURNING`: la fila ya
     // estaba timbrada por quien ganó la carrera. Esa es la buena.
-    const [ganadora] = await withCompanyContext(scope, (tx) => tx
+    const [ganadora] = await runInCompany<(typeof cfdiNominaTimbrados.$inferSelect)[]>((tx) => tx
       .select()
       .from(cfdiNominaTimbrados)
       .where(
@@ -722,7 +735,7 @@ export async function timbrarNomina(
     let serie = payload.series;
     let envelope: ApiResponse | null = null;
     for (let intento = 0; intento < 2; intento++) {
-      const response = await fetch(`${baseUrl}/invoices`, {
+      const response = await fetchFn(`${baseUrl}/invoices`, {
         method: "POST",
         headers,
         body: JSON.stringify({ ...payload, series: serie }),

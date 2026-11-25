@@ -534,3 +534,70 @@ export const recurringPayables = pgTable("recurring_payables", {
   ),
   dueDateIdx: index("recurring_payables_due_date_idx").on(table.dueDate),
 }));
+
+// ---------------------------------------------------------------------------
+// NOM-05: Obligaciones netas de nómina por empleado/período aprobado y
+// asignaciones de pago (parcial/total) independientes del estado CFDI.
+// ---------------------------------------------------------------------------
+
+export const payrollTreasuryObligations = pgTable("payroll_treasury_obligations", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  payrollRunId: uuid("payroll_run_id").notNull(),
+  payslipId: uuid("payslip_id"),
+  userId: text("user_id").notNull().references(() => users.id),
+
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  snapshotVersion: integer("snapshot_version").notNull(),
+
+  netAmountCents: integer("net_amount_cents").notNull(),
+  paidAmountCents: integer("paid_amount_cents").default(0).notNull(),
+  remainingAmountCents: integer("remaining_amount_cents").notNull(),
+  /** OPEN | PARTIALLY_PAID | PAID — totalmente independiente de cfdi_status. */
+  paymentStatus: text("payment_status").default("OPEN").notNull(),
+
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  /** Una única obligación por empresa, empleado y período aprobado. */
+  companyUserPeriodUnique: uniqueIndex("payroll_treasury_obligations_company_user_period_unique")
+    .on(table.companyId, table.userId, table.periodStart, table.periodEnd),
+  companyRunIdx: index("payroll_treasury_obligations_company_run_idx")
+    .on(table.companyId, table.payrollRunId),
+  amountsCheck: check(
+    "payroll_treasury_obligations_amounts_check",
+    sql`${table.netAmountCents} >= 0 AND ${table.paidAmountCents} >= 0 AND ${table.remainingAmountCents} >= 0 AND ${table.paidAmountCents} + ${table.remainingAmountCents} = ${table.netAmountCents}`
+  ),
+  statusCheck: check(
+    "payroll_treasury_obligations_status_check",
+    sql`${table.paymentStatus} IN ('OPEN', 'PARTIALLY_PAID', 'PAID')`
+  ),
+}));
+
+export const payrollTreasuryAllocations = pgTable("payroll_treasury_allocations", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  obligationId: uuid("obligation_id")
+    .notNull()
+    .references(() => payrollTreasuryObligations.id, { onDelete: "cascade" }),
+  paymentRunItemId: uuid("payment_run_item_id")
+    .notNull()
+    .references(() => paymentRunItems.id),
+
+  amountCents: integer("amount_cents").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  companyIdemUnique: uniqueIndex("payroll_treasury_allocations_company_idem_unique")
+    .on(table.companyId, table.idempotencyKey),
+  obligationItemUnique: uniqueIndex("payroll_treasury_allocations_obligation_item_unique")
+    .on(table.obligationId, table.paymentRunItemId),
+  amountPositiveCheck: check(
+    "payroll_treasury_allocations_amount_positive_check",
+    sql`${table.amountCents} > 0`
+  ),
+}));

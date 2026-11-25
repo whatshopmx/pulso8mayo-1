@@ -5,8 +5,14 @@ import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { getTimbrado, timbrarNomina } from "@/lib/services/fiscal-service";
+import { stampApprovedPayrollSnapshot } from "@/lib/services/payroll-snapshot-service";
 
-const timbrarSchema = z.object({
+const timbrarSnapshotSchema = z.object({
+  runId: z.string().uuid("El runId debe ser un UUID válido."),
+  userId: z.string().min(1).optional(),
+});
+
+const timbrarLegacySchema = z.object({
   empleadoRfc: z.string().min(12, "RFC del empleado inválido.").max(13),
   empleadoNombre: z.string().min(1, "El nombre del empleado es requerido."),
   empleadoCurp: z.string().optional(),
@@ -22,11 +28,9 @@ const timbrarSchema = z.object({
  * POST /api/finance/fiscal/timbrar-nomina
  * Generates CFDI nómina digital stamp via FiscalAPI.
  *
- * Migrated to `requirePermissionApi('reports','manage', { classification:
- * 'FINANCIAL' })` (Sprint 2 Track B). Uses 'manage' (not 'read') because
- * timbrar is a mutating fiscal action that mints a CFDI. The redundant
- * `requireAuth()` call is dropped — `requirePermissionApi` authenticates via
- * `requireRoleApi` (throws 401 unauthenticated).
+ * NOM-04.b: Cuando recibe `{ runId, userId? }`, timbra exclusivamente desde el
+ * snapshot inmutable aprobado (`ordinary_snapshot`), persistiendo UUID y estado
+ * en `cfdi_nomina_timbrados` y `payroll_payslips` sin recalcular asistencia.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -36,7 +40,22 @@ export async function POST(req: NextRequest) {
     });
 
     const body = await req.json();
-    const data = timbrarSchema.parse(body);
+
+    if (body && typeof body === "object" && "runId" in body) {
+      const snapshotReq = timbrarSnapshotSchema.parse(body);
+      const stamped = await stampApprovedPayrollSnapshot({
+        companyId: ctx.userCompanyId,
+        runId: snapshotReq.runId,
+        userId: snapshotReq.userId,
+        performedBy: ctx.userId,
+      });
+      const response = ApiHandler.success(maskSensitive(stamped, decision));
+      response.headers.set("X-Payroll-Run-Id", stamped.runId);
+      response.headers.set("X-Payroll-Snapshot-Version", String(stamped.snapshotVersion));
+      return response;
+    }
+
+    const data = timbrarLegacySchema.parse(body);
 
     // `companyId` y `performedBy` salen de la sesión, como todo lo demás: el
     // comprobante se guarda a nombre de quien de verdad lo pidió.

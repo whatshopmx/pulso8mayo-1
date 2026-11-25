@@ -4,10 +4,10 @@ import { parse } from "dotenv";
 import { beforeAll, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { branches, companies, users, vacationAccruals } from "@/lib/db/schema";
+import { branches, companies, leaveRequests, leaveTypes, users, vacationAccruals } from "@/lib/db/schema";
 import { setTenantContext } from "@/lib/db/tenant-context";
 import { provisionRuntimeRole } from "./helpers/runtime-role";
-import { resolveVacationsForPeriod } from "@/lib/services/payroll-service";
+import { resolveLeavesForPeriod, resolveVacationsForPeriod } from "@/lib/services/payroll-service";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Fixtures = { company: string[]; branch: string[]; user: string[] };
@@ -24,6 +24,7 @@ beforeAll(async () => {
     "vacation_accruals",
     "leave_balances",
     "leave_types",
+    "leave_requests",
     "vacation_requests",
   ]);
 });
@@ -161,6 +162,77 @@ it("NOM-02.c1 V2: accrual de otra empresa no se lee para la empresa 0", async ()
       const res = await resolve(tx, f);
       expect(res.vacationBalanceStatus).toBe("MISSING");
       expect(res.vacationAvailableBalance).toBe(0);
+    },
+  );
+});
+
+it("NOM-02.c1 V2: permisos con goce y sin goce se enlazan por empresa y no filtran otra empresa", async () => {
+  await probe(
+    async (tx, f) => {
+      const [paidType] = await tx.insert(leaveTypes).values({
+        companyId: f.company[0],
+        name: "PATERNITY_SYNTH",
+        isPaid: true,
+        daysPerYear: 5,
+      }).returning({ id: leaveTypes.id });
+      const [unpaidType] = await tx.insert(leaveTypes).values({
+        companyId: f.company[0],
+        name: "UNPAID_SYNTH",
+        isPaid: false,
+        daysPerYear: 10,
+      }).returning({ id: leaveTypes.id });
+      const [otherType] = await tx.insert(leaveTypes).values({
+        companyId: f.company[1],
+        name: "OTHER_PAID_SYNTH",
+        isPaid: true,
+        daysPerYear: 5,
+      }).returning({ id: leaveTypes.id });
+
+      await tx.insert(leaveRequests).values([
+        {
+          companyId: f.company[0],
+          userId: f.user[0],
+          leaveTypeId: paidType.id,
+          startDate: new Date("2026-11-02T12:00:00Z"),
+          endDate: new Date("2026-11-03T12:00:00Z"),
+          totalDays: 2,
+          reason: "Permiso con goce sintético",
+          status: "APPROVED",
+        },
+        {
+          companyId: f.company[0],
+          userId: f.user[0],
+          leaveTypeId: unpaidType.id,
+          startDate: new Date("2026-11-10T12:00:00Z"),
+          endDate: new Date("2026-11-10T12:00:00Z"),
+          totalDays: 1,
+          reason: "Permiso sin goce sintético",
+          status: "APPROVED",
+        },
+        {
+          companyId: f.company[1],
+          userId: f.user[1],
+          leaveTypeId: otherType.id,
+          startDate: new Date("2026-11-05T12:00:00Z"),
+          endDate: new Date("2026-11-07T12:00:00Z"),
+          totalDays: 3,
+          reason: "Permiso empresa ajena sintético",
+          status: "APPROVED",
+        },
+      ]);
+    },
+    async (tx, f) => {
+      const leaves = await resolveLeavesForPeriod({
+        userId: f.user[0],
+        companyId: f.company[0],
+        startDate: "2026-11-01",
+        endDate: "2026-11-15",
+        dbInstance: tx,
+      });
+      expect(leaves.leavesStatus).toBe("AVAILABLE");
+      expect(leaves.paidLeaveDays).toBe(2);
+      expect(leaves.unpaidLeaveDays).toBe(1);
+      expect(leaves.details).toHaveLength(2);
     },
   );
 });

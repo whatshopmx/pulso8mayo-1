@@ -1,127 +1,81 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/lib/db";
-import { users, employeeProfiles, employeeContracts } from "@/lib/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { payrollRuns } from "@/lib/db/schema";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { ApiError } from "@/lib/api/error";
+import { ApiHandler } from "@/lib/api/response";
+import {
+  buildPayrollSnapshotCsv,
+  readApprovedPayrollSnapshot,
+} from "@/lib/services/payroll-snapshot-service";
+
+const exportPayrollSchema = z
+  .object({
+    runId: z.string().uuid().optional(),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  })
+  .refine((data) => Boolean(data.runId) || Boolean(data.startDate && data.endDate), {
+    message: "Se requiere runId o el rango startDate y endDate.",
+  });
 
 /**
- * POST /api/payroll/export
+ * POST /api/payroll/export (NOM-04.a)
  *
- * Migrated to ABAC (Sprint 2 Track B slice 2c). This route returns employee
- * PII (NSS, CURP, RFC, salario) so it is gated with classification 'SENSITIVE'
- * — non-gate roles (GERENTE/SUPERVISOR/EMPLEADO/READONLY) are denied by the
- * SENSITIVE gate (strict; HR arrives Sprint 3). Gate roles
- * (SUPER_ADMIN/OWNER/ADMIN) read plaintext, consistent with the prior
- * `requireTenant` behavior for authenticated admins.
- *
- * `ctx.userCompanyId` replaces `requireTenant().id` (both read `user.companyId`
- * from the same session). The response is a CSV blob (not JSON), so the
- * masking middleware (Task 3) does not apply here — the SENSITIVE deny is the
- * control for non-gate roles, not field masking.
+ * Exporta CSV exclusivamente desde el snapshot inmutable aprobado (`ordinary_snapshot`)
+ * de la corrida de nómina. Nunca recalcula asistencia ni estima tasas fijas (ISR/IMSS);
+ * las sumas y el neto coinciden exactamente con los recibos de la misma versión congelada.
  */
 export async function POST(req: NextRequest) {
-    try {
-        const { ctx } = await requirePermissionApi("reports", "read", {
-            classification: "SENSITIVE",
-            audit: { action: "EXPORT", req },
-        });
+  try {
+    const { ctx } = await requirePermissionApi("reports", "read", {
+      classification: "SENSITIVE",
+      audit: { action: "EXPORT", req },
+    });
 
-        const body = await req.json();
-        const { startDate, endDate } = body;
+    const body = await req.json();
+    const parsed = exportPayrollSchema.parse(body);
 
-        if (!startDate || !endDate) {
-            return NextResponse.json(
-                { error: "startDate y endDate requeridos" },
-                { status: 400 }
-            );
-        }
+    let targetRunId = parsed.runId;
+    if (!targetRunId && parsed.startDate && parsed.endDate) {
+      const [latestApproved] = await db
+        .select({ id: payrollRuns.id })
+        .from(payrollRuns)
+        .where(
+          and(
+            eq(payrollRuns.companyId, ctx.userCompanyId),
+            eq(payrollRuns.periodStart, parsed.startDate),
+            eq(payrollRuns.periodEnd, parsed.endDate),
+            inArray(payrollRuns.status, ["APPROVED", "COMPLETED"])
+          )
+        )
+        .orderBy(desc(payrollRuns.snapshotVersion), desc(payrollRuns.updatedAt))
+        .limit(1);
 
-        const employeeData = await db
-            .select({
-                userId: users.id,
-                name: users.name,
-                employeeNumber: employeeProfiles.employeeNumber,
-                nss: employeeProfiles.nss,
-                curp: employeeProfiles.curp,
-                rfc: employeeProfiles.rfc,
-                hireDate: employeeProfiles.hireDate,
-                position: employeeProfiles.position,
-                department: employeeProfiles.department,
-                baseSalary: employeeContracts.baseSalary,
-                contractType: employeeContracts.contractType,
-            })
-            .from(users)
-            .leftJoin(employeeProfiles, eq(users.id, employeeProfiles.userId))
-            .leftJoin(employeeContracts, and(
-                eq(employeeContracts.userId, users.id),
-                isNull(employeeContracts.endDate)
-            ))
-            .where(eq(users.companyId, ctx.userCompanyId));
-
-        const records = employeeData.map(emp => {
-            const baseSalary = Number(emp.baseSalary || 0) / 100;
-            const dailyRate = baseSalary / 30;
-            const workDays = 15;
-            const grossPay = dailyRate * workDays;
-            const imssEmployee = grossPay * 0.02375;
-            const isrEstimate = grossPay * 0.03;
-            const netPay = grossPay - imssEmployee - isrEstimate;
-
-            const hireDateVal = emp.hireDate;
-            const hireDateStr = hireDateVal
-                ? new Date(hireDateVal as unknown as string).toISOString().slice(0, 10)
-                : "";
-
-            return [
-                emp.employeeNumber || emp.userId.slice(0, 8),
-                emp.name || "",
-                emp.nss || "",
-                emp.curp || "",
-                emp.rfc || "",
-                emp.position || "",
-                emp.department || "",
-                hireDateStr,
-                emp.contractType || "FIJO",
-                workDays,
-                baseSalary.toFixed(2),
-                dailyRate.toFixed(2),
-                grossPay.toFixed(2),
-                imssEmployee.toFixed(2),
-                isrEstimate.toFixed(2),
-                netPay.toFixed(2),
-                0,
-            ];
-        });
-
-        const headers = [
-            "NumeroEmpleado", "Nombre", "NSS", "CURP", "RFC",
-            "Puesto", "Departamento", "FechaAlta", "TipoContrato",
-            "DiasTrabajados", "SalarioBase", "SalarioDiario",
-            "PercepcionBruta", "IMSS", "ISR", "PercepcionNeta", "HorasExtra"
-        ];
-
-        const csvRows = records.map(row =>
-            row.map(cell => {
-                const str = String(cell);
-                return str.includes(",") || str.includes('"')
-                    ? `"${str.replace(/"/g, '""')}"`
-                    : str;
-            }).join(",")
+      if (!latestApproved) {
+        throw ApiError.conflict(
+          `No existe un snapshot aprobado para el período ${parsed.startDate} - ${parsed.endDate}; aprueba la corrida antes de exportar.`
         );
-
-        const content = [headers.join(","), ...csvRows].join("\r\n");
-        const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
-
-        const filename = `NOMINA_${startDate}_${endDate}.csv`;
-
-        return new Response(blob, {
-            headers: {
-                "Content-Type": "text/csv",
-                "Content-Disposition": `attachment; filename="${filename}"`,
-            },
-        });
-    } catch (error) {
-        console.error("Error generating payroll export:", error);
-        return NextResponse.json({ error: "Error interno" }, { status: 500 });
+      }
+      targetRunId = latestApproved.id;
     }
+
+    const bundle = await readApprovedPayrollSnapshot(ctx.userCompanyId, targetRunId!);
+    const content = buildPayrollSnapshotCsv(bundle);
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+    const filename = `NOMINA_${bundle.header.periodStart}_${bundle.header.periodEnd}_v${bundle.snapshotVersion}.csv`;
+
+    return new Response(blob, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "X-Payroll-Run-Id": bundle.runId,
+        "X-Payroll-Snapshot-Version": String(bundle.snapshotVersion),
+      },
+    });
+  } catch (error) {
+    return ApiHandler.error(error);
+  }
 }

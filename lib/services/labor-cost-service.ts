@@ -37,6 +37,11 @@ import {
 import { and, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
 import { getLaborBurden } from "@/lib/services/labor-burden";
+export {
+  resolveEmployerSocialSecurityForPeriod,
+  type EmployerSocialSecurityBreakdown,
+  type ResolveEmployerSocialSecurityInput,
+} from "@/lib/services/payroll-imss-service";
 // Provisión informativa del aguinaldo (Task 9): la fórmula vive en el
 // servicio puro compartido; la regla de ley (15 días / UMA) también.
 import { calcularAguinaldoAnual } from "@/lib/services/aguinaldo-service";

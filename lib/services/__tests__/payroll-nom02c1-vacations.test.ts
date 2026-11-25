@@ -558,4 +558,99 @@ describe("NOM-02.c1: Vacaciones, permisos con/sin goce y prima vacacional (LFT A
       expect(res.vacationPrimeCents).toBe(Math.round((250000 * 25) / 100)); // 62,500¢
     });
   });
+
+  describe("12. Adopción en cálculo: historia verificada + permisos sin convertir ausencia en falta", () => {
+    it("resuelve historia verificada al corte y conserva procedencia sin degradar a saldo mutable", async () => {
+      const res = await resolveVacationsForPeriod({
+        userId: baseUserId,
+        companyId: baseCompanyId,
+        startDate: periodStart,
+        endDate: periodEnd,
+        dailySalaryCents,
+        vacationHistory: {
+          companyId: baseCompanyId,
+          userId: baseUserId,
+          periodStart,
+          periodEnd,
+          knownAt: "2026-05-16T00:00:00.000Z",
+          coverage: {
+            companyId: baseCompanyId,
+            userId: baseUserId,
+            id: "stream-1",
+            from: "2026-01-01",
+            through: "2026-12-31",
+            recordedAt: "2026-01-01T00:00:00.000Z",
+            sourceReference: "APERTURA-2026",
+          },
+          grants: [
+            {
+              companyId: baseCompanyId,
+              userId: baseUserId,
+              id: "grant-1",
+              days: 12,
+              validFrom: "2026-01-01",
+              validThrough: "2026-12-31",
+              recordedAt: "2026-01-01T00:00:00.000Z",
+              sourceReference: "LFT-2026",
+            },
+          ],
+          requests: [
+            {
+              companyId: baseCompanyId,
+              userId: baseUserId,
+              id: "vac-hist-1",
+              days: ["2026-05-04", "2026-05-05", "2026-05-06"],
+              approvalRecordedAt: "2026-05-01T10:00:00.000Z",
+            },
+          ],
+        },
+      });
+
+      expect(res.vacationSource).toBe("VERIFIED_HISTORY");
+      expect(res.vacationBalanceStatus).toBe("AVAILABLE");
+      expect(res.vacationDaysTaken).toBe(3);
+      expect(res.vacationDaysEligible).toBe(3);
+      expect(res.vacationDaysExceeded).toBe(0);
+      expect(res.vacationAvailableBalance).toBe(12);
+      expect(res.vacationRemainingBalance).toBe(9);
+      expect(res.vacationPrimeCents).toBe(Math.round((3 * dailySalaryCents * 25) / 100));
+      expect(res.historyManifest?.streamId).toBe("stream-1");
+    });
+
+    it("ausencia de historia verificada devuelve MISSING con prima 0 y no genera falta automática", async () => {
+      const vac = await resolveVacationsForPeriod({
+        userId: baseUserId,
+        companyId: baseCompanyId,
+        startDate: periodStart,
+        endDate: periodEnd,
+        dailySalaryCents,
+        vacationHistory: {
+          companyId: baseCompanyId,
+          userId: baseUserId,
+          periodStart,
+          periodEnd,
+          knownAt: "2026-05-16T00:00:00.000Z",
+          coverage: undefined,
+          grants: [],
+          requests: [],
+        },
+      });
+      const att = await resolveAttendanceForPeriod({
+        userId: baseUserId,
+        companyId: baseCompanyId,
+        startDate: periodStart,
+        endDate: periodEnd,
+        sessions: [
+          { id: "s1", startedAt: "2026-05-04T15:00:00Z", status: "COMPLETED" },
+        ],
+        leaves: [],
+        vacations: [],
+      });
+
+      expect(vac.vacationBalanceStatus).toBe("MISSING");
+      expect(vac.vacationPrimeCents).toBe(0);
+      expect(vac.justification).toBe("VACATION_BALANCE_MISSING");
+      expect(att.unpaidAbsenceDays).toBe(0);
+    });
+  });
 });
