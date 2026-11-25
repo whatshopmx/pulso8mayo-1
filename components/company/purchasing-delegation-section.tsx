@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -119,9 +119,23 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [avisos, setAvisos] = useState<string[]>([]);
 
-  const guardadas = (consulta.data?.[accion]?.reglas ?? []) as DelegationRule[];
+  const reglasGuardadas: unknown = consulta.data?.[accion]?.reglas;
+  const guardadas: DelegationRule[] = Array.isArray(reglasGuardadas)
+    ? (reglasGuardadas as DelegationRule[])
+    : [];
   const filas = borrador ?? guardadas.map(reglaAFila);
   const config = ACCIONES.find((a) => a.valor === accion)!;
+
+  // Salir con un borrador sin guardar no debe ser silencioso.
+  useEffect(() => {
+    if (borrador === null) return;
+    const advertir = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", advertir);
+    return () => window.removeEventListener("beforeunload", advertir);
+  }, [borrador]);
 
   const editar = (indice: number, parcial: Partial<FilaBorrador>) => {
     setBorrador(filas.map((f, i) => (i === indice ? { ...f, ...parcial } : f)));
@@ -164,7 +178,7 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
   if (consulta.isLoading) {
     return (
       <div className="flex items-center justify-center py-10 text-muted-foreground">
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cargando controles…
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> Cargando controles…
       </div>
     );
   }
@@ -172,7 +186,7 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
   if (consulta.error instanceof Error) {
     return (
       <Alert variant="destructive">
-        <TriangleAlert className="h-4 w-4" />
+        <TriangleAlert className="h-4 w-4" aria-hidden="true" />
         <AlertDescription>
           {consulta.error.message}
           <Button variant="outline" size="sm" className="ml-2" onClick={() => void consulta.refetch()}>
@@ -192,7 +206,7 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
 
       {error && (
         <Alert variant="destructive">
-          <TriangleAlert className="h-4 w-4" />
+          <TriangleAlert className="h-4 w-4" aria-hidden="true" />
           <AlertDescription role="alert">{error}</AlertDescription>
         </Alert>
       )}
@@ -203,7 +217,7 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
       )}
       {avisos.length > 0 && (
         <Alert>
-          <TriangleAlert className="h-4 w-4" />
+          <TriangleAlert className="h-4 w-4" aria-hidden="true" />
           <AlertDescription>
             <ul className="list-disc pl-4 space-y-0.5">
               {avisos.map((a, i) => (
@@ -223,6 +237,7 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
       )}
 
       <fieldset className="space-y-2" disabled={guardar.isPending}>
+        <legend className="sr-only">Reglas para {config.etiqueta.toLowerCase()}</legend>
         {filas.map((fila, indice) => (
           <div
             key={indice}
@@ -310,7 +325,7 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
                 }}
                 aria-label={`Quitar regla ${indice + 1}`}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -321,6 +336,7 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
         <Button
           variant="outline"
           size="sm"
+          className="h-11"
           disabled={guardar.isPending}
           onClick={() => {
             setBorrador([...filas, { ...FILA_VACIA }]);
@@ -328,12 +344,13 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
             setMensaje(null);
           }}
         >
-          <Plus className="h-4 w-4 mr-1.5" /> Agregar regla
+          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Agregar regla
         </Button>
         {borrador !== null && (
           <Button
             variant="ghost"
             size="sm"
+            className="h-11"
             disabled={guardar.isPending}
             onClick={() => {
               setBorrador(null);
@@ -346,8 +363,8 @@ function EditorDeAccion({ accion }: { accion: DelegationAction }) {
           </Button>
         )}
         <div className="ml-auto">
-          <Button size="sm" onClick={enviar} disabled={guardar.isPending || borrador === null}>
-            {guardar.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
+          <Button size="sm" className="h-11" onClick={enviar} disabled={guardar.isPending || borrador === null}>
+            {guardar.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />}
             Guardar controles de {config.etiqueta.toLowerCase()}
           </Button>
         </div>

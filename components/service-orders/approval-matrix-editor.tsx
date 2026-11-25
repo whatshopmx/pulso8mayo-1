@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -140,6 +140,17 @@ export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType 
 
   const dirty = draft !== null;
 
+  // Salir con cambios sin guardar no debe ser silencioso.
+  useEffect(() => {
+    if (!dirty) return;
+    const advertir = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", advertir);
+    return () => window.removeEventListener("beforeunload", advertir);
+  }, [dirty]);
+
   return (
     <div className="space-y-4">
       {/* Selector de tipo de documento */}
@@ -151,7 +162,7 @@ export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType 
             disabled={saveMutation.isPending}
             onClick={() => switchDocType(t)}
             aria-pressed={docType === t}
-            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+            className={`px-3 py-2 text-sm rounded-md transition-colors ${
               docType === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}
           >
@@ -165,11 +176,11 @@ export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType 
 
       {query.isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando matriz…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" /> Cargando matriz…
         </div>
       ) : query.isError ? (
         <Alert variant="destructive">
-          <TriangleAlert className="h-4 w-4" />
+          <TriangleAlert className="h-4 w-4" aria-hidden="true" />
           <AlertDescription>
             {query.error instanceof Error ? query.error.message : "No se pudo cargar la matriz."}
             <Button variant="outline" size="sm" className="ml-2" onClick={() => void query.refetch()}>Reintentar matriz</Button>
@@ -178,8 +189,8 @@ export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType 
       ) : (
         <>
           {warnings.length > 0 && (
-            <Alert className="border-amber-600/40 text-amber-700 dark:text-amber-400">
-              <TriangleAlert className="h-4 w-4" />
+            <Alert className="border-warning/40 text-warning-text">
+              <TriangleAlert className="h-4 w-4" aria-hidden="true" />
               <AlertDescription>
                 <ul className="list-disc pl-4 space-y-0.5">
                   {warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -200,6 +211,7 @@ export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType 
           </div>
 
           <fieldset className="space-y-2" disabled={saveMutation.isPending}>
+            <legend className="sr-only">Reglas de la matriz de {docType}</legend>
             {rows.length === 0 && (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 Sin matriz personalizada. Al enviar la primera orden se creará la matriz predeterminada.
@@ -261,7 +273,7 @@ export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType 
                     aria-label={`Eliminar regla ${i + 1}`}
                     className="text-destructive hover:text-destructive"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </div>
               </div>
@@ -274,17 +286,17 @@ export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType 
           </p>
 
           <div className="flex flex-wrap gap-2 pt-2 border-t">
-            <Button variant="outline" size="sm" onClick={addRow} disabled={saveMutation.isPending}>
-              <Plus className="h-4 w-4 mr-1.5" /> Agregar regla
+            <Button variant="outline" size="sm" className="h-11" onClick={addRow} disabled={saveMutation.isPending}>
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Agregar regla
             </Button>
             {dirty && (
-              <Button variant="ghost" size="sm" disabled={saveMutation.isPending} onClick={() => { setDraft(null); setWarnings([]); setSaveError(null); setSavedMessage(null); }}>
-                <RotateCcw className="h-4 w-4 mr-1.5" /> Descartar cambios
+              <Button variant="ghost" size="sm" className="h-11" disabled={saveMutation.isPending} onClick={() => { setDraft(null); setWarnings([]); setSaveError(null); setSavedMessage(null); }}>
+                <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden="true" /> Descartar cambios
               </Button>
             )}
             <div className="ml-auto">
-              <Button size="sm" onClick={save} disabled={saveMutation.isPending || !dirty}>
-                {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
+              <Button size="sm" className="h-11" onClick={save} disabled={saveMutation.isPending || !dirty}>
+                {saveMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />}
                 {documentType === "OC" ? "Guardar matriz de compras" : "Guardar cambios"}
               </Button>
             </div>

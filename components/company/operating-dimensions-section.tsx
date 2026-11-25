@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { UtensilsCrossed, Landmark, ShieldCheck, Check, Info, CircleHelp, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { UtensilsCrossed, Landmark, ShieldCheck, Check, Info, CircleHelp, Clock, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   EXPLICACION_CLASIFICACION,
@@ -285,41 +287,58 @@ export function OperatingDimensionsSection({
   values,
   onChange,
 }: OperatingDimensionsSectionProps) {
+  const [abierto, setAbierto] = useState(false);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <UtensilsCrossed className="w-5 h-5 text-foreground" /> Dimensiones Estructurales del Modelo Operativo
+        <CardTitle as="h2" id="modelo-title" className="flex items-center gap-2 text-base font-semibold">
+          <UtensilsCrossed className="h-5 w-5 text-foreground" aria-hidden="true" /> Dimensiones Estructurales del Modelo Operativo
         </CardTitle>
         <CardDescription className="text-xs">
-          Estas selecciones documentan cómo opera el grupo. Hoy no cambian permisos, aprobaciones,
-          movimientos de inventario ni pagos. Cada campo indica su estado.
+          Documentan cómo opera el grupo. Cambiarlas no altera permisos, aprobaciones, inventario
+          ni pagos; cada campo indica su estado.
         </CardDescription>
-        <dl className="mt-3 grid grid-cols-1 xl:grid-cols-3 gap-3">
+        <dl className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
           {(Object.keys(ETIQUETA_CLASIFICACION) as ClasificacionPolitica[]).map((clasificacion) => (
             <div key={clasificacion} className="flex items-start gap-1.5">
               <dt className="shrink-0">
                 <ClasificacionBadge clasificacion={clasificacion} />
               </dt>
-              <dd className="text-xs text-muted-foreground leading-tight pt-0.5">
+              <dd className="pt-0.5 text-xs leading-tight text-muted-foreground">
                 {EXPLICACION_CLASIFICACION[clasificacion]}
               </dd>
             </div>
           ))}
         </dl>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 h-11 w-fit"
+          aria-expanded={abierto}
+          aria-controls="dimensiones-contenido"
+          onClick={() => setAbierto((previo) => !previo)}
+        >
+          <ChevronDown
+            className={cn("h-4 w-4 transition-transform", abierto && "rotate-180")}
+            aria-hidden="true"
+          />
+          {abierto ? "Ocultar dimensiones" : "Documentar el modelo operativo del grupo"}
+        </Button>
       </CardHeader>
 
-      <CardContent className="space-y-8">
+      <CardContent id="dimensiones-contenido" hidden={!abierto} className="space-y-8">
         {OPERATING_GROUPS.map((group, gIdx) => {
           const GroupIcon = group.icon;
           return (
             <div key={gIdx} className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-border/70">
-                <div className="p-1 rounded bg-muted text-foreground">
-                  <GroupIcon className="w-4 h-4" />
+                <div className="rounded bg-muted p-1 text-foreground">
+                  <GroupIcon className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-foreground">{group.title}</h4>
+                  <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
                   <p className="text-xs text-muted-foreground">{group.description}</p>
                 </div>
               </div>
@@ -327,7 +346,7 @@ export function OperatingDimensionsSection({
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 {group.dimensions.map((dim) => {
                   const currentValue = values[dim.id];
-                  const isWide = dim.options.length === 2;
+                  const isWide = Math.max(...dim.options.map((o) => o.title.length)) > 16;
                   const politica = politicaPorCampo(dim.id);
                   const clasificacion = politica?.clasificacion ?? "descriptiva";
 
@@ -345,10 +364,7 @@ export function OperatingDimensionsSection({
                         </span>
                         <ClasificacionBadge clasificacion={clasificacion} />
                       </div>
-                      <p className="text-xs text-muted-foreground">{dim.description}</p>
-                      <p id={`${dim.id}-estado`} className="text-xs text-muted-foreground">
-                        {EXPLICACION_CLASIFICACION[clasificacion]}
-                      </p>
+                      <p id={`${dim.id}-desc`} className="text-xs text-muted-foreground">{dim.description}</p>
                       {clasificacion === "pendiente" && politica?.decisionPendiente && (
                         <p className="text-xs text-muted-foreground flex items-start gap-1.5 leading-normal">
                           <Clock className="h-3 w-3 mt-0.5 shrink-0" aria-hidden="true" />
@@ -359,7 +375,7 @@ export function OperatingDimensionsSection({
                       <div
                         role="radiogroup"
                         aria-labelledby={`${dim.id}-label`}
-                        aria-describedby={`${dim.id}-estado`}
+                        aria-describedby={`${dim.id}-desc`}
                         className={cn(
                           "grid gap-2 pt-1.5",
                           isWide
@@ -405,8 +421,8 @@ export function OperatingDimensionsSection({
                                     {opt.title}
                                   </span>
                                   {isSelected && (
-                                    <div className="p-0.5 rounded-full bg-primary text-primary-foreground shrink-0">
-                                      <Check className="w-3 h-3" />
+                                    <div className="shrink-0 rounded-full bg-primary p-0.5 text-primary-foreground">
+                                      <Check className="h-3 w-3" aria-hidden="true" />
                                     </div>
                                   )}
                                 </div>

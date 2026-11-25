@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Building, Store, Network } from "lucide-react";
+import { Layers, Building, Store, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -78,19 +78,19 @@ export function OperatingConfigPresets({
   disabled = false,
 }: OperatingConfigPresetsProps) {
   return (
-    <div className="p-4 rounded-lg bg-card border border-border space-y-3">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <div className="space-y-3 rounded-lg border border-border bg-card p-6">
+      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-md bg-accent/20 text-primary">
-            <Sparkles className="w-4 h-4" />
+          <div className="rounded-md bg-accent/20 p-1.5 text-primary">
+            <Layers className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
               Plantillas de Arquetipo HORECA
-              <Badge variant="outline" className="text-xs py-0 px-1.5 font-normal">
-                1 Clic
+              <Badge variant="outline" className="px-1.5 py-0 text-xs font-normal">
+                1 clic
               </Badge>
-            </h3>
+            </h2>
             <p className="text-xs text-muted-foreground">
               Aplica un perfil predeterminado a las 7 dimensiones estructurales. Puedes ajustar cualquier valor después.
             </p>
@@ -111,8 +111,8 @@ export function OperatingConfigPresets({
               onClick={() => onApplyPreset(preset)}
               className="h-auto py-2.5 px-3 flex items-start gap-2.5 text-left justify-start hover:border-primary/50 hover:bg-accent/10 transition-colors"
             >
-              <div className="p-1 rounded bg-muted text-muted-foreground mt-0.5 shrink-0">
-                <Icon className="w-3.5 h-3.5" />
+              <div className="mt-0.5 shrink-0 rounded bg-muted p-1 text-muted-foreground">
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
               </div>
               <div className="space-y-0.5 min-w-0">
                 <p className="text-xs font-semibold text-foreground truncate">{preset.name}</p>

@@ -63,8 +63,8 @@ export function SalesChannelsSection() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-bold flex items-center gap-2">
-            <Radio className="h-5 w-5 text-primary" /> Canales de venta
+          <CardTitle as="h2" className="flex items-center gap-2 text-lg font-bold">
+            <Radio className="h-5 w-5 text-primary" aria-hidden="true" /> Canales de venta
           </CardTitle>
           <CardDescription className="max-w-[80ch]">
             Qué plataformas opera el grupo. Un canal está activo cuando es de sistema (mostrador o
@@ -76,17 +76,17 @@ export function SalesChannelsSection() {
         <CardContent>
           {loading ? (
             <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Cargando canales…
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Cargando canales…
             </div>
           ) : error ? (
             // Igual que el resto de la página: un fallo de carga no se disfraza
             // de "todo apagado". Sin datos no se afirma qué canales existen.
             <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               <AlertTitle>No se pudieron cargar los canales</AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>{error}</p>
-                <Button variant="outline" size="sm" onClick={() => void cargar()}>
+                <Button variant="outline" size="sm" className="h-11" onClick={() => void cargar()}>
                   Reintentar
                 </Button>
               </AlertDescription>
@@ -113,9 +113,9 @@ export function SalesChannelsSection() {
                       {c.active ? (
                         <Badge
                           variant="outline"
-                          className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                          className="border-success/20 bg-success/10 text-success-text"
                         >
-                          <CheckCircle2 className="w-3 h-3 mr-1" /> Activo
+                          <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden="true" /> Activo
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-muted-foreground">

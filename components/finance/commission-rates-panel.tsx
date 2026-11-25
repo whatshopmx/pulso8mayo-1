@@ -154,7 +154,7 @@ export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; o
     <Card>
       <CardHeader className="pb-4">
         <CardTitle className="text-lg font-bold flex items-center gap-2">
-          <Percent className="h-5 w-5 text-primary" /> Tarifas por Canal
+          <Percent className="h-5 w-5 text-primary" aria-hidden="true" /> Tarifas por Canal
         </CardTitle>
         <p className="text-sm text-muted-foreground max-w-[80ch]">
           Cada corte se valúa con la tarifa vigente en <span className="font-medium">su</span> fecha
@@ -174,7 +174,7 @@ export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; o
                 Canal
               </Label>
               <Select value={channel} onValueChange={setChannel}>
-                <SelectTrigger id="rate-channel" className="h-9">
+                <SelectTrigger id="rate-channel" className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -196,7 +196,7 @@ export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; o
                 type="text"
                 inputMode="decimal"
                 placeholder="27.50"
-                className="h-9 w-28 tabular-nums"
+                className="h-11 w-28 tabular-nums"
                 value={percent}
                 onChange={(e) => setPercent(e.target.value)}
                 aria-describedby="rate-percent-help"
@@ -210,7 +210,7 @@ export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; o
               <Input
                 id="rate-from"
                 type="date"
-                className="h-9 w-40"
+                className="h-11 w-40"
                 value={effectiveFrom}
                 onChange={(e) => setEffectiveFrom(e.target.value)}
               />
@@ -224,17 +224,17 @@ export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; o
                 id="rate-notes"
                 type="text"
                 placeholder="Renegociada tras el volumen de diciembre"
-                className="h-9"
+                className="h-11"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
 
-            <Button type="submit" size="sm" className="h-9" disabled={saving}>
+            <Button type="submit" size="sm" className="h-11" disabled={saving}>
               {saving ? (
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <Plus className="w-4 h-4 mr-1.5" />
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
               )}
               Guardar
             </Button>
@@ -248,7 +248,7 @@ export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; o
 
         {loading ? (
           <div className="py-8 flex justify-center text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Cargando tarifas...
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" /> Cargando tarifas…
           </div>
         ) : failed ? (
           <EmptyState
@@ -332,7 +332,7 @@ export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; o
                             onClick={() => remove(rate)}
                             aria-label={`Borrar la tarifa de ${commissionChannelLabel(rate.channel)} vigente desde ${rate.effectiveFrom}`}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </TableCell>
                       )}

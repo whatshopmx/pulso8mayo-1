@@ -913,18 +913,18 @@ export function clasificacionDe(input: string): ClasificacionPolitica {
 
 /** Texto que ve el operador; una sola definición por clasificación. */
 export const ETIQUETA_CLASIFICACION: Record<ClasificacionPolitica, string> = {
-  aplicada: "Se aplica hoy",
-  descriptiva: "Descriptiva",
-  pendiente: "Pendiente de decisión",
+  aplicada: "Aplica hoy",
+  descriptiva: "Solo descriptiva",
+  pendiente: "Sin efecto aún",
 };
 
 /** Lo que la clasificación promete, en una línea, para la leyenda de la pantalla. */
 export const EXPLICACION_CLASIFICACION: Record<ClasificacionPolitica, string> = {
-  aplicada: "Un servicio lee este valor y cambia una decisión con él.",
+  aplicada: "Un servicio lee este valor y decide con él. Cambiarlo altera la operación.",
   descriptiva:
-    "Se guarda y describe cómo opera el grupo. Ningún servicio lo lee hoy para decidir nada.",
+    "Documenta cómo opera el grupo. Cambiarlo no altera permisos, aprobaciones ni pagos.",
   pendiente:
-    "Se guarda como descripción. Falta definir su efecto; hoy no cambia permisos ni restricciones.",
+    "Documenta la intención del grupo. Su efecto operativo todavía no está definido.",
 };
 
 /** Conteos por clasificación, para la leyenda y para la prueba de C15. */

@@ -63,7 +63,7 @@ function FiscalField({
           inputMode="decimal"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="pr-8 text-sm font-medium"
+          className="h-11 pr-8 text-sm font-medium"
           aria-invalid={!!error}
           aria-describedby={error ? `${hintId} ${errorId}` : hintId}
         />
@@ -75,7 +75,7 @@ function FiscalField({
         {consumer} <span className="text-muted-foreground/80">{emptyMeans}</span>
       </p>
       {error && (
-        <p id={errorId} role="alert" className="text-xs text-destructive">
+        <p id={errorId} className="text-xs text-destructive">
           {error}
         </p>
       )}
@@ -94,8 +94,8 @@ export function FiscalParamsSection({ values, onChange, errors = {} }: FiscalPar
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Receipt className="w-5 h-5 text-foreground" /> Parámetros Fiscales, de Nómina y Merma
+        <CardTitle as="h2" id="fiscales-title" className="flex items-center gap-2 text-base font-semibold">
+          <Receipt className="h-5 w-5 text-foreground" aria-hidden="true" /> Parámetros Fiscales, de Nómina y Merma
         </CardTitle>
         <CardDescription className="text-xs">
           Tasas que los reportes financieros y los conteos leen al calcular. Cambiarlas afecta los
@@ -148,8 +148,8 @@ export function FiscalParamsSection({ values, onChange, errors = {} }: FiscalPar
         </div>
 
         {/* Task 10 plan-aguinaldo — práctica de nómina y base del aguinaldo.
-            Selección, no número: deciden QUÉ Featuren calcula el motor, y el
-            default (FORMAL / REGISTERED) es lo que ya hace el sistema hoy. */}
+            Selección, no número: deciden QUÉ calcula el motor, y el default
+            (FORMAL / REGISTERED) es lo que ya hace el sistema hoy. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="space-y-1.5 p-3.5 rounded-lg bg-muted/20 border border-border/60">
             <Label htmlFor="payrollPracticeMode" className="text-xs font-semibold flex items-center gap-1.5">
@@ -160,26 +160,26 @@ export function FiscalParamsSection({ values, onChange, errors = {} }: FiscalPar
               value={values.payrollPracticeMode}
               onValueChange={(v) => onChange("payrollPracticeMode", v)}
             >
-              <SelectTrigger id="payrollPracticeMode" className="text-sm font-medium">
-                <SelectValue placeholder="FORMAL (default)" />
+              <SelectTrigger id="payrollPracticeMode" className="h-11 text-sm font-medium">
+                <SelectValue placeholder="Formal (predeterminado)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="FORMAL">FORMAL — todo el salario por nómina</SelectItem>
-                <SelectItem value="MIXED">MIXED — parte del salario se paga fuera de nómina</SelectItem>
+                <SelectItem value="FORMAL">Formal — todo el salario por nómina</SelectItem>
+                <SelectItem value="MIXED">Mixta — parte del salario se paga fuera de nómina</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground leading-tight">
               En MIXED los contratos permiten capturar el salario efectivo real. La
               parte en efectivo se ve siempre como gap y nunca se mezcla con el timbrado.
             </p>
-            <p className="text-xs rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-800 dark:text-amber-200 leading-tight">
+            <p className="rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs leading-tight text-warning-text">
               <strong>Sub-registro (notas legales):</strong> diferencias de prestaciones demandables
               (J. 1a./J. 24/2023, prescripción 1 año — LFT art. 516) y recargos IMSS por
               diferencia de cotización (LSS art. 280-B). Nada de esto desaparece por omitirlo;
               se calcula y se declara en cada cifra que lo trae.
             </p>
             {errors.payrollPracticeMode && (
-              <p role="alert" className="text-xs text-destructive">{errors.payrollPracticeMode}</p>
+              <p className="text-xs text-destructive">{errors.payrollPracticeMode}</p>
             )}
           </div>
           <div className="space-y-1.5 p-3.5 rounded-lg bg-muted/20 border border-border/60">
@@ -191,8 +191,8 @@ export function FiscalParamsSection({ values, onChange, errors = {} }: FiscalPar
               value={values.aguinaldoBase}
               onValueChange={(v) => onChange("aguinaldoBase", v)}
             >
-              <SelectTrigger id="aguinaldoBase" className="text-sm font-medium">
-                <SelectValue placeholder="Salario de registro (default)" />
+              <SelectTrigger id="aguinaldoBase" className="h-11 text-sm font-medium">
+                <SelectValue placeholder="Salario de registro (predeterminado)" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="REGISTERED">Salario de registro — lo que timbra el CFDI</SelectItem>
@@ -204,7 +204,7 @@ export function FiscalParamsSection({ values, onChange, errors = {} }: FiscalPar
               que excede lo timbrable se dispersa aparte, con bitácora y sin CFDI.
             </p>
             {errors.aguinaldoBase && (
-              <p role="alert" className="text-xs text-destructive">{errors.aguinaldoBase}</p>
+              <p className="text-xs text-destructive">{errors.aguinaldoBase}</p>
             )}
           </div>
         </div>

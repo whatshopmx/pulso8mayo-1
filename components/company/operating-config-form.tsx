@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, type FormEvent } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 import {
   OperatingConfigPresets,
   type OperatingPreset,
@@ -24,6 +24,9 @@ import {
   camposInvalidos,
   cuerpoDeConfiguracion,
   erroresPorCampo,
+  escaleraDeAutorizacionInvalida,
+  idDeInput,
+  mensajesDeCamposInvalidos,
   valoresIniciales,
   type FiscalParamsValues,
   type OperatingConfigValues,
@@ -55,15 +58,38 @@ const PORCENTAJE_POR_CAMPO: Record<string, keyof CostTargetsValues> = {
 };
 
 /** C14 — columna fiscal → input del formulario. */
-const FISCAL_POR_CAMPO: Record<string, "vatRate" | "laborBurden" | "stateTax" | "mermaThreshold"> = {
+const FISCAL_POR_CAMPO: Record<
+  string,
+  "vatRate" | "laborBurden" | "stateTax" | "mermaThreshold" | "payrollPracticeMode" | "aguinaldoBase"
+> = {
   vatRatePercent: "vatRate",
   laborBurdenFactorPercent: "laborBurden",
   payrollStateTaxPercent: "stateTax",
   mermaVarianceThresholdPct: "mermaThreshold",
+  payrollPracticeMode: "payrollPracticeMode",
+  aguinaldoBase: "aguinaldoBase",
 };
 
+const INPUTS_DE_UMBRAL: Array<keyof FinancialThresholdsValues> = [
+  "managerAuthLimit",
+  "doubleApprovalThreshold",
+  "pettyCashLimit",
+  "emergencyCap",
+  "courtesyWasteCap",
+];
+
+const INPUTS_DE_COSTO: Array<keyof CostTargetsValues> = [
+  "foodTarget",
+  "foodWarn",
+  "laborTarget",
+  "laborWarn",
+  "marginTarget",
+  "marginWarn",
+];
+
+const INPUTS_FISCALES = ["vatRate", "laborBurden", "stateTax", "mermaThreshold"] as const;
+
 export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfigFormProps) {
-  const { toast } = useToast();
   // Un solo lugar donde se decide qué se muestra: `initialConfig` null significa
   // "sin fila", y la página sólo monta el formulario tras una carga exitosa.
   const inicial = useMemo(() => valoresIniciales(initialConfig), [initialConfig]);
@@ -101,9 +127,8 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
 
   const handleApplyPreset = (preset: OperatingPreset) => {
     setDimensions(preset.dimensions);
-    toast({
-      title: `Plantilla "${preset.name}" aplicada`,
-      description: "Las 7 dimensiones han sido pre-configuradas. Puedes realizar ajustes antes de guardar.",
+    toast.success(`Plantilla "${preset.name}" aplicada`, {
+      description: "Las 7 dimensiones quedaron pre-configuradas. Puedes ajustarlas antes de guardar.",
     });
   };
 
@@ -113,9 +138,8 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
     setCostTargets(inicial.costTargets);
     setFiscal(inicial.fiscal);
     setErrores({});
-    toast({
-      title: "Cambios descartados",
-      description: "Se han restaurado los valores originales.",
+    toast.info("Cambios descartados", {
+      description: "Se restauraron los valores guardados.",
     });
   };
 
@@ -125,13 +149,36 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   const laborPairInvalid = num(costTargets.laborWarn) < num(costTargets.laborTarget);
   const marginPairInvalid = num(costTargets.marginWarn) > num(costTargets.marginTarget);
   const percentPairsInvalid = foodPairInvalid || laborPairInvalid || marginPairInvalid;
+  const authLadderInvalid = escaleraDeAutorizacionInvalida(thresholds);
 
   const invalidos = useMemo(() => camposInvalidos(estado), [estado]);
-  const isDirty = useMemo(
-    () =>
-      JSON.stringify(estado) !== JSON.stringify(inicial),
-    [estado, inicial]
-  );
+  const mensajesInvalidos = useMemo(() => mensajesDeCamposInvalidos(estado), [estado]);
+
+  /**
+   * Compara lo que se guardaría, no el texto del input: tras guardar, el
+   * servidor devuelve `"1200.5"` donde el operador escribió `"1200.50"`, y esa
+   * diferencia de formato no es un cambio pendiente. Un valor no numérico se
+   * firma aparte para que escribir basura en un campo vacío sí cuente como
+   * cambio (y active el aviso de salida).
+   */
+  const isDirty = useMemo(() => {
+    const firma = (state: typeof estado) =>
+      JSON.stringify(cuerpoDeConfiguracion(state), (_clave, valor) =>
+        typeof valor === "number" && !Number.isFinite(valor) ? "__invalido__" : valor
+      );
+    return firma(estado) !== firma(inicial);
+  }, [estado, inicial]);
+
+  // C13 — salir con cambios sin guardar no debe ser silencioso.
+  useEffect(() => {
+    if (!isDirty) return;
+    const advertir = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", advertir);
+    return () => window.removeEventListener("beforeunload", advertir);
+  }, [isDirty]);
 
   /**
    * Los errores del servidor vienen con el nombre de la columna; el formulario
@@ -144,8 +191,11 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
       const input = UMBRAL_POR_CAMPO[columna];
       if (input) salida[input] = mensaje;
     }
+    for (const input of INPUTS_DE_UMBRAL) {
+      if (mensajesInvalidos[input]) salida[input] = mensajesInvalidos[input];
+    }
     return salida;
-  }, [errores]);
+  }, [errores, mensajesInvalidos]);
 
   const erroresDePorcentaje = useMemo(() => {
     const salida: Record<string, string> = {};
@@ -153,8 +203,11 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
       const input = PORCENTAJE_POR_CAMPO[columna];
       if (input) salida[input] = mensaje;
     }
+    for (const input of INPUTS_DE_COSTO) {
+      if (mensajesInvalidos[input]) salida[input] = mensajesInvalidos[input];
+    }
     return salida;
-  }, [errores]);
+  }, [errores, mensajesInvalidos]);
 
   const erroresDeFiscal = useMemo(() => {
     const salida: Record<string, string> = {};
@@ -162,12 +215,43 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
       const input = FISCAL_POR_CAMPO[columna];
       if (input) salida[input] = mensaje;
     }
+    for (const input of INPUTS_FISCALES) {
+      if (mensajesInvalidos[input]) salida[input] = mensajesInvalidos[input];
+    }
     return salida;
-  }, [errores]);
+  }, [errores, mensajesInvalidos]);
+
+  const disabledMessage = authLadderInvalid
+    ? "El límite del gerente no puede superar el umbral de Dirección General."
+    : invalidos.length
+      ? `Corrige ${invalidos.length} ${invalidos.length === 1 ? "campo marcado" : "campos marcados"} antes de guardar.`
+      : percentPairsInvalid
+        ? "Corrige las inconsistencias en los objetivos de costo para guardar."
+        : undefined;
+
+  /** Primer control que impide guardar, para llevar el foco ahí. */
+  function enfocarPrimerInvalido() {
+    const input =
+      Object.keys(mensajesInvalidos)[0] ??
+      (authLadderInvalid ? "managerAuthLimit" : undefined) ??
+      (foodPairInvalid ? "foodWarn" : undefined) ??
+      (laborPairInvalid ? "laborWarn" : undefined) ??
+      (marginPairInvalid ? "marginWarn" : undefined);
+    if (!input) return;
+    const control = document.getElementById(idDeInput(input));
+    if (control instanceof HTMLElement) {
+      control.focus();
+      control.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
 
   async function guardar(event: FormEvent) {
     event.preventDefault();
-    if (percentPairsInvalid || invalidos.length || loading) return;
+    if (!isDirty) return;
+    if (percentPairsInvalid || invalidos.length || authLadderInvalid || loading) {
+      enfocarPrimerInvalido();
+      return;
+    }
     setLoading(true);
     setErrores({});
 
@@ -183,6 +267,13 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
         const porCampo = erroresPorCampo(data?.error?.details);
         if (Object.keys(porCampo).length) {
           setErrores(porCampo);
+          const primerInput = Object.keys(porCampo)
+            .map((columna) => UMBRAL_POR_CAMPO[columna] ?? PORCENTAJE_POR_CAMPO[columna] ?? FISCAL_POR_CAMPO[columna])
+            .find(Boolean);
+          if (primerInput) {
+            const control = document.getElementById(idDeInput(primerInput));
+            if (control instanceof HTMLElement) control.focus();
+          }
           throw new Error(
             `Revisa ${Object.keys(porCampo).length === 1 ? "el campo marcado" : "los campos marcados"}: ${Object.values(porCampo)[0]}`
           );
@@ -190,17 +281,14 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
         throw new Error(data?.error?.message || data?.error || "Error al actualizar configuración.");
       }
 
-      toast({
-        title: "Configuración Actualizada",
-        description: "El modelo operativo y los umbrales financieros del grupo se han guardado exitosamente.",
+      toast.success("Configuración actualizada", {
+        description: "Los umbrales, objetivos y parámetros del grupo se guardaron.",
       });
 
       if (onSuccess) onSuccess();
     } catch (err) {
-      toast({
-        title: "Error al guardar",
+      toast.error("Error al guardar", {
         description: err instanceof Error ? err.message : "No se pudo actualizar la configuración.",
-        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -208,43 +296,45 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   }
 
   return (
-    <form onSubmit={guardar} className="space-y-8 pb-20" noValidate>
-      {/* 1 Clic Archetype Presets */}
-      <OperatingConfigPresets onApplyPreset={handleApplyPreset} disabled={loading} />
+    <form onSubmit={guardar} className="space-y-8 pb-24" noValidate>
+      {/* Primero lo que cambia decisiones hoy. */}
+      <section id="umbrales" aria-labelledby="umbrales-title" className="scroll-mt-24">
+        <FinancialThresholdsSection
+          values={thresholds}
+          onChange={handleThresholdChange}
+          errors={erroresDeUmbral}
+          authLadderInvalid={authLadderInvalid}
+        />
+      </section>
 
-      {/* 7 Structural Dimensions (Categorized into 3 domains) */}
-      <OperatingDimensionsSection values={dimensions} onChange={handleDimensionChange} />
-
-      {/* Financial Thresholds & Approval Policies */}
-      <FinancialThresholdsSection
-        values={thresholds}
-        onChange={handleThresholdChange}
-        errors={erroresDeUmbral}
-      />
-
-      {/* Cost KPI Targets with Spectrum Gauges */}
-      <CostTargetsSection
-        values={costTargets}
-        onChange={handleCostTargetChange}
-        foodPairInvalid={foodPairInvalid}
-        laborPairInvalid={laborPairInvalid}
-        marginPairInvalid={marginPairInvalid}
-        errors={erroresDePorcentaje}
-      />
+      <section id="costos" aria-labelledby="costos-title" className="scroll-mt-24">
+        <CostTargetsSection
+          values={costTargets}
+          onChange={handleCostTargetChange}
+          foodPairInvalid={foodPairInvalid}
+          laborPairInvalid={laborPairInvalid}
+          marginPairInvalid={marginPairInvalid}
+          errors={erroresDePorcentaje}
+        />
+      </section>
 
       {/* C14 — parámetros que los motores ya consumían */}
-      <FiscalParamsSection values={fiscal} onChange={handleFiscalChange} errors={erroresDeFiscal} />
+      <section id="fiscales" aria-labelledby="fiscales-title" className="scroll-mt-24">
+        <FiscalParamsSection values={fiscal} onChange={handleFiscalChange} errors={erroresDeFiscal} />
+      </section>
+
+      {/* Lo descriptivo va al final, plegado: documenta, no decide. */}
+      <section id="modelo" aria-label="Modelo operativo del grupo" className="scroll-mt-24 space-y-4">
+        <OperatingConfigPresets onApplyPreset={handleApplyPreset} disabled={loading} />
+        <OperatingDimensionsSection values={dimensions} onChange={handleDimensionChange} />
+      </section>
 
       {/* Persistent Sticky Action Bar */}
       <OperatingConfigStickyBar
         isDirty={isDirty}
         loading={loading}
-        disabled={percentPairsInvalid || invalidos.length > 0}
-        disabledMessage={
-          invalidos.length
-            ? `Corrige ${invalidos.length} ${invalidos.length === 1 ? "campo" : "campos"} antes de guardar.`
-            : undefined
-        }
+        disabled={percentPairsInvalid || invalidos.length > 0 || authLadderInvalid}
+        disabledMessage={disabledMessage}
         onReset={handleReset}
       />
     </form>

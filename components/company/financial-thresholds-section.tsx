@@ -26,8 +26,8 @@ function EstadoDePolitica({ input }: { input: keyof FinancialThresholdsValues })
       variant="secondary"
       className={
         clasificacion === "aplicada"
-          ? "ml-auto shrink-0 text-xs py-0 px-1.5 font-normal tracking-tight gap-1 bg-primary/15 text-primary border-primary/20"
-          : "ml-auto shrink-0 text-xs py-0 px-1.5 font-normal tracking-tight gap-1 bg-muted text-muted-foreground"
+          ? "ml-auto shrink-0 gap-1 border-primary/20 bg-primary/15 px-1.5 py-0 text-xs font-normal tracking-tight text-primary"
+          : "ml-auto shrink-0 gap-1 bg-muted px-1.5 py-0 text-xs font-normal tracking-tight text-muted-foreground"
       }
     >
       {clasificacion === "aplicada" ? (
@@ -44,7 +44,7 @@ function EstadoDePolitica({ input }: { input: keyof FinancialThresholdsValues })
 function ErrorDeCampo({ id, mensaje }: { id: string; mensaje?: string }) {
   if (!mensaje) return null;
   return (
-    <p id={id} role="alert" className="text-xs text-destructive">
+    <p id={id} className="text-xs text-destructive">
       {mensaje}
     </p>
   );
@@ -63,31 +63,40 @@ interface FinancialThresholdsSectionProps {
   onChange: (key: keyof FinancialThresholdsValues, value: string) => void;
   /** Error del servidor por campo, ya traducido al nombre del input. */
   errors?: Record<string, string>;
+  /** El límite del gerente quedó por encima del umbral de Dirección General. */
+  authLadderInvalid?: boolean;
 }
 
 export function FinancialThresholdsSection({
   values,
   onChange,
   errors = {},
+  authLadderInvalid = false,
 }: FinancialThresholdsSectionProps) {
   const mensajeDe = (campo: keyof FinancialThresholdsValues) => errors[campo];
+  const describir = (campo: keyof FinancialThresholdsValues) => {
+    const ids = [`${campo}-hint`];
+    if (mensajeDe(campo)) ids.push(`${campo}-error`);
+    return ids.join(" ");
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-foreground" /> Umbrales Financieros y Políticas de Aprobación
+        <CardTitle as="h2" id="umbrales-title" className="flex items-center gap-2 text-base font-semibold">
+          <DollarSign className="h-5 w-5 text-foreground" aria-hidden="true" /> Umbrales Financieros y Políticas de Aprobación
         </CardTitle>
         <CardDescription className="text-xs">
           Los umbrales financieros gobiernan autorizaciones por rol, topes corporativos de compras y el límite del fondo de caja chica.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <CardContent className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {/* Límite Gerente */}
-        <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="p-1 rounded bg-muted text-muted-foreground">
-              <ShieldAlert className="w-3.5 h-3.5" />
+            <div className="rounded bg-muted p-1 text-muted-foreground">
+              <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
             <Label htmlFor="managerAuthLimit" className="text-xs font-semibold">
               Límite de Autonomía de Gerente
@@ -95,26 +104,31 @@ export function FinancialThresholdsSection({
             <EstadoDePolitica input="managerAuthLimit" />
           </div>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
               $
             </span>
             <Input
               id="managerAuthLimit"
               type="number"
+              inputMode="decimal"
               min="0"
-              step="100"
+              step="0.01"
               value={values.managerAuthLimit}
               onChange={(e) => onChange("managerAuthLimit", e.target.value)}
-              className="pl-7 pr-12 text-sm font-medium"
-              aria-invalid={!!mensajeDe("managerAuthLimit")}
-              aria-describedby={mensajeDe("managerAuthLimit") ? "managerAuthLimit-error" : undefined}
+              className="h-11 pl-7 pr-12 text-sm font-medium"
+              aria-invalid={!!mensajeDe("managerAuthLimit") || authLadderInvalid}
+              aria-describedby={
+                authLadderInvalid
+                  ? `${describir("managerAuthLimit")} auth-ladder-error`
+                  : describir("managerAuthLimit")
+              }
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
               MXN
             </span>
           </div>
           <ErrorDeCampo id="managerAuthLimit-error" mensaje={mensajeDe("managerAuthLimit")} />
-          <p className="text-xs text-muted-foreground leading-tight">
+          <p id="managerAuthLimit-hint" className="text-xs leading-tight text-muted-foreground">
             Gastos por debajo de este monto los autoriza un gerente de sucursal. Aplica cuando la empresa no
             capturó una regla de autorización para ese monto, y siempre lo resuelve alguien distinto de quien
             lo registró, salvo el dueño y el super administrador.
@@ -122,10 +136,10 @@ export function FinancialThresholdsSection({
         </div>
 
         {/* Umbral Dirección General */}
-        <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="p-1 rounded bg-muted text-muted-foreground">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="rounded bg-muted p-1 text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
             <Label htmlFor="doubleApprovalThreshold" className="text-xs font-semibold">
               Umbral Autorización Dirección General
@@ -133,26 +147,33 @@ export function FinancialThresholdsSection({
             <EstadoDePolitica input="doubleApprovalThreshold" />
           </div>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
               $
             </span>
             <Input
               id="doubleApprovalThreshold"
               type="number"
+              inputMode="decimal"
               min="0"
-              step="1000"
+              step="0.01"
               value={values.doubleApprovalThreshold}
               onChange={(e) => onChange("doubleApprovalThreshold", e.target.value)}
-              className="pl-7 pr-12 text-sm font-medium"
-              aria-invalid={!!mensajeDe("doubleApprovalThreshold")}
-              aria-describedby={mensajeDe("doubleApprovalThreshold") ? "doubleApprovalThreshold-error" : undefined}
+              className="h-11 pl-7 pr-12 text-sm font-medium"
+              aria-invalid={!!mensajeDe("doubleApprovalThreshold") || authLadderInvalid}
+              aria-describedby={authLadderInvalid ? `doubleApprovalThreshold-hint auth-ladder-error` : describir("doubleApprovalThreshold")}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
               MXN
             </span>
           </div>
           <ErrorDeCampo id="doubleApprovalThreshold-error" mensaje={mensajeDe("doubleApprovalThreshold")} />
-          <p className="text-xs text-muted-foreground leading-tight">
+          {authLadderInvalid && (
+            <p id="auth-ladder-error" role="alert" className="rounded-md border border-destructive/20 bg-destructive/10 p-2 text-xs text-destructive">
+              Este umbral quedó por debajo del límite del gerente. La escalera de autorización no puede
+              invertirse: Dirección General debe exigirse en un monto igual o mayor.
+            </p>
+          )}
+          <p id="doubleApprovalThreshold-hint" className="text-xs leading-tight text-muted-foreground">
             Desde este monto el gasto exige la firma del dueño del grupo. No es doble firma: el sistema tiene un
             aprobador por gasto. Aplica cuando no hay una regla de autorización para ese monto.
             También aporta un umbral a la detección de fraccionamiento.
@@ -160,10 +181,10 @@ export function FinancialThresholdsSection({
         </div>
 
         {/* Fondo Caja Chica */}
-        <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="p-1 rounded bg-muted text-muted-foreground">
-              <Wallet className="w-3.5 h-3.5" />
+            <div className="rounded bg-muted p-1 text-muted-foreground">
+              <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
             <Label htmlFor="pettyCashLimit" className="text-xs font-semibold">
               Fondo Fijo de Caja Chica por Sucursal
@@ -171,26 +192,27 @@ export function FinancialThresholdsSection({
             <EstadoDePolitica input="pettyCashLimit" />
           </div>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
               $
             </span>
             <Input
               id="pettyCashLimit"
               type="number"
+              inputMode="decimal"
               min="0"
-              step="500"
+              step="0.01"
               value={values.pettyCashLimit}
               onChange={(e) => onChange("pettyCashLimit", e.target.value)}
-              className="pl-7 pr-12 text-sm font-medium"
+              className="h-11 pl-7 pr-12 text-sm font-medium"
               aria-invalid={!!mensajeDe("pettyCashLimit")}
-              aria-describedby={mensajeDe("pettyCashLimit") ? "pettyCashLimit-error" : undefined}
+              aria-describedby={describir("pettyCashLimit")}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
               MXN
             </span>
           </div>
           <ErrorDeCampo id="pettyCashLimit-error" mensaje={mensajeDe("pettyCashLimit")} />
-          <p className="text-xs text-muted-foreground leading-tight">
+          <p id="pettyCashLimit-hint" className="text-xs leading-tight text-muted-foreground">
             Tope corporativo para el fondo fijo por sucursal. Aplica en apertura y reapertura de
             fondos, y la reposición no puede exceder el fondo fijo autorizado. Cero deshabilita
             la caja chica; vacío permite abrir sin tope de grupo. Los retiros se acotan al saldo en caja.
@@ -198,10 +220,10 @@ export function FinancialThresholdsSection({
         </div>
 
         {/* Tope Mensual Compras de Emergencia */}
-        <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="p-1 rounded bg-muted text-muted-foreground">
-              <AlertCircle className="w-3.5 h-3.5" />
+            <div className="rounded bg-muted p-1 text-muted-foreground">
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
             <Label htmlFor="emergencyPurchaseCap" className="text-xs font-semibold">
               Tope Mensual Compras de Emergencia
@@ -209,27 +231,28 @@ export function FinancialThresholdsSection({
             <EstadoDePolitica input="emergencyCap" />
           </div>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
               $
             </span>
             <Input
               id="emergencyPurchaseCap"
               type="number"
+              inputMode="decimal"
               min="0"
-              step="500"
+              step="0.01"
               value={values.emergencyCap}
               onChange={(e) => onChange("emergencyCap", e.target.value)}
               placeholder="Sin límite fijado"
-              className="pl-7 pr-12 text-sm font-medium"
+              className="h-11 pl-7 pr-12 text-sm font-medium"
               aria-invalid={!!mensajeDe("emergencyCap")}
-              aria-describedby={mensajeDe("emergencyCap") ? "emergencyPurchaseCap-error" : undefined}
+              aria-describedby={describir("emergencyCap")}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
               MXN
             </span>
           </div>
-          <ErrorDeCampo id="emergencyPurchaseCap-error" mensaje={mensajeDe("emergencyCap")} />
-          <p className="text-xs text-muted-foreground leading-tight">
+          <ErrorDeCampo id="emergencyCap-error" mensaje={mensajeDe("emergencyCap")} />
+          <p id="emergencyCap-hint" className="text-xs leading-tight text-muted-foreground">
             Acumulado mensual permitido de compras urgentes por sucursal. Sólo se consulta en documentos
             marcados como emergencia: si el acumulado más la orden supera el tope, el envío se rechaza. Las órdenes
             normales no pasan por aquí, sino por presupuesto y centro de costo.
@@ -237,10 +260,10 @@ export function FinancialThresholdsSection({
         </div>
 
         {/* Tope Mensual Cortesías y Personal */}
-        <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60 md:col-span-2">
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5 md:col-span-2">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="p-1 rounded bg-muted text-muted-foreground">
-              <DollarSign className="w-3.5 h-3.5" />
+            <div className="rounded bg-muted p-1 text-muted-foreground">
+              <DollarSign className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
             <Label htmlFor="courtesyWasteCap" className="text-xs font-semibold">
               Tope Mensual de Cortesías y Consumo de Personal (Grupo Completo)
@@ -248,27 +271,28 @@ export function FinancialThresholdsSection({
             <EstadoDePolitica input="courtesyWasteCap" />
           </div>
           <div className="relative max-w-md">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
               $
             </span>
             <Input
               id="courtesyWasteCap"
               type="number"
+              inputMode="decimal"
               min="0"
-              step="500"
+              step="0.01"
               value={values.courtesyWasteCap}
               onChange={(e) => onChange("courtesyWasteCap", e.target.value)}
               placeholder="Sin límite fijado"
-              className="pl-7 pr-12 text-sm font-medium"
+              className="h-11 pl-7 pr-12 text-sm font-medium"
               aria-invalid={!!mensajeDe("courtesyWasteCap")}
-              aria-describedby={mensajeDe("courtesyWasteCap") ? "courtesyWasteCap-error" : undefined}
+              aria-describedby={describir("courtesyWasteCap")}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
               MXN
             </span>
           </div>
           <ErrorDeCampo id="courtesyWasteCap-error" mensaje={mensajeDe("courtesyWasteCap")} />
-          <p className="text-xs text-muted-foreground leading-tight">
+          <p id="courtesyWasteCap-hint" className="text-xs leading-tight text-muted-foreground">
             Presupuesto mensual consolidado para mermas por consumo de colaboradores y atenciones a
             comensales. Hasta el tope aprueba un gerente; al superarlo se requiere administrador o superior.
             Sólo aplica a esas dos clases de merma. Una merma sin costo conocido no escala por monto.

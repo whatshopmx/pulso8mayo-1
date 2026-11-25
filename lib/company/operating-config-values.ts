@@ -285,6 +285,72 @@ export function camposInvalidos(state: OperatingConfigFormState): string[] {
     .map(([campo]) => campo);
 }
 
+/**
+ * Columna del servidor → input del formulario. Un solo mapa para que el aviso
+ * de campo inválido apunte al mismo control que el error del servidor.
+ */
+const INPUT_POR_COLUMNA: Record<string, string> = {
+  managerAuthLimitCents: "managerAuthLimit",
+  doubleApprovalThresholdCents: "doubleApprovalThreshold",
+  pettyCashLimitCents: "pettyCashLimit",
+  emergencyPurchaseCapCents: "emergencyCap",
+  courtesyWasteMonthlyCapCents: "courtesyWasteCap",
+  foodCostTargetPercent: "foodTarget",
+  foodCostWarnPercent: "foodWarn",
+  laborCostTargetPercent: "laborTarget",
+  laborCostWarnPercent: "laborWarn",
+  healthyMarginTargetPercent: "marginTarget",
+  healthyMarginWarnPercent: "marginWarn",
+  vatRatePercent: "vatRate",
+  laborBurdenFactorPercent: "laborBurden",
+  payrollStateTaxPercent: "stateTax",
+  mermaVarianceThresholdPct: "mermaThreshold",
+};
+
+/** Id del control en el DOM para un input del formulario (los costos difieren). */
+const DOM_ID_POR_INPUT: Record<string, string> = {
+  emergencyCap: "emergencyPurchaseCap",
+  foodTarget: "foodCostTarget",
+  foodWarn: "foodCostWarn",
+  laborTarget: "laborCostTarget",
+  laborWarn: "laborCostWarn",
+  marginTarget: "healthyMarginTarget",
+  marginWarn: "healthyMarginWarn",
+};
+
+export function idDeInput(input: string): string {
+  return DOM_ID_POR_INPUT[input] ?? input;
+}
+
+/**
+ * Mensajes de invalidez indexados por input, no por columna. La barra pegajosa
+ * sólo podía contar columnas; con esto cada campo puede marcar su propio
+ * control y el primer inválido se puede enfocar.
+ */
+export function mensajesDeCamposInvalidos(state: OperatingConfigFormState): Record<string, string> {
+  const salida: Record<string, string> = {};
+  for (const columna of camposInvalidos(state)) {
+    const input = INPUT_POR_COLUMNA[columna];
+    if (input) salida[input] = "Captura un número válido.";
+  }
+  return salida;
+}
+
+/**
+ * La escalera de autorización no puede invertirse: lo que un gerente puede
+ * autorizar tiene que quedar por debajo de lo que exige Dirección General.
+ * Vacío es "sin tope" y no participa de la comparación.
+ */
+export function escaleraDeAutorizacionInvalida(thresholds: FinancialThresholdsValues): boolean {
+  if (thresholds.managerAuthLimit.trim() === "" || thresholds.doubleApprovalThreshold.trim() === "") {
+    return false;
+  }
+  const gerente = Number(thresholds.managerAuthLimit);
+  const direccion = Number(thresholds.doubleApprovalThreshold);
+  if (!Number.isFinite(gerente) || !Number.isFinite(direccion)) return false;
+  return gerente > direccion;
+}
+
 /** De un error del servidor (`error.details.fieldErrors`) a campo del formulario. */
 export function erroresPorCampo(details: unknown): Record<string, string> {
   const fieldErrors = (details as { fieldErrors?: Record<string, string[] | undefined> } | undefined)?.fieldErrors;

@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Target, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export interface CostTargetsValues {
   foodTarget: string;
@@ -36,8 +35,8 @@ export function CostTargetsSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Target className="w-5 h-5 text-foreground" /> Objetivos de Costo y Semáforos Financieros
+        <CardTitle as="h2" id="costos-title" className="flex items-center gap-2 text-base font-semibold">
+          <Target className="h-5 w-5 text-foreground" aria-hidden="true" /> Objetivos de Costo y Semáforos Financieros
         </CardTitle>
         <CardDescription className="text-xs">
           Calibra los rangos de rentabilidad del grupo. Estos umbrales rigen los semáforos de Food Cost, Labor Cost y Margen en los reportes ejecutivos.
@@ -134,19 +133,38 @@ function TargetPair({
   warnError,
 }: TargetPairProps) {
   const errorId = `${idPrefix}-error`;
+  const hintId = `${idPrefix}-hint`;
   const targetErrorId = `${idPrefix}Target-error`;
   const warnErrorId = `${idPrefix}Warn-error`;
   const tVal = Math.min(100, Math.max(0, parseFloat(targetValue) || 0));
   const wVal = Math.min(100, Math.max(0, parseFloat(warnValue) || 0));
 
+  const zonas = isHigherBetter
+    ? [
+        { nombre: "Rojo", clase: "bg-destructive", rango: `0%–${wVal}%` },
+        { nombre: "Amarillo", clase: "bg-warning", rango: `${wVal}%–${tVal}%` },
+        { nombre: "Verde", clase: "bg-success", rango: `${tVal}%–100%` },
+      ]
+    : [
+        { nombre: "Verde", clase: "bg-success", rango: `0%–${tVal}%` },
+        { nombre: "Amarillo", clase: "bg-warning", rango: `${tVal}%–${wVal}%` },
+        { nombre: "Rojo", clase: "bg-destructive", rango: `${wVal}%–100%` },
+      ];
+
+  const descripcionSemaforo = `Semáforo: ${zonas
+    .map((zona) => `${zona.nombre.toLowerCase()} de ${zona.rango.replace("–", " a ")}`)
+    .join("; ")}.`;
+
   return (
-    <div className="space-y-3 pb-5 border-b border-border/60 last:border-b-0 last:pb-0">
+    <div className="space-y-3 border-b border-border/60 pb-5 last:border-b-0 last:pb-0">
       <div>
         <p className="text-xs font-semibold text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground leading-tight">{hint}</p>
+        <p id={hintId} className="text-xs leading-tight text-muted-foreground">
+          {hint}
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}Target`} className="text-xs">
             {targetLabel}
@@ -155,21 +173,22 @@ function TargetPair({
             <Input
               id={`${idPrefix}Target`}
               type="number"
+              inputMode="decimal"
               min="0"
               max="100"
-              step="0.5"
+              step="0.1"
               value={targetValue}
               onChange={(e) => onTargetChange(e.target.value)}
-              className="pr-8 text-sm font-medium"
+              className="h-11 pr-8 text-sm font-medium"
               aria-invalid={!!targetError}
-              aria-describedby={targetError ? targetErrorId : undefined}
+              aria-describedby={targetError ? `${hintId} ${targetErrorId}` : hintId}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground" aria-hidden="true">
               %
             </span>
           </div>
           {targetError && (
-            <p id={targetErrorId} role="alert" className="text-xs text-destructive">
+            <p id={targetErrorId} className="text-xs text-destructive">
               {targetError}
             </p>
           )}
@@ -183,99 +202,70 @@ function TargetPair({
             <Input
               id={`${idPrefix}Warn`}
               type="number"
+              inputMode="decimal"
               min="0"
               max="100"
-              step="0.5"
+              step="0.1"
               value={warnValue}
               onChange={(e) => onWarnChange(e.target.value)}
-              className="pr-8 text-sm font-medium"
-              aria-invalid={!!warnError}
-              aria-describedby={warnError ? warnErrorId : invalid ? errorId : undefined}
+              className="h-11 pr-8 text-sm font-medium"
+              aria-invalid={!!warnError || invalid}
+              aria-describedby={
+                warnError ? `${hintId} ${warnErrorId}` : invalid ? `${hintId} ${errorId}` : hintId
+              }
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground" aria-hidden="true">
               %
             </span>
           </div>
           {warnError && (
-            <p id={warnErrorId} role="alert" className="text-xs text-destructive">
+            <p id={warnErrorId} className="text-xs text-destructive">
               {warnError}
             </p>
           )}
         </div>
       </div>
 
-      {/* Visual Spectrum Gauge */}
-      {!invalid && (
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
-            <span>0%</span>
-            <span>
-              {isHigherBetter
-                ? `Alerta: <${wVal}% · Óptimo: >${tVal}%`
-                : `Óptimo: <${tVal}% · Alerta: >${wVal}%`}
-            </span>
-            <span>100%</span>
-          </div>
-
-          <div
-            className="h-2.5 w-full rounded-full overflow-hidden flex bg-muted/60 border border-border/50"
-            role="progressbar"
-            aria-label={`Rango de semáforo para ${label}`}
-          >
-            {isHigherBetter ? (
-              <>
-                {/* Red Zone (0 to warn) */}
-                <div
-                  style={{ width: `${wVal}%` }}
-                  className="bg-destructive/80 transition-all duration-300"
-                  title={`Zona Roja (Crítica): 0% a ${wVal}%`}
-                />
-                {/* Yellow Zone (warn to target) */}
-                <div
-                  style={{ width: `${Math.max(0, tVal - wVal)}%` }}
-                  className="bg-amber-500/80 transition-all duration-300"
-                  title={`Zona Amarilla (Precaución): ${wVal}% a ${tVal}%`}
-                />
-                {/* Green Zone (target to 100) */}
-                <div
-                  style={{ width: `${Math.max(0, 100 - tVal)}%` }}
-                  className="bg-emerald-500/80 transition-all duration-300"
-                  title={`Zona Verde (Saludable): ${tVal}% a 100%`}
-                />
-              </>
-            ) : (
-              <>
-                {/* Green Zone (0 to target) */}
-                <div
-                  style={{ width: `${tVal}%` }}
-                  className="bg-emerald-500/80 transition-all duration-300"
-                  title={`Zona Verde (Saludable): 0% a ${tVal}%`}
-                />
-                {/* Yellow Zone (target to warn) */}
-                <div
-                  style={{ width: `${Math.max(0, wVal - tVal)}%` }}
-                  className="bg-amber-500/80 transition-all duration-300"
-                  title={`Zona Amarilla (Precaución): ${tVal}% a ${wVal}%`}
-                />
-                {/* Red Zone (warn to 100) */}
-                <div
-                  style={{ width: `${Math.max(0, 100 - wVal)}%` }}
-                  className="bg-destructive/80 transition-all duration-300"
-                  title={`Zona Roja (Crítica): ${wVal}% a 100%`}
-                />
-              </>
-            )}
-          </div>
+      {/* Semáforo: el color nunca es la única señal — cada zona lleva su rango en texto. */}
+      <div className="space-y-1.5 pt-1">
+        <div
+          className={`flex h-2.5 w-full overflow-hidden rounded-full border border-border/50 bg-muted/60 ${invalid ? "opacity-50" : ""}`}
+          role="img"
+          aria-label={descripcionSemaforo}
+        >
+          {zonas.map((zona, indice) => {
+            const inicio = indice === 0 ? 0 : parseFloat(zonas[indice - 1].rango.split("–")[1]);
+            const fin = parseFloat(zona.rango.split("–")[1]);
+            const ancho = zona.rango.endsWith("100%") ? Math.max(0, 100 - inicio) : Math.max(0, fin - inicio);
+            return (
+              <div
+                key={zona.nombre}
+                style={{ width: `${ancho}%` }}
+                className={`${zona.clase} transition-all duration-300`}
+              />
+            );
+          })}
         </div>
-      )}
+
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {zonas.map((zona) => (
+            <li key={zona.nombre} className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${zona.clase}`} aria-hidden="true" />
+              <span>
+                {zona.nombre}: {zona.rango}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {invalid && (
         <div
           id={errorId}
           role="alert"
-          className="flex items-center gap-1.5 p-2 rounded-md bg-destructive/10 border border-destructive/20 text-xs text-destructive"
+          className="flex items-center gap-1.5 rounded-md border border-destructive/20 bg-destructive/10 p-2 text-xs text-destructive"
         >
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>{invalidMessage}</span>
         </div>
       )}

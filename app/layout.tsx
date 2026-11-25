@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { Toaster } from "@/components/ui/toast";
 import { getMessages } from 'next-intl/server';
 import { NextIntlClientProvider } from 'next-intl';
 
@@ -79,6 +80,9 @@ export default async function RootLayout({
           >
             <QueryProvider>
               {children}
+              {/* Sin este Toaster los `toast()` de toda la app no se pintan:
+                  sonner sólo encola y necesita un host montado. */}
+              <Toaster position="top-right" theme="system" />
             </QueryProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
