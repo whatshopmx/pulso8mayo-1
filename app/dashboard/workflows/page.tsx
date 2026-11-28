@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, FileText, Plus } from "lucide-react";
 import { useBranch } from "@/lib/branch-context";
+import { useSession } from "@/hooks/use-session";
+import { hasAccess, type UserRole } from "@/lib/rbac/permissions";
 import { OutOfScheduleLauncher } from "@/components/workflow/out-of-schedule-launcher";
 import { ShareWorkflow } from "@/components/workflow/share-workflow";
 import { SHIFT_BANDS, TodayProgress, TodayStateBadge, shiftBandKey } from "@/components/workflow/today-status";
@@ -49,6 +51,10 @@ function formatCompletedAt(iso: string | null): string | null {
 
 export default function WorkflowsTodayPage() {
     const { selectedBranchId, setSelectedBranchId, branches: allBranches } = useBranch();
+    const { session } = useSession();
+    const userRole = (session?.user?.role ?? "EMPLEADO") as UserRole;
+    const canViewHistory = hasAccess(userRole, "/dashboard/workflows/history");
+    const canBuildWorkflow = hasAccess(userRole, "/dashboard/builder");
     const [data, setData] = useState<TodayBranch[] | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -104,16 +110,20 @@ export default function WorkflowsTodayPage() {
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                    <Button variant="outline" className="h-11" asChild>
-                        <Link href="/dashboard/workflows/history">
-                            <FileText className="h-4 w-4 mr-2" aria-hidden="true" /> Historial
-                        </Link>
-                    </Button>
-                    <Button className="h-11" asChild>
-                        <Link href="/dashboard/builder">
-                            <Plus className="h-4 w-4 mr-2" aria-hidden="true" /> Nuevo flujo
-                        </Link>
-                    </Button>
+                    {canViewHistory && (
+                        <Button variant="outline" className="h-11" asChild>
+                            <Link href="/dashboard/workflows/history">
+                                <FileText className="h-4 w-4 mr-2" aria-hidden="true" /> Historial
+                            </Link>
+                        </Button>
+                    )}
+                    {canBuildWorkflow && (
+                        <Button className="h-11" asChild>
+                            <Link href="/dashboard/builder">
+                                <Plus className="h-4 w-4 mr-2" aria-hidden="true" /> Nuevo flujo
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             </header>
 

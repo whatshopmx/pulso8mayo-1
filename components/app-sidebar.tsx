@@ -27,7 +27,8 @@ import {
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
-import { isSidebarSectionVisible } from "@/lib/ui/sidebar-visibility"
+import { filterSidebarSections } from "@/lib/ui/sidebar-visibility"
+import type { UserRole } from "@/lib/rbac/permissions"
 
 import { NavUser } from "@/components/nav-user"
 import { NavCompany } from "@/components/nav-company"
@@ -39,7 +40,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-const navMain = [
+export const APP_SIDEBAR_NAV = [
   {
     // Antes "Tablero": es el primer contacto del dueño con el sistema, así
     // que aquí vive todo lo que compara sucursales o junta excepciones de
@@ -80,6 +81,10 @@ const navMain = [
       {
         title: "Dashboard",
         url: "/dashboard/workflows",
+      },
+      {
+        title: "Mis Tareas",
+        url: "/dashboard/my-tasks",
       },
       {
         title: "Ejecución Rápida",
@@ -360,6 +365,10 @@ const navMain = [
         url: "/dashboard/labor/vacations",
       },
       {
+        title: "Permisos y Ausencias",
+        url: "/dashboard/labor/leave",
+      },
+      {
         title: "Días Festivos",
         url: "/dashboard/labor/holidays",
       },
@@ -485,7 +494,7 @@ export interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     name: string;
     email: string;
     avatar: string;
-    role?: 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
+    role?: UserRole;
     branchId?: string;
   },
   company: {
@@ -500,28 +509,9 @@ export interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ user, company, branches, currentBranchId, ...props }: AppSidebarProps) {
-  // Filter navigation items based on user role
-  const userRole = user.role || 'EMPLEADO';
-
-  const filteredNavMain = navMain.filter(section => isSidebarSectionVisible(userRole, section.url)).map(section => {
-    const filteredItems = section.items?.filter(item => {
-      const anyItem = item as any;
-      if (anyItem.groupLabel || !anyItem.url) return true;
-      if (userRole === 'EMPLEADO') {
-        return !anyItem.url.includes('/builder') &&
-        !anyItem.url.includes('/history');
-      }
-      if (userRole === 'READONLY') {
-        return !anyItem.url.includes('/builder');
-      }
-      return true;
-    });
-
-    return {
-      ...section,
-      items: filteredItems
-    };
-  });
+  // Filter navigation sections and items strictly from ROUTE_PERMISSIONS
+  const userRole: UserRole = user.role || 'EMPLEADO';
+  const filteredNavMain = filterSidebarSections(userRole, APP_SIDEBAR_NAV);
 
   return (
     <Sidebar collapsible="icon" {...props}>
