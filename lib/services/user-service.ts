@@ -16,6 +16,11 @@ import { auth } from "@/lib/auth";
 import { CreateUserInput, UpdateUserInput } from "@/lib/validations/user";
 import { ApiError } from "../api/error";
 
+function sanitizeUser<T extends { pinCode?: unknown }>(user: T): Omit<T, "pinCode"> {
+    const { pinCode: _pinCode, ...safe } = user;
+    return safe;
+}
+
 export class UserService {
     static async listUsers(
         tenantId?: string,
@@ -53,7 +58,7 @@ export class UserService {
         ]);
 
         return {
-            data,
+            data: data.map(sanitizeUser),
             meta: {
                 page,
                 limit,
@@ -68,7 +73,7 @@ export class UserService {
             where: and(eq(users.id, id), isNull(users.deletedAt))
         });
         if (!user) throw ApiError.notFound("User not found");
-        return user;
+        return sanitizeUser(user);
     }
 
     static async createUser(data: CreateUserInput) {
@@ -125,7 +130,7 @@ export class UserService {
             .where(eq(users.id, id))
             .returning();
 
-        return updated[0];
+        return updated[0] ? sanitizeUser(updated[0]) : updated[0];
     }
 
     static async deleteUser(id: string) {
