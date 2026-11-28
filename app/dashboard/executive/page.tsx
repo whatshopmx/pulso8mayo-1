@@ -19,6 +19,8 @@ import { eq } from "drizzle-orm";
 import { ExecutiveTwinEngine } from "@/lib/services/executive-twin-engine";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
 import { buildAccessContextFrom } from "@/lib/rbac/abac";
+import { hasPermission, type Role } from "@/lib/permissions";
+import { getDefaultDashboard, type UserRole } from "@/lib/rbac/permissions";
 import { MorningBriefService } from "@/lib/services/morning-brief-service";
 import { ExecutiveDecisionService } from "@/lib/services/executive-decision-service";
 import type { ExecutiveViewMode } from "@/components/dashboard/executive/executive-cockpit-header";
@@ -41,6 +43,12 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
 
   if (!session) redirect("/sign-in");
   if (!session.user.companyId) redirect("/onboarding");
+
+  const userRole = ((session.user as { role?: Role }).role ?? "EMPLEADO") as Role;
+  if (!hasPermission(userRole, "executive", "read")) {
+    redirect(getDefaultDashboard(userRole as UserRole));
+  }
+  const canResolveDecisions = hasPermission(userRole, "executive", "resolve");
 
   const companyId = session.user.companyId;
 
@@ -127,6 +135,7 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
             priorities={brief?.brief?.priorities}
             anomalies={ranking.anomalies}
             initialResolutions={resolvedDecisions}
+            canResolve={canResolveDecisions}
           />
           <ExecutiveCopilotCard />
         </div>

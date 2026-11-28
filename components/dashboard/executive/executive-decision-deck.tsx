@@ -34,6 +34,8 @@ interface ExecutiveDecisionDeckProps {
     string,
     { resolution: ExecutiveDecisionResolution; resolvedByName: string | null }
   >;
+  /** Si el actor puede autorizar, diferir o revocar decisiones ejecutivas. */
+  canResolve?: boolean;
 }
 
 interface DecisionItem {
@@ -108,6 +110,7 @@ export function ExecutiveDecisionDeck({
   priorities = [],
   anomalies = [],
   initialResolutions = {},
+  canResolve = true,
 }: ExecutiveDecisionDeckProps) {
   const [resolutions, setResolutions] = useState<Record<string, DecisionResolution>>(() => {
     const hydrated: Record<string, DecisionResolution> = {};
@@ -350,47 +353,53 @@ export function ExecutiveDecisionDeck({
                               : "Autorizado por Dirección"
                             : "Diferido 24 horas"}
                         </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs text-muted-foreground"
-                          disabled={Boolean(persisting[item.id])}
-                          onClick={() => undoResolution(item)}
-                        >
-                          <Undo2 className="mr-1 h-3.5 w-3.5" />
-                          Deshacer
-                        </Button>
+                        {canResolve && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-muted-foreground"
+                            disabled={Boolean(persisting[item.id])}
+                            onClick={() => undoResolution(item)}
+                          >
+                            <Undo2 className="mr-1 h-3.5 w-3.5" />
+                            Deshacer
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <>
                         <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            className={cn(
-                              "h-8 text-xs font-medium",
-                              isCritical
-                                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                : "bg-primary text-primary-foreground hover:bg-primary/90"
-                            )}
-                            disabled={Boolean(persisting[item.id])}
-                            onClick={() => resolveDecision(item, "authorized")}
-                          >
-                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                            Autorizar
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs font-medium"
-                            disabled={Boolean(persisting[item.id])}
-                            onClick={() => resolveDecision(item, "deferred")}
-                          >
-                            <Clock3 className="mr-1.5 h-3.5 w-3.5" />
-                            Diferir 24 h
-                          </Button>
+                          {canResolve && (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className={cn(
+                                  "h-8 text-xs font-medium",
+                                  isCritical
+                                    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                                )}
+                                disabled={Boolean(persisting[item.id])}
+                                onClick={() => resolveDecision(item, "authorized")}
+                              >
+                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                                Autorizar
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs font-medium"
+                                disabled={Boolean(persisting[item.id])}
+                                onClick={() => resolveDecision(item, "deferred")}
+                              >
+                                <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+                                Diferir 24 h
+                              </Button>
+                            </>
+                          )}
                           <Button
                             type="button"
                             size="sm"
