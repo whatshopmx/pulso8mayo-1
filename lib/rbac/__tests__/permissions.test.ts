@@ -64,13 +64,26 @@ describe('hasAccess — barrido completo rol × ruta', () => {
 });
 
 describe('hasAccess — sub-rutas heredan la entrada más específica', () => {
-    it('vacaciones permite autoservicio y OWNER sin abrir otras rutas de gestión al empleado', () => {
+    it('EMPLEADO accede a autoservicio laboral (vacaciones, cambios de turno, permisos) sin abrir gestión', () => {
         for (const role of ['OWNER', 'EMPLEADO'] as UserRole[]) {
             expect(hasAccess(role, '/dashboard/labor/vacations'), role).toBe(true);
+            expect(hasAccess(role, '/dashboard/labor/shift-changes'), role).toBe(true);
+            expect(hasAccess(role, '/dashboard/labor/shift-changes/req-1'), role).toBe(true);
+            expect(hasAccess(role, '/dashboard/labor/leave'), role).toBe(true);
         }
         expect(hasAccess('EMPLEADO', '/dashboard/labor/approvals')).toBe(false);
         expect(hasAccess('EMPLEADO', '/dashboard/labor/payroll')).toBe(false);
         expect(hasAccess('READONLY', '/dashboard/labor/vacations')).toBe(false);
+        expect(hasAccess('READONLY', '/dashboard/labor/shift-changes')).toBe(false);
+    });
+
+    it('SUPERVISOR accede solo a Caja Chica y Cortes de Ventas, no a Finanzas corporativas', () => {
+        expect(hasAccess('SUPERVISOR', '/dashboard/finance/petty-cash')).toBe(true);
+        expect(hasAccess('SUPERVISOR', '/dashboard/sales')).toBe(true);
+        expect(hasAccess('SUPERVISOR', '/dashboard/finance')).toBe(false);
+        expect(hasAccess('SUPERVISOR', '/dashboard/finance/expenses')).toBe(false);
+        expect(hasAccess('SUPERVISOR', '/dashboard/finance/settings/bank-accounts')).toBe(false);
+        expect(hasAccess('GERENTE', '/dashboard/finance/expenses')).toBe(true);
     });
     it('EMPLEADO accede a sub-ruta de workflows (su entrada específica lo permite)', () => {
         expect(hasAccess('EMPLEADO', '/dashboard/workflows')).toBe(true);

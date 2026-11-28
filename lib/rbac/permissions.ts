@@ -159,14 +159,19 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
     description: 'Branch performance comparison and ranking'
   },
 
-  // === Finance module (EMPLEADO y READONLY denegados) ===
+  // === Finance module (Caja Chica abierta a SUPERVISOR; Finanzas corporativas desde GERENTE) ===
+  {
+    path: '/dashboard/finance/petty-cash',
+    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR'],
+    description: 'Branch petty cash operations (floor management)'
+  },
   {
     path: '/dashboard/finance',
-    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR'],
-    description: 'Finance module: expenses, authorizations, cash flow and petty cash'
+    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE'],
+    description: 'Finance module: expenses, authorizations, cash flow, payables and results'
   },
 
-  // === Sales module (misma lista que Finanzas) ===
+  // === Sales module (Cortes de caja / ventas abiertos a SUPERVISOR) ===
   {
     path: '/dashboard/sales',
     allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR'],
@@ -191,8 +196,13 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   },
   {
     path: '/dashboard/labor/shift-changes',
-    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR'],
-    description: 'Shift change requests'
+    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO'],
+    description: 'Shift change requests (employee self-service + supervisor approval)'
+  },
+  {
+    path: '/dashboard/labor/leave',
+    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO'],
+    description: 'Leave and absence requests (employee self-service + management)'
   },
   {
     path: '/dashboard/labor/approvals',
@@ -249,7 +259,12 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
     description: 'Labor management dashboard - shows company-wide sensitive data'
   },
 
-  // === Workflows - All roles except ReadOnly ===
+  // === Workflows - History (management + readonly), Execution (all except readonly) ===
+  {
+    path: '/dashboard/workflows/history',
+    allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'READONLY'],
+    description: 'Workflow execution history across branch/company'
+  },
   {
     path: '/dashboard/workflows',
     allowedRoles: ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO'],
