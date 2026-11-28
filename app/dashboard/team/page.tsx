@@ -43,18 +43,33 @@ import {
 
 import { RolePermissionMatrix } from "@/components/team/role-permission-matrix";
 import { UserEditSheet } from "@/components/team/user-edit-sheet";
+import { useSession } from "@/hooks/use-session";
+import type { Role } from "@/lib/permissions";
+import {
+    ROLE_LABELS,
+    canActorDeleteTarget,
+    canActorManageTarget,
+} from "@/lib/team/team-permissions";
 
 interface User {
     id: string;
     name: string;
     email: string;
-    role: "ADMIN" | "GERENTE" | "EMPLEADO";
+    role: Role;
     branchId: string | null;
     image?: string;
     phone?: string;
 }
 
 export default function TeamPage() {
+    const { session } = useSession();
+    const actorRole = (session?.user?.role ?? "EMPLEADO") as Role;
+    const actor = {
+        id: session?.user?.id ?? null,
+        role: actorRole,
+        branchId: session?.user?.branchId ?? null,
+    };
+
     const [users, setUsers] = useState<User[]>([]);
     const [branches, setBranches] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -112,15 +127,14 @@ export default function TeamPage() {
     setDeactivating(true);
     try {
       const res = await fetch(`/api/users/${deactivatingUser.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: false }),
+        method: 'DELETE',
       });
       if (res.ok) {
-        setUsers(users.map(u => u.id === deactivatingUser.id ? { ...u, active: false } : u));
+        setUsers(users.filter(u => u.id !== deactivatingUser.id));
         toast.success('Usuario desactivado');
       } else {
-        toast.error('Error al desactivar usuario');
+        const err = await res.json().catch(() => null);
+        toast.error(err?.error?.message || 'Error al desactivar usuario');
       }
     } catch {
       toast.error('Error al desactivar usuario');
@@ -169,10 +183,12 @@ export default function TeamPage() {
 <h1 className="text-3xl font-bold tracking-tight">Equipo y Permisos</h1>
         <p className="text-muted-foreground">Gestiona los miembros de tu equipo y sus niveles de acceso.</p>
                 </div>
-                <Button onClick={() => setInviteOpen(true)}>
-                    <UserPlus className="mr-2 h-4 w-4" />
-Invitar Miembro
-                </Button>
+                {branches.some((b) => Boolean(b.inviteToken)) && (
+                    <Button onClick={() => setInviteOpen(true)}>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Invitar Miembro
+                    </Button>
+                )}
             </div>
 
             <Tabs defaultValue="members" className="space-y-4">
@@ -207,7 +223,10 @@ Invitar Miembro
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {users.map((user) => (
+                                        {users.map((user) => {
+                                            const canEdit = canActorManageTarget(actor, user);
+                                            const canDeactivate = canActorDeleteTarget(actor, user);
+                                            return (
                                             <TableRow key={user.id}>
                                                 <TableCell className="flex items-center gap-3">
                                                     <Avatar>
@@ -220,8 +239,8 @@ Invitar Miembro
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Badge variant={user.role === "ADMIN" ? "default" : "secondary"}>
-                                                        {user.role}
+                                                    <Badge variant={user.role === "SUPER_ADMIN" || user.role === "OWNER" || user.role === "ADMIN" ? "default" : "secondary"}>
+                                                        {ROLE_LABELS[user.role] ?? user.role}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
@@ -230,26 +249,35 @@ Invitar Miembro
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                                <span className="sr-only">Open menu</span>
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-<DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleEditUser(user)}>
-                  Editar Perfil y Permisos
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600" onClick={() => setDeactivatingUser(user)}>
-                  Desactivar Usuario
-                </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                    {canEdit || canDeactivate ? (
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                                    <span className="sr-only">Abrir menú de acciones</span>
+                                                                    <MoreHorizontal className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+                                                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                                                {canEdit && (
+                                                                    <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                                                                        Editar Perfil y Permisos
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                                {canDeactivate && (
+                                                                    <DropdownMenuItem className="text-red-600" onClick={() => setDeactivatingUser(user)}>
+                                                                        Desactivar Usuario
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">—</span>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
+                                            );
+                                        })}
                                     </TableBody>
                                 </Table>
                             )}
@@ -276,6 +304,8 @@ Invitar Miembro
                 onClose={() => setIsSheetOpen(false)}
                 onUserUpdated={handleUserUpdated}
                 branches={branches}
+                actorRole={actorRole}
+                actorBranchId={actor.branchId}
             />
 
             {/* Invite Member Dialog */}

@@ -17,12 +17,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { Role } from "@/lib/permissions";
+import { isBranchScopedRole } from "@/lib/rbac/resource-scope";
+import { getAssignableRoles, ROLE_LABELS } from "@/lib/team/team-permissions";
 
 interface User {
     id: string;
     name: string;
     email: string;
-    role: string;
+    role: Role;
     branchId: string | null;
     image?: string;
     phone?: string;
@@ -33,25 +36,50 @@ interface UserEditSheetProps {
     isOpen: boolean;
     onClose: () => void;
     onUserUpdated: (user: User) => void;
-    branches?: any[]; // Pass available branches
+    branches?: { id: string; name: string }[];
+    actorRole?: Role;
+    actorBranchId?: string | null;
 }
 
-export function UserEditSheet({ user, isOpen, onClose, onUserUpdated, branches = [] }: UserEditSheetProps) {
+export function UserEditSheet({
+    user,
+    isOpen,
+    onClose,
+    onUserUpdated,
+    branches = [],
+    actorRole = "ADMIN",
+    actorBranchId = null,
+}: UserEditSheetProps) {
     const [isLoading, setIsLoading] = useState(false);
 
     if (!user) return null;
+
+    const assignableRoles = getAssignableRoles(actorRole);
+    const roleOptions = assignableRoles.includes(user.role)
+        ? assignableRoles
+        : [user.role, ...assignableRoles];
+    const branchScoped = isBranchScopedRole(actorRole);
+    const visibleBranches = branchScoped && actorBranchId
+        ? branches.filter((b) => b.id === actorBranchId)
+        : branches;
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsLoading(true);
 
         const formData = new FormData(e.currentTarget);
-        const updates = {
+        const rawBranch = (formData.get("branchId") as string) || "";
+        const rawRole = formData.get("role") as Role;
+        const updates: Record<string, unknown> = {
             name: formData.get("name") as string,
-            role: formData.get("role") as string,
-            branchId: formData.get("branchId") as string || null,
-            phone: formData.get("phone") as string
+            phone: formData.get("phone") as string,
         };
+        if (assignableRoles.includes(rawRole)) {
+            updates.role = rawRole;
+        }
+        if (rawBranch && rawBranch !== "global") {
+            updates.branchId = rawBranch;
+        }
 
         try {
             const res = await fetch(`/api/users/${user.id}`, {
@@ -61,18 +89,18 @@ export function UserEditSheet({ user, isOpen, onClose, onUserUpdated, branches =
             });
 
             if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error?.message || "Failed to update user");
+                const errorData = await res.json().catch(() => null);
+                throw new Error(errorData?.error?.message || "No se pudo actualizar el usuario");
             }
 
             const response = await res.json();
-            const updatedUser = response.data; // Extract from API wrapper
+            const updatedUser = response.data;
             onUserUpdated({ ...user, ...updatedUser });
-            toast.success("User updated successfully");
+            toast.success("Usuario actualizado correctamente");
             onClose();
         } catch (error) {
             console.error(error);
-            toast.error(error instanceof Error ? error.message : "Failed to update user");
+            toast.error(error instanceof Error ? error.message : "No se pudo actualizar el usuario");
         } finally {
             setIsLoading(false);
         }
@@ -82,13 +110,13 @@ export function UserEditSheet({ user, isOpen, onClose, onUserUpdated, branches =
         <Sheet open={isOpen} onOpenChange={onClose}>
             <SheetContent className="sm:max-w-[500px]">
                 <SheetHeader>
-                    <SheetTitle>Edit Profile</SheetTitle>
+                    <SheetTitle>Editar Perfil</SheetTitle>
                     <SheetDescription>
-                        Update personal details and permissions for {user.name}.
+                        Actualiza los datos y permisos de {user.name}.
                     </SheetDescription>
                 </SheetHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-6 py-6">
+                <form key={user.id} onSubmit={handleSubmit} className="space-y-6 py-6">
                     {/* Header with Avatar */}
                     <div className="flex items-center gap-4">
                         <Avatar className="h-16 w-16">
@@ -103,39 +131,46 @@ export function UserEditSheet({ user, isOpen, onClose, onUserUpdated, branches =
 
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="name">Full Name</Label>
+                            <Label htmlFor="name">Nombre completo</Label>
                             <Input id="name" name="name" defaultValue={user.name} required />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="phone">Phone Number</Label>
+                            <Label htmlFor="phone">Teléfono</Label>
                             <Input id="phone" name="phone" defaultValue={user.phone || ""} placeholder="+52..." />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="role">Role</Label>
+                                <Label htmlFor="role">Rol</Label>
                                 <Select name="role" defaultValue={user.role}>
                                     <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="ADMIN">Admin</SelectItem>
-                                        <SelectItem value="GERENTE">Gerente</SelectItem>
-                                        <SelectItem value="EMPLEADO">Empleado</SelectItem>
+                                        {roleOptions.map((r) => (
+                                            <SelectItem key={r} value={r}>
+                                                {ROLE_LABELS[r]}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="branchId">Assigned Branch</Label>
-                                <Select name="branchId" defaultValue={user.branchId || "global"}>
+                                <Label htmlFor="branchId">Sucursal asignada</Label>
+                                <Select
+                                    name="branchId"
+                                    defaultValue={user.branchId || (branchScoped && actorBranchId ? actorBranchId : "global")}
+                                >
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select branch" />
+                                        <SelectValue placeholder="Selecciona sucursal" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="global">All Branches (Global)</SelectItem>
-                                        {branches.map(b => (
+                                        {!branchScoped && (
+                                            <SelectItem value="global">Todas las sucursales (Global)</SelectItem>
+                                        )}
+                                        {visibleBranches.map(b => (
                                             <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -146,11 +181,11 @@ export function UserEditSheet({ user, isOpen, onClose, onUserUpdated, branches =
 
                     <SheetFooter>
                         <SheetClose asChild>
-                            <Button variant="outline" type="button">Cancel</Button>
+                            <Button variant="outline" type="button">Cancelar</Button>
                         </SheetClose>
                         <Button type="submit" disabled={isLoading}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Changes
+                            Guardar cambios
                         </Button>
                     </SheetFooter>
                 </form>
