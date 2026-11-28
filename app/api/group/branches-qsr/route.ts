@@ -1,7 +1,18 @@
 import { withTenantAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
+import { ApiError } from "@/lib/api/error";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
 import { buildAccessContextFrom } from "@/lib/rbac/abac";
+import type { Role } from "@/lib/permissions";
+
+const GROUP_QSR_READ_ROLES: ReadonlySet<Role> = new Set([
+  "SUPER_ADMIN",
+  "OWNER",
+  "ADMIN",
+  "GERENTE",
+  "SUPERVISOR",
+  "READONLY",
+]);
 
 /**
  * GET /api/group/branches-qsr?period=30d
@@ -15,6 +26,13 @@ import { buildAccessContextFrom } from "@/lib/rbac/abac";
  * acota a lo que el actor puede ver y el resultado lo dice en `alcance`.
  */
 export const GET = withTenantAuth(async (req, { auth }) => {
+  if (!GROUP_QSR_READ_ROLES.has(auth.user.role as Role)) {
+    return ApiHandler.error(
+      ApiError.forbidden("No tienes permiso para consultar el comparativo de sucursales."),
+      403
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const periodParam = searchParams.get("period") || "30d";
 

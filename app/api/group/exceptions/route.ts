@@ -1,10 +1,21 @@
 import { withTenantAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
+import { ApiError } from "@/lib/api/error";
 import { resolveBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import {
   GroupExceptionsService,
   type ExceptionDomain,
 } from "@/lib/services/group-exceptions-service";
+
+const GROUP_EXCEPTIONS_READ_ROLES: ReadonlySet<Role> = new Set([
+  "SUPER_ADMIN",
+  "OWNER",
+  "ADMIN",
+  "GERENTE",
+  "SUPERVISOR",
+  "READONLY",
+]);
 
 const VALID_DOMAINS: ExceptionDomain[] = [
   "operacion",
@@ -27,6 +38,13 @@ const VALID_DOMAINS: ExceptionDomain[] = [
  * feed de otra sucursal ni del grupo completo pasando `?branchId=`.
  */
 export const GET = withTenantAuth(async (req, { auth }) => {
+  if (!GROUP_EXCEPTIONS_READ_ROLES.has(auth.user.role as Role)) {
+    return ApiHandler.error(
+      ApiError.forbidden("No tienes permiso para consultar excepciones operativas."),
+      403
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const requestedBranchId = searchParams.get("branchId");
   const domainParam = searchParams.get("domain");

@@ -154,8 +154,13 @@ const PERCENT_FIELDS = [
 export async function GET() {
   try {
     const tenant = await requireTenant();
+    const { user } = await requireAuth();
     if (!tenant.id) {
       throw ApiError.badRequest("No hay una empresa seleccionada.");
+    }
+
+    if (!hasPermission(user.role, "settings", "read")) {
+      throw ApiError.forbidden("No tienes permiso para consultar la configuración operativa.");
     }
 
     const config = await getTenantOperatingConfig(tenant.id);
