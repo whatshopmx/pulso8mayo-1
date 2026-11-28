@@ -1,11 +1,30 @@
 import { NextRequest } from "next/server";
 import { ApiHandler } from "@/lib/api/response";
-import { requireTenant } from "@/lib/tenant-context";
+import { ApiError } from "@/lib/api/error";
+import { requireTenantAuth } from "@/lib/api/with-auth";
+import { resolveBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { shiftChangeRequests, plannedShifts, users } from "@/lib/db/schema";
 import { eq, and, desc, or } from "drizzle-orm";
 import { z } from "zod";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
+
+const MANAGER_APPROVAL_ROLES: ReadonlySet<Role> = new Set([
+    "SUPER_ADMIN",
+    "OWNER",
+    "ADMIN",
+    "GERENTE",
+    "SUPERVISOR",
+]);
+
+function sanitizeShiftUser<T extends Record<string, unknown> | null | undefined>(
+    user: T
+): T extends Record<string, unknown> ? Omit<T, "pinCode"> : T {
+    if (!user) return user as any;
+    const { pinCode: _pinCode, ...safe } = user;
+    return safe as any;
+}
 
 // Schema para crear solicitud de cambio de turno
 const createShiftChangeRequestSchema = z.object({
@@ -34,41 +53,51 @@ const managerDecisionSchema = z.object({
  * Query params: status, userId, branchId
  */
 export async function GET(req: NextRequest) {
-  try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      return ApiHandler.error(new Error("No company assigned"), { status: 403 });
-    }
-    const searchParams = req.nextUrl.searchParams;
-    const status = searchParams.get("status");
-    const userId = searchParams.get("userId");
-    const branchId = searchParams.get("branchId");
+    try {
+        const auth = await requireTenantAuth();
+        const role = auth.user.role as Role;
+        const searchParams = req.nextUrl.searchParams;
+        const status = searchParams.get("status");
+        const requestedUserId = searchParams.get("userId");
+        const requestedBranchId = searchParams.get("branchId");
 
-    const conditions = [eq(shiftChangeRequests.companyId, tenant.id)];
+        const conditions = [eq(shiftChangeRequests.companyId, auth.tenantId)];
 
-    if (status) {
-      conditions.push(eq(shiftChangeRequests.status, status as 'PENDING' | 'CANCELLED' | 'APPROVED' | 'REJECTED'));
-    }
-
-        if (branchId) {
-            conditions.push(eq(shiftChangeRequests.branchId, branchId));
+        if (status) {
+            conditions.push(eq(shiftChangeRequests.status, status as "PENDING" | "CANCELLED" | "APPROVED" | "REJECTED"));
         }
 
-        if (userId) {
+        if (role === "EMPLEADO") {
             conditions.push(
                 or(
-                    eq(shiftChangeRequests.requestedBy, userId),
-                    eq(shiftChangeRequests.counterpartyId, userId)
-                )
+                    eq(shiftChangeRequests.requestedBy, auth.user.id),
+                    eq(shiftChangeRequests.counterpartyId, auth.user.id)
+                )!
             );
+        } else {
+            const scope = resolveBranchScope(role, auth.branchId, requestedBranchId);
+            if (scope.kind === "NONE") {
+                return ApiHandler.success([]);
+            }
+            if (scope.kind === "BRANCH") {
+                conditions.push(eq(shiftChangeRequests.branchId, scope.branchId));
+            }
+            if (requestedUserId) {
+                conditions.push(
+                    or(
+                        eq(shiftChangeRequests.requestedBy, requestedUserId),
+                        eq(shiftChangeRequests.counterpartyId, requestedUserId)
+                    )!
+                );
+            }
         }
 
         const requests = await db.query.shiftChangeRequests.findMany({
-            where: conditions ? and(...conditions) : undefined,
+            where: and(...conditions),
             orderBy: [desc(shiftChangeRequests.createdAt)],
         });
 
-        // Enrich with related data
+        // Enrich with related data (without pinCode)
         const enrichedRequests = await Promise.all(
             requests.map(async (request) => {
                 const [requestedShift, counterpartyShift, requestedByUser, counterparty] = await Promise.all([
@@ -89,12 +118,19 @@ export async function GET(req: NextRequest) {
                     }),
                 ]);
 
+                const safeRequestedShift = requestedShift
+                    ? {
+                        ...requestedShift,
+                        user: sanitizeShiftUser((requestedShift as Record<string, unknown>).user as Record<string, unknown> | null),
+                    }
+                    : null;
+
                 return {
                     ...request,
-                    requestedShift,
+                    requestedShift: safeRequestedShift,
                     counterpartyShift,
-                    requestedByUser,
-                    counterparty,
+                    requestedByUser: sanitizeShiftUser(requestedByUser as Record<string, unknown> | undefined),
+                    counterparty: sanitizeShiftUser(counterparty as Record<string, unknown> | undefined),
                 };
             })
         );
@@ -111,58 +147,71 @@ export async function GET(req: NextRequest) {
  * Crea una nueva solicitud de cambio de turno
  */
 export async function POST(req: NextRequest) {
-  try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      return ApiHandler.error(new Error("No company assigned"), { status: 403 });
-    }
-    const body = await req.json();
+    try {
+        const auth = await requireTenantAuth();
+        if (auth.user.role === "READONLY") {
+            return ApiHandler.error(ApiError.forbidden("No tienes permiso para solicitar cambios de turno"), 403);
+        }
+        const body = await req.json();
         const data = createShiftChangeRequestSchema.parse(body);
 
         // Verificar que el turno solicitado existe y pertenece a la compañía
         const requestedShift = await db.query.plannedShifts.findFirst({
-            where: eq(plannedShifts.id, data.requestedShiftId),
+            where: and(
+                eq(plannedShifts.id, data.requestedShiftId),
+                eq(plannedShifts.companyId, auth.tenantId)
+            ),
         });
 
         if (!requestedShift) {
-            return ApiHandler.error(new Error("Turno no encontrado"), { status: 404 });
+            return ApiHandler.error(ApiError.notFound("Turno no encontrado"), 404);
         }
 
         // Verificar que el usuario que solicita es el dueño del turno
-        if (requestedShift.userId !== tenant.userId) {
-            return ApiHandler.error(new Error("No tienes permiso para solicitar este cambio"), { status: 403 });
+        if (requestedShift.userId !== auth.user.id) {
+            return ApiHandler.error(ApiError.forbidden("No tienes permiso para solicitar este cambio"), 403);
         }
 
-        // Verificar que el counterparty existe
+        // Verificar que el counterparty existe y pertenece a la misma empresa/sucursal
         const counterparty = await db.query.users.findFirst({
-            where: eq(users.id, data.counterpartyId),
+            where: and(
+                eq(users.id, data.counterpartyId),
+                eq(users.companyId, auth.tenantId)
+            ),
         });
 
         if (!counterparty) {
-            return ApiHandler.error(new Error("Empleado no encontrado"), { status: 404 });
+            return ApiHandler.error(ApiError.notFound("Empleado no encontrado"), 404);
         }
 
-        // Si hay counterpartyShiftId, verificar que existe
+        if (counterparty.branchId && requestedShift.branchId && counterparty.branchId !== requestedShift.branchId) {
+            return ApiHandler.error(ApiError.forbidden("Solo puedes intercambiar turnos con compañeros de tu sucursal"), 403);
+        }
+
+        // Si hay counterpartyShiftId, verificar que existe y pertenece a la empresa
         if (data.counterpartyShiftId) {
             const counterpartyShift = await db.query.plannedShifts.findFirst({
-                where: eq(plannedShifts.id, data.counterpartyShiftId),
+                where: and(
+                    eq(plannedShifts.id, data.counterpartyShiftId),
+                    eq(plannedShifts.companyId, auth.tenantId)
+                ),
             });
 
             if (!counterpartyShift) {
-                return ApiHandler.error(new Error("Turno de contraparte no encontrado"), { status: 404 });
+                return ApiHandler.error(ApiError.notFound("Turno de contraparte no encontrado"), 404);
             }
 
             // Verificar que el turno de contraparte pertenece al counterparty
             if (counterpartyShift.userId !== data.counterpartyId) {
-                return ApiHandler.error(new Error("El turno de contraparte no pertenece al empleado especificado"), { status: 400 });
+                return ApiHandler.error(ApiError.badRequest("El turno de contraparte no pertenece al empleado especificado"), 400);
             }
         }
 
-    // Crear la solicitud
-    const newRequest = await db.insert(shiftChangeRequests).values({
-      companyId: tenant.id,
-      branchId: requestedShift.branchId,
-      requestedBy: tenant.userId,
+        // Crear la solicitud
+        const newRequest = await db.insert(shiftChangeRequests).values({
+            companyId: auth.tenantId,
+            branchId: requestedShift.branchId,
+            requestedBy: auth.user.id,
             requestedShiftId: data.requestedShiftId,
             counterpartyId: data.counterpartyId,
             counterpartyShiftId: data.counterpartyShiftId || null,
@@ -174,7 +223,7 @@ export async function POST(req: NextRequest) {
         // Enviar notificación al compañero (counterparty) con smart link profundo
         try {
             const requesterUser = await db.query.users.findFirst({
-                where: eq(users.id, tenant.userId),
+                where: eq(users.id, auth.user.id),
             });
 
             const counterpartShift = data.counterpartyShiftId
@@ -224,28 +273,32 @@ export async function POST(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
     try {
-        const tenant = await requireTenant();
+        const auth = await requireTenantAuth();
+        const role = auth.user.role as Role;
         const body = await req.json();
         const { id, action, ...requestData } = body;
 
         if (!id) {
-            return ApiHandler.error(new Error("Request ID is required"), { status: 400 });
+            return ApiHandler.error(ApiError.badRequest("Request ID is required"), 400);
         }
 
-        // Obtener la solicitud existente
+        // Obtener la solicitud existente acotada al tenant
         const existingRequest = await db.query.shiftChangeRequests.findFirst({
-            where: eq(shiftChangeRequests.id, id),
+            where: and(
+                eq(shiftChangeRequests.id, id),
+                eq(shiftChangeRequests.companyId, auth.tenantId)
+            ),
         });
 
         if (!existingRequest) {
-            return ApiHandler.error(new Error("Solicitud no encontrada"), { status: 404 });
+            return ApiHandler.error(ApiError.notFound("Solicitud no encontrada"), 404);
         }
 
         // Acción: counterparty responde
         if (action === 'respond') {
             // Verificar que el usuario es el counterparty
-            if (existingRequest.counterpartyId !== tenant.userId) {
-                return ApiHandler.error(new Error("No tienes permiso para responder a esta solicitud"), { status: 403 });
+            if (existingRequest.counterpartyId !== auth.user.id) {
+                return ApiHandler.error(ApiError.forbidden("No tienes permiso para responder a esta solicitud"), 403);
             }
 
             const respondData = respondToShiftChangeRequestSchema.parse(requestData);
@@ -255,7 +308,7 @@ export async function PUT(req: NextRequest) {
                 counterpartyResponseAt: new Date(),
                 notes: respondData.notes || existingRequest.notes,
                 status: respondData.accepted ? existingRequest.status : 'REJECTED',
-                rejectedBy: respondData.accepted ? null : tenant.userId,
+                rejectedBy: respondData.accepted ? null : auth.user.id,
                 rejectedAt: respondData.accepted ? null : new Date(),
                 rejectionReason: respondData.accepted ? null : (respondData.notes || 'Rechazado por el empleado'),
                 updatedAt: new Date(),
@@ -291,13 +344,22 @@ export async function PUT(req: NextRequest) {
 
         // Acción: manager aprueba/rechaza
         if (action === 'manager_decision') {
+            if (!MANAGER_APPROVAL_ROLES.has(role)) {
+                return ApiHandler.error(ApiError.forbidden("Solo supervisores o gerentes pueden aprobar cambios de turno"), 403);
+            }
+
+            const scope = resolveBranchScope(role, auth.branchId, null);
+            if (scope.kind === "NONE" || (scope.kind === "BRANCH" && existingRequest.branchId !== scope.branchId)) {
+                return ApiHandler.error(ApiError.forbidden("No puedes aprobar solicitudes de otra sucursal"), 403);
+            }
+
             const managerData = managerDecisionSchema.parse(requestData);
 
             const [updatedRequest] = await db.update(shiftChangeRequests).set({
                 status: managerData.approved ? 'APPROVED' : 'REJECTED',
-                approvedBy: managerData.approved ? tenant.userId : null,
+                approvedBy: managerData.approved ? auth.user.id : null,
                 approvedAt: managerData.approved ? new Date() : null,
-                rejectedBy: managerData.approved ? null : tenant.userId,
+                rejectedBy: managerData.approved ? null : auth.user.id,
                 rejectedAt: managerData.approved ? null : new Date(),
                 rejectionReason: managerData.approved ? null : (managerData.rejectionReason || 'Rechazado por el supervisor'),
                 updatedAt: new Date(),
@@ -317,7 +379,7 @@ export async function PUT(req: NextRequest) {
                     where: eq(users.id, existingRequest.counterpartyId),
                 });
                 const managerUser = await db.query.users.findFirst({
-                    where: eq(users.id, tenant.userId),
+                    where: eq(users.id, auth.user.id),
                 });
 
                 const decisionStr = managerData.approved ? "Aprobado" : "Rechazado";
@@ -381,30 +443,33 @@ export async function PUT(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
     try {
-        const tenant = await requireTenant();
+        const auth = await requireTenantAuth();
         const searchParams = req.nextUrl.searchParams;
         const id = searchParams.get("id");
 
         if (!id) {
-            return ApiHandler.error(new Error("Request ID is required"), { status: 400 });
+            return ApiHandler.error(ApiError.badRequest("Request ID is required"), 400);
         }
 
         const existingRequest = await db.query.shiftChangeRequests.findFirst({
-            where: eq(shiftChangeRequests.id, id),
+            where: and(
+                eq(shiftChangeRequests.id, id),
+                eq(shiftChangeRequests.companyId, auth.tenantId)
+            ),
         });
 
         if (!existingRequest) {
-            return ApiHandler.error(new Error("Solicitud no encontrada"), { status: 404 });
+            return ApiHandler.error(ApiError.notFound("Solicitud no encontrada"), 404);
         }
 
         // Solo el solicitante puede cancelar
-        if (existingRequest.requestedBy !== tenant.userId) {
-            return ApiHandler.error(new Error("No tienes permiso para cancelar esta solicitud"), { status: 403 });
+        if (existingRequest.requestedBy !== auth.user.id) {
+            return ApiHandler.error(ApiError.forbidden("No tienes permiso para cancelar esta solicitud"), 403);
         }
 
         // Solo se pueden cancelar solicitudes pendientes
         if (existingRequest.status !== 'PENDING') {
-            return ApiHandler.error(new Error("Solo se pueden cancelar solicitudes pendientes"), { status: 400 });
+            return ApiHandler.error(ApiError.badRequest("Solo se pueden cancelar solicitudes pendientes"), 400);
         }
 
         const [updatedRequest] = await db.update(shiftChangeRequests).set({
