@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { authErrorMessage, postLoginPath } from "@/lib/ui/auth-feedback";
+import type { UserRole } from "@/lib/rbac/permissions";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,8 +30,17 @@ export default function SignIn() {
         email: email.trim(),
         password,
       });
-      if (result.error) setError(authErrorMessage(result.error.code));
-      else router.push(postLoginPath(new URLSearchParams(window.location.search).get("callbackUrl")));
+      if (result.error) {
+        setError(authErrorMessage(result.error.code));
+      } else {
+        let role = (result.data?.user as { role?: UserRole } | undefined)?.role ?? null;
+        if (!role) {
+          const sessionRes = await authClient.getSession().catch(() => null);
+          role = (sessionRes?.data?.user as { role?: UserRole } | undefined)?.role ?? null;
+        }
+        const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl");
+        router.push(postLoginPath(callbackUrl, role));
+      }
     } catch {
       setError("No pudimos conectar. Comprueba tu conexión y vuelve a intentarlo.");
     } finally { setLoading(false); }

@@ -9,14 +9,26 @@ import { PageContainer, PageHeader, SectionErrorBoundary } from "@/components/sh
 import { LiveCommandSection, LiveCommandSkeleton } from "@/components/dashboard/live/live-command-section";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { scopeBranchId, resolveRequestBranchScope } from "@/lib/server/effective-branch";
-import { hasAccess, type UserRole } from "@/lib/rbac/permissions";
+import { getDefaultDashboard, hasAccess, type UserRole } from "@/lib/rbac/permissions";
 
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<{ branch?: string; startDate?: string; endDate?: string }>;
 }) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  const role = (session?.user?.role ?? "EMPLEADO") as UserRole;
+
+  // EMPLEADO nunca debe cargar ni ver el Comando de Red del grupo; aterriza en
+  // su espacio operativo de flujos y tareas antes de consultar datos de red.
+  if (role === "EMPLEADO") {
+    redirect(getDefaultDashboard("EMPLEADO"));
+  }
+
   const params = await searchParams;
 
   // F01: el alcance autorizado se resuelve una sola vez, aquí, y se comparte
@@ -25,14 +37,10 @@ export default async function Page({
   const scope = await resolveRequestBranchScope(params.branch);
   const selectedBranch = scopeBranchId(scope);
 
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
   const companyId = session?.user?.companyId ?? "";
 
   // RBAC-01: la bitácora enlaza a /dashboard/workflows, que READONLY tiene
   // denegado. Sin esta bandera el CTA "Iniciar" era un enlace que expulsaba.
-  const role = (session?.user?.role ?? "EMPLEADO") as UserRole;
   const canExecute = hasAccess(role, "/dashboard/workflows");
 
   if (scope.kind === "NONE") {
