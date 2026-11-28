@@ -11,7 +11,14 @@ const deleteUserMock = vi.fn();
 
 vi.mock("@/lib/api/with-auth", () => ({
   requireTenantAuth: (...args: unknown[]) => requireTenantAuthMock(...args),
-  withTenantAuth: (handler: Function) => async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+  withTenantAuth:
+    (
+      handler: (
+        req: NextRequest,
+        ctx: { params: Promise<{ id: string }>; auth: unknown },
+      ) => unknown,
+    ) =>
+    async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
     const auth = await requireTenantAuthMock();
     return handler(req, { params: ctx.params, auth });
   },

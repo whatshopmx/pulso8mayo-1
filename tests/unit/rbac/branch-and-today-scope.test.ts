@@ -16,7 +16,10 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/api/with-auth", () => ({
   requireTenantAuth: (...args: unknown[]) => requireTenantAuthMock(...args),
   withRoleAuth:
-    (allowedRoles: readonly Role[], handler: Function) =>
+    (
+      allowedRoles: readonly Role[],
+      handler: (req: NextRequest, ctx: { auth: unknown }) => unknown,
+    ) =>
     async (req: NextRequest) => {
       const auth = await requireTenantAuthMock();
       if (!allowedRoles.includes(auth.user.role)) {
