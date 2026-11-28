@@ -11,12 +11,19 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { TierBanner } from "@/components/company/tier-banner";
+import { hasPermission, type Role } from "@/lib/permissions";
 
 export default async function SubscriptionPage() {
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session) redirect("/sign-in");
   if (!session.user.companyId) redirect("/onboarding");
+
+  const canManageBilling = hasPermission(
+    (session.user.role ?? "EMPLEADO") as Role,
+    "billing",
+    "manage"
+  );
 
   return (
     <div className="space-y-6">
@@ -27,7 +34,7 @@ export default async function SubscriptionPage() {
         </p>
       </div>
 
-      <TierBanner />
+      <TierBanner canManageBilling={canManageBilling} />
     </div>
   );
 }

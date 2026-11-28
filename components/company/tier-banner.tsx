@@ -58,7 +58,7 @@ const FEATURE_LABELS: Record<string, string> = {
 
 const TIER_ORDER = ["foundation", "growth", "executive"] as const;
 
-export function TierBanner() {
+export function TierBanner({ canManageBilling = false }: { canManageBilling?: boolean }) {
   const [tier, setTier] = useState<TierPayload | null>(null);
   const [catalog, setCatalog] = useState<CatalogTier[]>([]);
   const [allFeatures, setAllFeatures] = useState<
@@ -176,7 +176,7 @@ export function TierBanner() {
                   : "Sin suscripción registrada: el plan se deriva del número de sucursales activas."}
               </CardDescription>
             </div>
-            {nextTier && (
+            {canManageBilling && nextTier && (
               <Button
                 size="sm"
                 disabled={saving !== null}
@@ -250,37 +250,48 @@ export function TierBanner() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Cambiar de plan</CardTitle>
-          <CardDescription>
-            El cambio afecta el gateo de features. La facturación real se gestiona
-            aparte.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {catalog.map((c) => (
-            <Button
-              key={c.id}
-              variant={c.slug === tier.slug ? "default" : "outline"}
-              size="sm"
-              disabled={c.slug === tier.slug || saving !== null}
-              onClick={() => changeTier(c.slug)}
-            >
-              {saving === c.slug ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
-              {c.name} · hasta {c.maxBranches}
-            </Button>
-          ))}
-          {catalog.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Catálogo vacío. Corre{" "}
-              <code className="text-xs">npx tsx scripts/seed-subscription-tiers.ts</code>.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {canManageBilling ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Cambiar de plan</CardTitle>
+            <CardDescription>
+              El cambio afecta el gateo de features. La facturación real se gestiona
+              aparte.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {catalog.map((c) => (
+              <Button
+                key={c.id}
+                variant={c.slug === tier.slug ? "default" : "outline"}
+                size="sm"
+                disabled={c.slug === tier.slug || saving !== null}
+                onClick={() => changeTier(c.slug)}
+              >
+                {saving === c.slug ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                {c.name} · hasta {c.maxBranches}
+              </Button>
+            ))}
+            {catalog.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Catálogo vacío. Corre{" "}
+                <code className="text-xs">npx tsx scripts/seed-subscription-tiers.ts</code>.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Gestión del plan</CardTitle>
+            <CardDescription>
+              Solo el propietario o super administrador puede cambiar el plan del grupo.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
     </div>
   );
 }

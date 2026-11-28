@@ -361,21 +361,27 @@ export default function CompanyBankAccountsPage() {
                                                         <div className="font-semibold tabular-nums text-sm">
                                                             {formatCents(a.computedBalanceCents)}
                                                         </div>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-8 px-2 text-xs text-muted-foreground"
-                                                            onClick={() =>
-                                                                setAnchorDialog({
-                                                                    accountId: a.id,
-                                                                    label: a.label,
-                                                                    balanceInput: String((a.openingBalanceCents ?? 0) / 100),
-                                                                    dateInput: a.openingAsOfDate ?? "",
-                                                                })
-                                                            }
-                                                        >
-                                                            base {formatCents(a.openingBalanceCents ?? 0)} al {a.openingAsOfDate}
-                                                        </Button>
+                                                        {canEdit ? (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 px-2 text-xs text-muted-foreground"
+                                                                onClick={() =>
+                                                                    setAnchorDialog({
+                                                                        accountId: a.id,
+                                                                        label: a.label,
+                                                                        balanceInput: String((a.openingBalanceCents ?? 0) / 100),
+                                                                        dateInput: a.openingAsOfDate ?? "",
+                                                                    })
+                                                                }
+                                                            >
+                                                                base {formatCents(a.openingBalanceCents ?? 0)} al {a.openingAsOfDate}
+                                                            </Button>
+                                                        ) : (
+                                                            <div className="text-xs text-muted-foreground">
+                                                                base {formatCents(a.openingBalanceCents ?? 0)} al {a.openingAsOfDate}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     canEdit ? (
