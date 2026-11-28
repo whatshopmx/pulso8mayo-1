@@ -13,14 +13,14 @@
 
 import { db } from "@/lib/db";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
-import { operatingExpenses, paymentApprovals, paymentRuns, users } from "@/lib/db/schema";
+import { operatingExpenses, paymentApprovals, paymentRuns, payrollRuns, users } from "@/lib/db/schema";
 import { roleIsAtLeast } from "@/lib/permissions";
 import type { BranchScope } from "@/lib/branch-scope";
 import { listApprovalInbox, type InboxItem } from "./approval-matrix-service";
 import { resolverRolExigido } from "./expense-service";
 import { resolveEffectiveOverbudgetRole } from "./budget-exception-rules";
 
-export type ApprovalSource = "OC" | "OS" | "EXPENSE" | "PAYMENT_RUN";
+export type ApprovalSource = "OC" | "OS" | "EXPENSE" | "PAYMENT_RUN" | "PAYROLL";
 
 export interface UnifiedApprovalItem {
     /** Llave única (`source:docId`) para keys de React y dedupe. */
@@ -45,6 +45,7 @@ export const SOURCE_LABEL: Record<ApprovalSource, string> = {
     OS: "Orden de servicio",
     EXPENSE: "Gasto operativo",
     PAYMENT_RUN: "Corrida de pago",
+    PAYROLL: "Nómina ordinaria",
 };
 
 const ACTION_HREF: Record<ApprovalSource, string> = {
@@ -52,6 +53,7 @@ const ACTION_HREF: Record<ApprovalSource, string> = {
     OS: "/dashboard/equipment/compliance/service-orders",
     EXPENSE: "/dashboard/finance/expenses",
     PAYMENT_RUN: "/dashboard/finance/treasury/runs",
+    PAYROLL: "/dashboard/labor/payroll",
 };
 
 /** Mapa `runId → aprobación pendiente` para corridas con doble firma. */
@@ -111,12 +113,13 @@ export async function listUnifiedApprovalInbox(params: {
     actorRole: string | null | undefined;
     scope: BranchScope;
 }): Promise<UnifiedApprovalItem[]> {
-    const [ocOsGroup, expensesGroup, runsGroup] = await Promise.all([
+    const [ocOsGroup, expensesGroup, runsGroup, payrollGroup] = await Promise.all([
         listOcOsPending(params),
         listExpensesPending(params),
         listPaymentRunsPending(params),
+        listPayrollDraftsPending(params),
     ]);
-    return mergeInbox([ocOsGroup, expensesGroup, runsGroup]);
+    return mergeInbox([ocOsGroup, expensesGroup, runsGroup, payrollGroup]);
 }
 
 async function listOcOsPending(params: {
@@ -289,4 +292,61 @@ async function listPaymentRunsPending(params: {
             branchName: null,
             actionHref: `${ACTION_HREF.PAYMENT_RUN}/${r.id}`,
         }));
+}
+
+/**
+ * APR-01 — Corridas de nómina en DRAFT pendientes de aprobación de snapshot
+ * inmutable (NOM-03). Requiere autoridad corporativa >= ADMIN.
+ */
+async function listPayrollDraftsPending(params: {
+    companyId: string;
+    actorId: string;
+    actorRole: string | null | undefined;
+    scope: BranchScope;
+}): Promise<UnifiedApprovalItem[]> {
+    if (!params.actorRole || !roleIsAtLeast(params.actorRole, "ADMIN")) {
+        return [];
+    }
+    if (params.scope.kind !== "ALL") return [];
+
+    const rows = await db
+        .select({
+            id: payrollRuns.id,
+            periodStart: payrollRuns.periodStart,
+            periodEnd: payrollRuns.periodEnd,
+            ordinarySnapshot: payrollRuns.ordinarySnapshot,
+            createdAt: payrollRuns.createdAt,
+        })
+        .from(payrollRuns)
+        .where(
+            and(
+                eq(payrollRuns.companyId, params.companyId),
+                eq(payrollRuns.status, "DRAFT"),
+            ),
+        )
+        .orderBy(desc(payrollRuns.createdAt));
+
+    return rows.map<UnifiedApprovalItem>((r) => {
+        const snap =
+            r.ordinarySnapshot && typeof r.ordinarySnapshot === "object"
+                ? (r.ordinarySnapshot as { totals?: { totalNetoCents?: number } })
+                : null;
+        return {
+            id: `PAYROLL:${r.id}`,
+            source: "PAYROLL",
+            sourceLabel: SOURCE_LABEL.PAYROLL,
+            docId: r.id,
+            title: `Nómina ${r.periodStart} a ${r.periodEnd}`,
+            amountCents:
+                typeof snap?.totals?.totalNetoCents === "number"
+                    ? snap.totals.totalNetoCents
+                    : null,
+            requesterName: null,
+            requiredRole: "ADMIN",
+            createdAt: r.createdAt,
+            branchId: null,
+            branchName: null,
+            actionHref: `${ACTION_HREF.PAYROLL}?runId=${r.id}`,
+        };
+    });
 }

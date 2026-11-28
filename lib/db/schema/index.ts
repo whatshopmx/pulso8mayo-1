@@ -40,3 +40,6 @@ export * from './evidence';
 
 // FC-05: ledger accounts linked to existing operational catalogs.
 export * from './accounting';
+
+// APR-01: canonical document approvals (OC, OS, expense, payment run, payroll).
+export * from './document-approvals';

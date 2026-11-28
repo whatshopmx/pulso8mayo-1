@@ -6929,6 +6929,156 @@
           "checks": ["V2", "V3"]
         }
       ]
+    },
+    "APR-01.compra": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/APR-01/README.md",
+          "head": "6c46701d49f5c4517436cc9ebff9ba7c1ff57a1f",
+          "environment": "Windows local + esquema efímero aislado en Neon (apr01_<hex>) con migración candidata 0170_apr01_document_approvals.sql y rol NOBYPASSRLS; aprobación de compra OC/OS valida actor, capacidad, sucursal, motivo, evidencia, versión aprobada, invalidación material (OC->PENDING_APPROVAL, OS->DRAFT), AUD-02 APPROVAL_PURCHASE y concurrencia; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts lib/services/__tests__/unified-approval-inbox-service.test.ts lib/services/approval-matrix-service.test.ts lib/treasury/__tests__/dual-approval.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/db/schema/document-approvals.ts lib/db/schema/index.ts lib/services/document-approval-rules.ts lib/services/document-approval-service.ts lib/services/unified-approval-inbox-service.ts app/api/finance/approvals/documents/route.ts lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2", "V3"]
+        }
+      ]
+    },
+    "APR-01.factura": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/APR-01/README.md",
+          "head": "6c46701d49f5c4517436cc9ebff9ba7c1ff57a1f",
+          "environment": "Windows local + esquema efímero aislado en Neon (apr01_<hex>) con migración candidata 0170_apr01_document_approvals.sql y rol NOBYPASSRLS; aprobación de factura INVOICE valida actor, capacidad, alcance de sucursal (403 cruzado), motivo, evidenceId, expectedVersion (409), invalidación material (matchStatus->DISCREPANCY) y AUD-02 APPROVAL_INVOICE; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts lib/services/__tests__/unified-approval-inbox-service.test.ts lib/services/approval-matrix-service.test.ts lib/treasury/__tests__/dual-approval.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/db/schema/document-approvals.ts lib/db/schema/index.ts lib/services/document-approval-rules.ts lib/services/document-approval-service.ts lib/services/unified-approval-inbox-service.ts app/api/finance/approvals/documents/route.ts lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2", "V3"]
+        }
+      ]
+    },
+    "APR-01.gasto": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/APR-01/README.md",
+          "head": "6c46701d49f5c4517436cc9ebff9ba7c1ff57a1f",
+          "environment": "Windows local + esquema efímero aislado en Neon (apr01_<hex>) con migración candidata 0170_apr01_document_approvals.sql y rol NOBYPASSRLS; aprobación de gasto EXPENSE conserva excepción ejecutiva OWNER/SUPER_ADMIN, valida sucursal, motivo, evidenceId, concurrencia real en 2 conexiones (expectedVersion: 0 -> 1 gana, 1 recibe 409), invalidación material (PENDING_APPROVAL) y AUD-02 APPROVAL_EXPENSE; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts lib/services/__tests__/unified-approval-inbox-service.test.ts lib/services/approval-matrix-service.test.ts lib/treasury/__tests__/dual-approval.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/db/schema/document-approvals.ts lib/db/schema/index.ts lib/services/document-approval-rules.ts lib/services/document-approval-service.ts lib/services/unified-approval-inbox-service.ts app/api/finance/approvals/documents/route.ts lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2", "V3"]
+        }
+      ]
+    },
+    "APR-01.pago": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/APR-01/README.md",
+          "head": "6c46701d49f5c4517436cc9ebff9ba7c1ff57a1f",
+          "environment": "Windows local + esquema efímero aislado en Neon (apr01_<hex>) con migración candidata 0170_apr01_document_approvals.sql y rol NOBYPASSRLS; aprobación de pago PAYMENT_RUN valida doble firma distinta (TREASURY_DUAL_APPROVAL), sucursal, motivo, evidencia, concurrencia, invalidación material (payment_runs->PENDING_APPROVAL + payment_approvals->REJECTED) y AUD-02 APPROVAL_PAYMENT; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts lib/services/__tests__/unified-approval-inbox-service.test.ts lib/services/approval-matrix-service.test.ts lib/treasury/__tests__/dual-approval.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/db/schema/document-approvals.ts lib/db/schema/index.ts lib/services/document-approval-rules.ts lib/services/document-approval-service.ts lib/services/unified-approval-inbox-service.ts app/api/finance/approvals/documents/route.ts lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2", "V3"]
+        }
+      ]
+    },
+    "APR-01.nomina": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/APR-01/README.md",
+          "head": "6c46701d49f5c4517436cc9ebff9ba7c1ff57a1f",
+          "environment": "Windows local + esquema efímero aislado en Neon (apr01_<hex>) con migración candidata 0170_apr01_document_approvals.sql y rol NOBYPASSRLS; aprobación de nómina PAYROLL valida actor/capacidad corporativa (bloquea alcance de sucursal), huella NOM-03 inputFingerprint, bandeja unificada, invalidación material (STALE_REQUIRES_NEW_SNAPSHOT) y AUD-02 APPROVAL_PAYROLL; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts lib/services/__tests__/unified-approval-inbox-service.test.ts lib/services/approval-matrix-service.test.ts lib/treasury/__tests__/dual-approval.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/db/schema/document-approvals.ts lib/db/schema/index.ts lib/services/document-approval-rules.ts lib/services/document-approval-service.ts lib/services/unified-approval-inbox-service.ts app/api/finance/approvals/documents/route.ts lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2", "V3"]
+        }
+      ]
+    },
+    "APR-01": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/APR-01/README.md",
+          "head": "6c46701d49f5c4517436cc9ebff9ba7c1ff57a1f",
+          "environment": "Windows local + esquema efímero aislado en Neon (apr01_<hex>) con migración candidata 0170_apr01_document_approvals.sql y rol NOBYPASSRLS; los 5 hijos (compra/factura/gasto/pago/nómina) y el contrato transversal declaran versión aprobada, huella material invariante a jsonb, autoridad, alcance de sucursal, motivo, evidencia y concurrencia; cambio material invalida con AUD-02 manteniendo especializaciones; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts lib/services/__tests__/unified-approval-inbox-service.test.ts lib/services/approval-matrix-service.test.ts lib/treasury/__tests__/dual-approval.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/db/schema/document-approvals.ts lib/db/schema/index.ts lib/services/document-approval-rules.ts lib/services/document-approval-service.ts lib/services/unified-approval-inbox-service.ts app/api/finance/approvals/documents/route.ts lib/services/__tests__/apr01-document-approvals-rules.test.ts tests/unit/finance/apr01-document-approvals-http-v3.test.ts tests/integration/apr01-document-approvals-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2", "V3"]
+        }
+      ]
     }
   }
 }

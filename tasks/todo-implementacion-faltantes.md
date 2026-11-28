@@ -237,7 +237,7 @@ Ver [evidencia y límites](evidencia/2026-11-16/CONSOLIDACION/README.md). Se man
 - [x] **EXC-04.ausencia** [I/M] Completar excepción de ausencia — aceptado V1/V2 en entorno aislado (`absence-exception-rules.ts`, `absence-exception-service.ts`, adaptador `employee-absence.ts`, alineación `NOM-02.a` en `payroll-service.ts` y hooks en `PUT /api/shift-sessions`; distingue falta aprobada de asistencia pendiente y días con permiso/vacación, conserva `ownerId` e historial append-only con `AUD-02` atómico; 42/42 V1/regresiones + 1/1 Neon + ESLint 0 errores). [Evidencia](evidencia/2026-11-27/EXC-04.ausencia/README.md).
 - [x] **EXC-04.banco** [I/M] Completar excepción bancaria — aceptado V2/V3 en entorno aislado (`bank-exception-rules.ts`, `bank-exception-service.ts`, adaptador `bank-reconciliation.ts`, hooks atómicos en `confirmMatch`/`confirmDepositMatch` y `/api/finance/bank-transactions/exceptions`; conserva fuente, antigüedad y diferencias, cierra con `reconciliationTrace` + `AUD-02` y rechaza `409` al intentar ocultar diferencias; 19/19 V3/regresiones + 1/1 Neon + ESLint 0 errores). [Evidencia](evidencia/2026-11-27/EXC-04.banco/README.md).
 - [x] **Checkpoint 4.4** — `EXC-04.presupuesto` (V1/V2), `EXC-04.ausencia` (V1/V2) y `EXC-04.banco` (V2/V3) aceptados en entorno aislado con pruebas Neon reales, regresiones bancarias/nómina/adaptadores, ESLint limpio y trazabilidad en verde (**114 aceptados / 0 errores**).
-- [ ] **APR-01** [I/P] Alinear aprobación de documentos
+- [x] **APR-01** [I/P] Alinear aprobación de documentos (con sus 5 hijos `APR-01.compra`, `APR-01.factura`, `APR-01.gasto`, `APR-01.pago`, `APR-01.nomina`) — aceptado V1/V2/V3 en entorno aislado (`0170_apr01_document_approvals.sql` + `document_approvals` RLS con `branch_id`/`evidence_id`/`approval_reason`, `document-approval-rules.ts` con `canonicalStringify` invariante a `jsonb`, `document-approval-service.ts` con `expectedVersion`/`409` y `pg_advisory_xact_lock`, `PAYROLL` en `unified-approval-inbox-service.ts` y `/api/finance/approvals/documents` con `resolveBranchScope`; OC/OS/factura/gasto/pago/nómina declaran versión y autoridad, cambio material invalida sincronizando especializaciones + 5 tipos `AUD-02`; 45/45 V1/V3/regresiones + 1/1 Neon `NOBYPASSRLS` con carrera real en 2 conexiones + ESLint 0 errores/0 warnings). [Evidencia](evidencia/2026-11-27/APR-01/README.md).
 - [ ] **Puerta 4** — hijos requeridos aceptados, build del hito de código, V2/V3 aplicables y matriz enlazada.
 
 ## 5. Producción, conteos y costos de inventario
@@ -361,7 +361,7 @@ Ver [evidencia y límites](evidencia/2026-11-16/CONSOLIDACION/README.md). Se man
 
 - [ ] SEC-05.resto subdividido por dominio y tablas (14 hijos ya materializados en mapa; pendiente verificar delimitación y ejecutar).
 - [x] PER-01 subdividido por perfil/capacidad y alcance (ocho hijos en el mapa; todos pendientes).
-- [x] APR-01 subdividido por documento (compra/factura/gasto/pago/nómina; todos pendientes).
+- [x] APR-01 subdividido por documento (compra/factura/gasto/pago/nómina; 5/5 hijos aceptados en entorno aislado).
 - [ ] INT-02 subdividido por fuente/formato disponible (5 hijos por fuente ya materializados en mapa: pos/uber/rappi/didi/otros; pendiente verificar delimitación y ejecutar).
 - [x] FIN-07 subdividido por indicador (ticket, prime cost, contribución y unit economics; todos pendientes).
 - [x] VAL-01.M01-M17 subdividido por módulo y filas; dependencias tomadas del mapa P0-03.
