@@ -4,7 +4,7 @@
  * Incluye `previous`: el brief del día anterior, para que la UI pueda mostrar
  * el "vs ayer" sin una segunda llamada.
  *
- * Guard: `requirePermissionApi('reports','read')`, igual que /api/executive/twin.
+ * Guard: `requirePermissionApi('executive','read')`, igual que /api/executive/twin.
  */
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { apiResponse, apiError } from "@/lib/api/response";
@@ -13,7 +13,7 @@ import { TierService } from "@/lib/services/tier-service";
 
 export async function GET() {
   try {
-    const { user } = await requirePermissionApi("reports", "read");
+    const { user } = await requirePermissionApi("executive", "read");
     const companyId = user.companyId;
     if (!companyId) return apiError("Company context required", 400);
 

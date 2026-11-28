@@ -8,7 +8,7 @@ import { MorningBriefService } from "@/lib/services/morning-brief-service";
 
 export async function GET(request: NextRequest) {
   try {
-    const { user } = await requirePermissionApi("reports", "read");
+    const { user } = await requirePermissionApi("executive", "read");
     const companyId = user.companyId;
     if (!companyId) return apiError("Company context required", 400);
 

@@ -8,12 +8,12 @@ import { inngest } from "@/lib/inngest/client";
  * Executive Twin for the actor's company and return the updated row. Also
  * dispatches `executive/twin.updated` consumers may listen on (brief, feed).
  *
- * Guards: `requirePermissionApi('reports','manage')` — only roles that can
- * manage reports (OWNER/ADMIN/SUPER_ADMIN/GERENTE) may force a refresh.
+ * Guards: `requirePermissionApi('executive','refresh')` — only executive roles
+ * (SUPER_ADMIN/OWNER/ADMIN) may force a refresh.
  */
 export async function POST() {
   try {
-    const { user } = await requirePermissionApi("reports", "manage");
+    const { user } = await requirePermissionApi("executive", "refresh");
     const companyId = user.companyId;
     if (!companyId) {
       return apiError("Company context required", 400);
