@@ -9,12 +9,12 @@ import { apiResponse, apiError } from "@/lib/api/response";
  * yet (the Inngest cron `recalculate-executive-twin` populates it every 15m;
  * POST /api/executive/twin/refresh forces one).
  *
- * Guarded by `requirePermissionApi('reports','read')` — the first /api/executive/*
- * route migrated to the ABAC guard (docs/pulso-executive-os-security.md §10).
+ * Guarded by `requirePermissionApi('executive','read')` — only executive roles
+ * (SUPER_ADMIN/OWNER/ADMIN) can read company-wide Executive Twin aggregates.
  */
 export async function GET() {
   try {
-    const { user } = await requirePermissionApi("reports", "read");
+    const { user } = await requirePermissionApi("executive", "read");
     const companyId = user.companyId;
     if (!companyId) {
       return apiError("Company context required", 400);

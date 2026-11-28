@@ -11,12 +11,12 @@ import { apiResponse, apiError } from "@/lib/api/response";
  *   { decisionKey: string, resolution: "authorized" | "deferred" }  → UPSERT
  *   { decisionKey: string, resolution: "revoke" }                   → DELETE
  *
- * Lectura con `reports:read` (GERENTE+); escritura con `reports:manage`
- * (sólo SUPER_ADMIN/OWNER/ADMIN autorizan en nombre de Dirección).
+ * Lectura con `executive:read` y escritura con `executive:resolve`
+ * (sólo SUPER_ADMIN/OWNER/ADMIN consultan y autorizan en nombre de Dirección).
  */
 export async function GET() {
   try {
-    const { user } = await requirePermissionApi("reports", "read");
+    const { user } = await requirePermissionApi("executive", "read");
     const companyId = user.companyId;
     if (!companyId) {
       return apiError("Company context required", 400);
@@ -42,7 +42,7 @@ interface DecisionRequestBody {
 
 export async function POST(request: Request) {
   try {
-    const { session, user } = await requirePermissionApi("reports", "manage");
+    const { session, user } = await requirePermissionApi("executive", "resolve");
     const companyId = user.companyId;
     if (!companyId) {
       return apiError("Company context required", 400);

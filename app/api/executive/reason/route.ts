@@ -29,7 +29,7 @@ function statusOf(error: unknown): number {
 
 export async function GET() {
   try {
-    const { user } = await requirePermissionApi("reports", "read");
+    const { user } = await requirePermissionApi("executive", "read");
     const companyId = user.companyId;
     if (!companyId) return apiError("Company context required", 400);
 
@@ -45,7 +45,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user } = await requirePermissionApi("reports", "read");
+    const { user } = await requirePermissionApi("executive", "reason");
     const companyId = user.companyId;
     if (!companyId) return apiError("Company context required", 400);
 
