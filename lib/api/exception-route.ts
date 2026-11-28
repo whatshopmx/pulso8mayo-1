@@ -1,10 +1,26 @@
 import type { NextRequest } from "next/server";
+import { z } from "zod";
 
 import { ApiError } from "@/lib/api/error";
 import { ApiHandler } from "@/lib/api/response";
 import { exceptionBranchScope, findExceptionForTenant } from "@/lib/api/exception-access";
 import { requirePermissionApi, type AccessContext } from "@/lib/rbac/abac";
 import type { ExceptionRow } from "@/lib/services/exception-service";
+
+/** EXC-05: estado esperado opcional enviado por la UI para detección de conflicto concurrente (409). */
+export const expectedStatusSchema = z
+  .enum([
+    "OPEN",
+    "ASSIGNED",
+    "IN_ACTION",
+    "RESOLVED",
+    "VERIFIED",
+    "CLOSED",
+    "REOPENED",
+    "ESCALATED",
+    "CANCELLED",
+  ])
+  .optional();
 
 interface ExceptionMutationArgs {
   req: NextRequest;

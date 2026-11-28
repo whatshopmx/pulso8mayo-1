@@ -179,24 +179,43 @@ async function loadScoped(
 
 /**
  * Aplica un evento de lifecycle a una fila, validando con la máquina de
- * estados. Escribe auditoría humana cuando hay actor.
+ * estados bajo bloqueo transaccional por `(companyId, id)` y guarda optimista
+ * sobre `(status, updatedAt)`. Escribe auditoría humana en la misma transacción.
  */
 async function applyEvent(params: {
   id: string;
   companyId: string;
   event: ExceptionEvent;
   actorId: string | null;
-  patch: Partial<typeof exceptions.$inferInsert>;
+  patch?: Partial<typeof exceptions.$inferInsert>;
+  patchBuilder?: (row: ExceptionRow) => Partial<typeof exceptions.$inferInsert>;
+  expectedStatus?: ExceptionStatus;
   auditReason?: string | null;
   executor?: DbExecutor;
 }): Promise<ExceptionRow> {
   const runMutation = async (exec: DbExecutor) => {
+    // EXC-03.a: serializar mutaciones concurrentes sobre la misma excepción
+    // antes de leer su estado y validar la máquina de estados.
+    if (typeof (exec as { execute?: unknown }).execute === "function") {
+      await exec.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${params.companyId}:${params.id}`}, 603))`,
+      );
+    }
+
     const row = await loadScoped(params.id, params.companyId, exec);
+
+    if (params.expectedStatus && row.status !== params.expectedStatus) {
+      throw ApiError.conflict(
+        `Conflicto concurrente: la excepción estaba en ${row.status}, no en ${params.expectedStatus}.`,
+      );
+    }
+
+    const patch = params.patchBuilder ? params.patchBuilder(row) : (params.patch ?? {});
 
     const result = transition(row.status, params.event, {
       actorId: params.actorId ?? undefined,
-      ownerId: (params.patch.ownerId as string | undefined) ?? undefined,
-      resolution: (params.patch.resolution as string | undefined) ?? undefined,
+      ownerId: (patch.ownerId as string | undefined) ?? undefined,
+      resolution: (patch.resolution as string | undefined) ?? undefined,
       resolvedBy: row.resolvedBy ?? undefined,
       reason: params.auditReason ?? undefined,
     });
@@ -207,16 +226,28 @@ async function applyEvent(params: {
 
     const [updated] = await exec
       .update(exceptions)
-      .set({ ...params.patch, status: result.to ?? row.status, updatedAt: new Date() })
-      .where(and(eq(exceptions.id, row.id), eq(exceptions.companyId, params.companyId)))
+      .set({ ...patch, status: result.to ?? row.status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(exceptions.id, row.id),
+          eq(exceptions.companyId, params.companyId),
+          eq(exceptions.status, row.status),
+        ),
+      )
       .returning();
 
+    if (!updated) {
+      throw ApiError.conflict(
+        "Conflicto concurrente: la excepción fue modificada por otra operación.",
+      );
+    }
+
     const fallbackReasons: Record<ExceptionEvent, string> = {
-      ASSIGN: `Asignación de excepción a ${params.patch.ownerId ?? "responsable"}`,
+      ASSIGN: `Asignación de excepción a ${patch.ownerId ?? "responsable"}`,
       START_ACTION: "Inicio de atención y plan de acción de excepción",
       RESOLVE:
-        typeof params.patch.resolution === "string" && params.patch.resolution.trim().length >= 4
-          ? params.patch.resolution.trim()
+        typeof patch.resolution === "string" && patch.resolution.trim().length >= 4
+          ? patch.resolution.trim()
           : "Resolución documentada de excepción",
       VERIFY: `Verificación técnica de excepción por ${params.actorId ?? "auditor"}`,
       CLOSE: "Cierre definitivo de excepción",
@@ -421,6 +452,7 @@ export const ExceptionService = {
     ownerId: string,
     actorId: string | null,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -428,6 +460,7 @@ export const ExceptionService = {
       actorId,
       event: "ASSIGN",
       patch: { ownerId },
+      expectedStatus: opts?.expectedStatus,
       executor,
     });
   },
@@ -437,6 +470,7 @@ export const ExceptionService = {
     companyId: string,
     actorId: string | null,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -444,6 +478,7 @@ export const ExceptionService = {
       actorId,
       event: "START_ACTION",
       patch: {},
+      expectedStatus: opts?.expectedStatus,
       executor,
     });
   },
@@ -454,6 +489,7 @@ export const ExceptionService = {
     actorId: string | null,
     resolution: string,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -465,6 +501,7 @@ export const ExceptionService = {
         resolvedBy: actorId,
         resolvedAt: new Date(),
       },
+      expectedStatus: opts?.expectedStatus,
       executor,
     });
   },
@@ -474,6 +511,7 @@ export const ExceptionService = {
     companyId: string,
     actorId: string,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -481,6 +519,7 @@ export const ExceptionService = {
       actorId,
       event: "VERIFY",
       patch: { verifiedBy: actorId, verifiedAt: new Date() },
+      expectedStatus: opts?.expectedStatus,
       executor,
     });
   },
@@ -490,6 +529,7 @@ export const ExceptionService = {
     companyId: string,
     actorId: string | null,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -497,6 +537,7 @@ export const ExceptionService = {
       actorId,
       event: "CLOSE",
       patch: { closedAt: new Date() },
+      expectedStatus: opts?.expectedStatus,
       executor,
     });
   },
@@ -507,24 +548,18 @@ export const ExceptionService = {
     actorId: string | null,
     reason: string,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
-    const run = async (exec: DbExecutor) => {
-      const row = await loadScoped(id, companyId, exec);
-      return applyEvent({
-        id,
-        companyId,
-        actorId,
-        event: "REOPEN",
-        patch: { reopenedFromId: row.reopenedFromId ?? row.id },
-        auditReason: reason,
-        executor: exec,
-      });
-    };
-
-    if ((!executor || executor === db) && typeof (db as any).transaction === "function") {
-      return db.transaction(async (tx) => run(tx));
-    }
-    return run(executor);
+    return applyEvent({
+      id,
+      companyId,
+      actorId,
+      event: "REOPEN",
+      patchBuilder: (row) => ({ reopenedFromId: row.reopenedFromId ?? row.id }),
+      expectedStatus: opts?.expectedStatus,
+      auditReason: reason,
+      executor,
+    });
   },
 
   async escalate(
@@ -533,27 +568,19 @@ export const ExceptionService = {
     actorId: string | null,
     reason?: string,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
-    const run = async (exec: DbExecutor) => {
-      const row = await loadScoped(id, companyId, exec);
-      // Al escalar se recalcula el SLA si aún no había uno.
-      return applyEvent({
-        id,
-        companyId,
-        actorId,
-        event: "ESCALATE",
-        patch: row.slaDueAt
-          ? {}
-          : { slaDueAt: computeSlaDueAt(row.severity) },
-        auditReason: reason,
-        executor: exec,
-      });
-    };
-
-    if ((!executor || executor === db) && typeof (db as any).transaction === "function") {
-      return db.transaction(async (tx) => run(tx));
-    }
-    return run(executor);
+    return applyEvent({
+      id,
+      companyId,
+      actorId,
+      event: "ESCALATE",
+      patchBuilder: (row) =>
+        row.slaDueAt ? {} : { slaDueAt: computeSlaDueAt(row.severity) },
+      expectedStatus: opts?.expectedStatus,
+      auditReason: reason,
+      executor,
+    });
   },
 
   async cancel(
@@ -562,6 +589,7 @@ export const ExceptionService = {
     actorId: string | null,
     reason?: string,
     executor: DbExecutor = db,
+    opts?: { expectedStatus?: ExceptionStatus },
   ): Promise<ExceptionRow> {
     return applyEvent({
       id,
@@ -569,6 +597,7 @@ export const ExceptionService = {
       actorId,
       event: "CANCEL",
       patch: {},
+      expectedStatus: opts?.expectedStatus,
       auditReason: reason,
       executor,
     });

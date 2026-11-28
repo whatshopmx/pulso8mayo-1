@@ -31,6 +31,12 @@ import type {
   GroupException,
   QsrRiskCategory,
 } from "@/lib/services/group-exceptions-service";
+import {
+  canMutateExceptionsRole,
+  resolveCanonicalTarget,
+  resolveLegacyFeedLinkLabel,
+} from "@/lib/services/exception-ui-capabilities";
+import { useSession } from "@/hooks/use-session";
 import { ExceptionLifecycleActions } from "@/components/exceptions/exception-lifecycle-actions";
 
 const QSR_CATEGORIES: {
@@ -70,6 +76,10 @@ const CATEGORY_STYLES: Record<QsrRiskCategory, { badge: string; text: string }> 
 };
 
 export default function ExceptionsPage() {
+  const { session } = useSession();
+  const canMutate = canMutateExceptionsRole(session?.user?.role);
+  const currentUserId = session?.user?.id ?? null;
+
   const [exceptions, setExceptions] = useState<GroupException[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -297,39 +307,52 @@ export default function ExceptionsPage() {
                     )}
                   </div>
 
-                  {/* Acciones resolutivas: lifecycle canónico o enlace al dominio */}
+                  {/* Acciones resolutivas: lifecycle canónico o enlace honesto al módulo */}
                   <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                    {item.lifecycle ? (
-                      <ExceptionLifecycleActions
-                        exceptionId={item.id}
-                        lifecycle={item.lifecycle}
-                        onDone={fetchExceptions}
-                      />
-                    ) : (
-                      <>
-                        {action && action.whatsappSuggestedMessage && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-8 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                            onClick={() => {
-                              const url = `https://wa.me/?text=${encodeURIComponent(action.whatsappSuggestedMessage!)}`;
-                              window.open(url, "_blank");
-                            }}
-                          >
-                            <MessageCircle className="w-3.5 h-3.5 mr-1" />
-                            Avisar Gerente
-                          </Button>
-                        )}
+                    {(() => {
+                      const canonicalTarget = resolveCanonicalTarget(item);
+                      if (canonicalTarget) {
+                        return (
+                          <ExceptionLifecycleActions
+                            exceptionId={canonicalTarget.exceptionId}
+                            lifecycle={canonicalTarget.lifecycle}
+                            canMutate={canMutate}
+                            currentUserId={currentUserId}
+                            onDone={fetchExceptions}
+                          />
+                        );
+                      }
+                      return (
+                        <div className="flex flex-col items-end gap-1.5">
+                          <Badge variant="outline" className="text-[11px] text-muted-foreground">
+                            Solo enlace (sin acción canónica)
+                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {action && action.whatsappSuggestedMessage && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-8 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                onClick={() => {
+                                  const url = `https://wa.me/?text=${encodeURIComponent(action.whatsappSuggestedMessage!)}`;
+                                  window.open(url, "_blank");
+                                }}
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                                Avisar Gerente
+                              </Button>
+                            )}
 
-                        <Button asChild size="sm" className="text-xs h-8">
-                          <Link href={action?.url || item.deepLinkUrl}>
-                            {action?.label || "Resolver"}
-                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                          </Link>
-                        </Button>
-                      </>
-                    )}
+                            <Button asChild variant="outline" size="sm" className="text-xs h-8">
+                              <Link href={action?.url || item.deepLinkUrl}>
+                                {resolveLegacyFeedLinkLabel(action?.label)}
+                                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                              </Link>
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </CardContent>
               </Card>

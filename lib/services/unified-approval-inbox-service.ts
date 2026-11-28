@@ -18,6 +18,7 @@ import { roleIsAtLeast } from "@/lib/permissions";
 import type { BranchScope } from "@/lib/branch-scope";
 import { listApprovalInbox, type InboxItem } from "./approval-matrix-service";
 import { resolverRolExigido } from "./expense-service";
+import { resolveEffectiveOverbudgetRole } from "./budget-exception-rules";
 
 export type ApprovalSource = "OC" | "OS" | "EXPENSE" | "PAYMENT_RUN";
 
@@ -154,6 +155,7 @@ async function listExpensesPending(params: {
             category: operatingExpenses.category,
             description: operatingExpenses.description,
             amountCents: operatingExpenses.amount,
+            status: operatingExpenses.status,
             requestedByName: users.name,
             createdAt: operatingExpenses.createdAt,
             branchId: operatingExpenses.branchId,
@@ -188,7 +190,11 @@ async function listExpensesPending(params: {
 
     return rows
         .map<UnifiedApprovalItem | null>((r) => {
-            const requiredRole = rolPorMonto.get(r.amountCents) ?? "GERENTE";
+            const baseRole = rolPorMonto.get(r.amountCents) ?? "GERENTE";
+            const requiredRole =
+                r.status === "PENDING_OVERBUDGET_APPROVAL"
+                    ? resolveEffectiveOverbudgetRole(baseRole)
+                    : baseRole;
             if (!roleIsAtLeast(params.actorRole ?? "", requiredRole)) return null;
             return {
                 id: `EXPENSE:${r.id}`,

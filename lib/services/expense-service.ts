@@ -10,7 +10,7 @@ import {
   payees,
   costCenters,
 } from "@/lib/db/schema";
-import { eq, ne, and, desc, lte, gte, or, isNull, inArray, type SQL } from "drizzle-orm";
+import { eq, and, desc, lte, gte, or, isNull, inArray, notInArray, type SQL } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { roleIsAtLeast, type Role } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/error";
@@ -32,6 +32,15 @@ export const UMBRAL_EFECTIVO_DEDUCIBLE_CENTS = 200_000;
 import { denyExpenseResolution, rolExigidoPorMonto } from "@/lib/expenses/approval-policy";
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import { checkBudgetAvailability } from "./budget-service";
+import {
+  evaluateOverbudgetRule,
+  resolveEffectiveOverbudgetRole,
+  type OverbudgetRuleEvaluation,
+} from "./budget-exception-rules";
+import {
+  closeBudgetOverrunExceptionInTx,
+  raiseBudgetOverrunException,
+} from "./budget-exception-service";
 import { emitDomainEvent } from "./domain-event-service";
 import { isPeriodClosed } from "./financial-period-service";
 import { serviceInvoiceBlocker, mirrorExpenseInvoicePaid } from "./expense-invoice-evidence";
@@ -225,7 +234,31 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
   if (input.invoiceId) {
     throw ApiError.badRequest("Registra el gasto y asocia su factura desde la ficha de la contraparte para validar que no se duplique la obligación.");
   }
-  const result = await createOperatingExpenseIn(db, input);
+  const hasTransaction = typeof (db as { transaction?: unknown }).transaction === "function";
+  const result = hasTransaction
+    ? await db.transaction(async (tx) => {
+        const created = await createOperatingExpenseIn(tx, input);
+        if (created.overbudgetEvaluation?.isOverbudget) {
+          await raiseBudgetOverrunException(
+            {
+              companyId: input.companyId,
+              branchId: input.branchId,
+              expenseId: created.expense.id,
+              category: created.expense.category,
+              description: created.expense.description,
+              amountCents: created.expense.amount,
+              requestedBy: input.requestedBy,
+              sourceStatus: created.expense.status,
+              evaluation: created.overbudgetEvaluation,
+              costCenterId: created.expense.costCenterId,
+              actorId: input.requestedBy,
+            },
+            tx,
+          );
+        }
+        return created;
+      })
+    : await createOperatingExpenseIn(db, input);
   await notifyOperatingExpenseCreated(input, result);
   return result.expense;
 }
@@ -256,9 +289,10 @@ export async function createOperatingExpenseIn(q: Pick<typeof db, "select" | "in
   // El centro de costo también es un dato de la empresa: uno de otro tenant no
   // existe aquí, y aceptarlo sin comprobar dejaría el gasto consumiendo un
   // presupuesto ajeno. Mismo criterio que la contraparte, arriba.
+  let costCenterMeta: { id: string; code: string; name: string } | null = null;
   if (input.costCenterId) {
     const [cc] = await q
-      .select({ id: costCenters.id })
+      .select({ id: costCenters.id, code: costCenters.code, name: costCenters.name })
       .from(costCenters)
       .where(
         and(
@@ -273,23 +307,40 @@ export async function createOperatingExpenseIn(q: Pick<typeof db, "select" | "in
         "El centro de costo seleccionado no existe o está inactivo para esta empresa. Recarga el catálogo e inténtalo de nuevo.",
       );
     }
+    costCenterMeta = cc;
   }
 
-  const { rol: requiredApproverRole } = await resolverRolExigido(
+  const { rol: baseApproverRole, regla: authRule } = await resolverRolExigido(
     input.companyId,
     input.amountCents,
     q,
   );
 
-  // Evaluar si el gasto supera el 100% del presupuesto de la partida
+  // Evaluar si el gasto supera el 100% del presupuesto de la partida (EXC-04.presupuesto)
   let initialStatus: "PENDING_APPROVAL" | "PENDING_OVERBUDGET_APPROVAL" = "PENDING_APPROVAL";
+  let overbudgetEvaluation: OverbudgetRuleEvaluation | null = null;
   if (input.costCenterId) {
     const monthStr = opDate.slice(0, 7);
     const budgetState = await checkBudgetAvailability(input.branchId, input.costCenterId, monthStr, input.amountCents, q);
-    if (budgetState.budgeted > 0 && (budgetState.committed + input.amountCents) > budgetState.budgeted) {
+    overbudgetEvaluation = evaluateOverbudgetRule({
+      budgetedCents: budgetState.budgeted,
+      committedBeforeCents: budgetState.committed,
+      expenseAmountCents: input.amountCents,
+      month: monthStr,
+      costCenterId: input.costCenterId,
+      costCenterCode: costCenterMeta?.code ?? null,
+      costCenterName: costCenterMeta?.name ?? null,
+      amountRuleRole: baseApproverRole,
+      amountRuleId: authRule?.id ?? null,
+    });
+    if (overbudgetEvaluation.isOverbudget) {
       initialStatus = "PENDING_OVERBUDGET_APPROVAL";
     }
   }
+
+  const requiredApproverRole = overbudgetEvaluation?.isOverbudget
+    ? overbudgetEvaluation.requiredApproverRole
+    : baseApproverRole;
 
   const [expense] = await q
     .insert(operatingExpenses)
@@ -312,7 +363,7 @@ export async function createOperatingExpenseIn(q: Pick<typeof db, "select" | "in
     })
     .returning();
 
-  return { expense, requiredApproverRole };
+  return { expense, requiredApproverRole, overbudgetEvaluation };
 }
 
 /** Solo después de que la creación se haya confirmado; conserva el circuito manual. */
@@ -680,14 +731,45 @@ export async function approveOperatingExpense(
     return updated;
   };
 
-  if (!isAccountingPostingEnabled()) return persistApproval(db);
-  return db.transaction(async tx => {
+  const isOverbudget = expense.status === "PENDING_OVERBUDGET_APPROVAL";
+  const needsTx = isOverbudget || isAccountingPostingEnabled();
+  if (!needsTx) return persistApproval(db);
+
+  return db.transaction(async (tx) => {
     await setTenantContext(tx, { companyId, actorId: approverId });
     const updated = await persistApproval(tx);
-    // La aprobación y su obligación se confirman juntas. La falta de regla o
-    // datos explícitos conserva el gasto aprobado para la recuperación FC-10;
-    // un fallo de persistencia revierte ambas escrituras.
-    await ensureRecognitionIn(tx, companyId, approverId, updated);
+    if (isOverbudget) {
+      // EXC-04.presupuesto: autorización y cierre de la excepción canónica
+      // auditados atómicamente (AUD-02) dentro de la misma transacción.
+      await closeBudgetOverrunExceptionInTx({
+        companyId,
+        expenseId,
+        decision: "APPROVED",
+        actorId: approverId,
+        actorRole: approverRole,
+        notes,
+        expenseBefore: {
+          status: expense.status,
+          amountCents: expense.amount,
+          costCenterId: expense.costCenterId,
+          requestedBy: expense.requestedBy,
+        },
+        expenseAfter: {
+          status: updated.status,
+          approvedBy: updated.approvedBy,
+          overbudgetApprovedBy: updated.overbudgetApprovedBy,
+          overbudgetApprovedAt: updated.overbudgetApprovedAt,
+          approvalNotes: updated.approvalNotes,
+        },
+        executor: tx,
+      });
+    }
+    if (isAccountingPostingEnabled()) {
+      // La aprobación y su obligación se confirman juntas. La falta de regla o
+      // datos explícitos conserva el gasto aprobado para la recuperación FC-10;
+      // un fallo de persistencia revierte ambas escrituras.
+      await ensureRecognitionIn(tx, companyId, approverId, updated);
+    }
     return updated;
   });
 }
@@ -734,7 +816,14 @@ export async function rejectOperatingExpense(
   // motivo firmado por alguien que no responde por esa sucursal.
   assertScopeCoversBranch(scope, expense.branchId);
 
-  if (expense.status !== "PENDING_APPROVAL") {
+  const isOverbudget = expense.status === "PENDING_OVERBUDGET_APPROVAL";
+  if (isOverbudget) {
+    if (!roleIsAtLeast(approverRole, "ADMIN")) {
+      throw ApiError.forbidden(
+        "Este gasto supera el 100% del presupuesto de la partida y requiere resolución de nivel ADMIN o superior."
+      );
+    }
+  } else if (expense.status !== "PENDING_APPROVAL") {
     throw ApiError.badRequest(
       `No se puede rechazar un gasto en estado "${expense.status}".`
     );
@@ -765,33 +854,66 @@ export async function rejectOperatingExpense(
     );
   }
 
-  const [updated] = await db
-    .update(operatingExpenses)
-    .set({
-      status: "REJECTED",
-      approvedBy: approverId,
-      approvalNotes: `Rechazado: ${trimmedReason}`,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(operatingExpenses.id, expenseId),
-        eq(operatingExpenses.companyId, companyId),
-        eq(operatingExpenses.status, "PENDING_APPROVAL"),
-        ...(scope.kind === "BRANCH"
-          ? [eq(operatingExpenses.branchId, scope.branchId)]
-          : [])
+  const persistReject = async (tx: Pick<typeof db, "update">) => {
+    const [updated] = await tx
+      .update(operatingExpenses)
+      .set({
+        status: "REJECTED",
+        approvedBy: approverId,
+        approvalNotes: `Rechazado: ${trimmedReason}`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(operatingExpenses.id, expenseId),
+          eq(operatingExpenses.companyId, companyId),
+          inArray(operatingExpenses.status, ["PENDING_APPROVAL", "PENDING_OVERBUDGET_APPROVAL"]),
+          ...(scope.kind === "BRANCH"
+            ? [eq(operatingExpenses.branchId, scope.branchId)]
+            : [])
+        )
       )
-    )
-    .returning();
+      .returning();
 
-  if (!updated) {
-    throw ApiError.badRequest(
-      "Este gasto ya fue resuelto por alguien más. Recarga la lista para ver cómo quedó."
-    );
+    if (!updated) {
+      throw ApiError.badRequest(
+        "Este gasto ya fue resuelto por alguien más. Recarga la lista para ver cómo quedó."
+      );
+    }
+    return updated;
+  };
+
+  if (!isOverbudget) {
+    return persistReject(db);
   }
 
-  return updated;
+  return db.transaction(async (tx) => {
+    await setTenantContext(tx, { companyId, actorId: approverId });
+    const updated = await persistReject(tx);
+    await closeBudgetOverrunExceptionInTx({
+      companyId,
+      expenseId,
+      decision: "REJECTED",
+      actorId: approverId,
+      actorRole: approverRole,
+      notes: trimmedReason,
+      expenseBefore: {
+        status: expense.status,
+        amountCents: expense.amount,
+        costCenterId: expense.costCenterId,
+        requestedBy: expense.requestedBy,
+      },
+      expenseAfter: {
+        status: updated.status,
+        approvedBy: updated.approvedBy,
+        overbudgetApprovedBy: updated.overbudgetApprovedBy,
+        overbudgetApprovedAt: updated.overbudgetApprovedAt,
+        approvalNotes: updated.approvalNotes,
+      },
+      executor: tx,
+    });
+    return updated;
+  });
 }
 
 /**
@@ -1162,10 +1284,15 @@ export async function getOperatingExpenses(
   let expenses: Awaited<ReturnType<typeof consultarGastos>>;
   let truncated = false;
 
+  const PENDING_STATUSES = ["PENDING_APPROVAL", "PENDING_OVERBUDGET_APPROVAL"] as const;
+
   if (opciones?.status === "PENDING_APPROVAL") {
     // Si solo se piden pendientes (ej. bandeja Hoy), se consultan sin límite
     // y sin traer el historial innecesario.
-    expenses = await consultarGastos([...base, eq(operatingExpenses.status, "PENDING_APPROVAL")]);
+    expenses = await consultarGastos([
+      ...base,
+      inArray(operatingExpenses.status, [...PENDING_STATUSES]),
+    ]);
   } else if (opciones?.status) {
     const res = await consultarGastos(
       [...base, eq(operatingExpenses.status, opciones.status as any)],
@@ -1176,9 +1303,12 @@ export async function getOperatingExpenses(
   } else {
     // Se pide uno de más para saber si hubo corte sin un COUNT aparte.
     const [pendientes, historial] = await Promise.all([
-      consultarGastos([...base, eq(operatingExpenses.status, "PENDING_APPROVAL")]),
+      consultarGastos([
+        ...base,
+        inArray(operatingExpenses.status, [...PENDING_STATUSES]),
+      ]),
       consultarGastos(
-        [...base, ne(operatingExpenses.status, "PENDING_APPROVAL")],
+        [...base, notInArray(operatingExpenses.status, [...PENDING_STATUSES])],
         limiteHistorial + 1
       ),
     ]);
@@ -1212,13 +1342,18 @@ export async function getOperatingExpenses(
     // La misma escalera que usa el servicio al crear y al resolver. Antes esto
     // devolvía `null` y la pantalla lo traducía a "OWNER" por su cuenta: dos
     // sitios decidiendo la autoridad sobre el mismo gasto.
-    const requiredApproverRole =
+    const baseRole =
       matchingRule?.approverRole ??
       rolExigidoPorMonto(expense.amountCents, {
         managerAuthLimitCents: config.managerAuthLimitCents,
         doubleApprovalThresholdCents: config.doubleApprovalThresholdCents,
         managerAutonomy: config.managerAutonomy,
       });
+
+    const requiredApproverRole =
+      expense.status === "PENDING_OVERBUDGET_APPROVAL"
+        ? resolveEffectiveOverbudgetRole(baseRole)
+        : baseRole;
 
     /**
      * Un pendiente que **nadie** puede resolver.
@@ -1232,7 +1367,7 @@ export async function getOperatingExpenses(
      * aprobador, el aviso desaparece solo. Guardarlo lo dejaría mintiendo.
      */
     const sinAprobadorPosible =
-      expense.status === "PENDING_APPROVAL" &&
+      (expense.status === "PENDING_APPROVAL" || expense.status === "PENDING_OVERBUDGET_APPROVAL") &&
       elegiblesPara(
         candidatos,
         expense.branchId ?? null,

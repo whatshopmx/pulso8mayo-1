@@ -50,6 +50,7 @@ export const OC_COMMITTING_STATUSES = [
 /** Gastos que consumen presupuesto: todos menos el rechazado. */
 export const EXPENSE_COMMITTING_STATUSES = [
     "PENDING_APPROVAL",
+    "PENDING_OVERBUDGET_APPROVAL",
     "APPROVED",
     "PAID",
 ] as const;
@@ -107,6 +108,7 @@ export function evaluateEmergencyCap(
 // ── Acceso a datos ──
 
 const monthExpr = sql<string>`to_char(created_at, 'YYYY-MM')`;
+const expenseMonthExpr = sql<string>`coalesce(to_char(${operatingExpenses.businessDate}, 'YYYY-MM'), to_char(${operatingExpenses.createdAt}, 'YYYY-MM'))`;
 
 /**
  * Presupuesto capturado para sucursal+centro+mes (o null si no hay fila).
@@ -174,7 +176,7 @@ export async function getCommitted(
                 eq(operatingExpenses.branchId, branchId),
                 eq(operatingExpenses.costCenterId, costCenterId),
                 inArray(operatingExpenses.status, [...EXPENSE_COMMITTING_STATUSES]),
-                sql`${monthExpr} = ${month}`,
+                sql`${expenseMonthExpr} = ${month}`,
             ),
         );
 
@@ -335,7 +337,7 @@ export async function getCommittedByPair(
             and(
                 inArray(operatingExpenses.branchId, branchIds),
                 inArray(operatingExpenses.status, [...EXPENSE_COMMITTING_STATUSES]),
-                sql`${monthExpr} = ${month}`,
+                sql`${expenseMonthExpr} = ${month}`,
             ),
         )
         .groupBy(operatingExpenses.branchId, operatingExpenses.costCenterId);
@@ -451,7 +453,7 @@ export async function getBudgetConsumption(
                 and(
                     inArray(operatingExpenses.branchId, branchIds),
                     inArray(operatingExpenses.status, [...EXPENSE_COMMITTING_STATUSES]),
-                    sql`${monthExpr} = ${month}`,
+                    sql`${expenseMonthExpr} = ${month}`,
                 ),
             )
             .groupBy(operatingExpenses.costCenterId),

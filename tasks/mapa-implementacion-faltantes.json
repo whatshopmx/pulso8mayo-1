@@ -6783,6 +6783,102 @@
           "checks": ["V1", "V3"]
         }
       ]
+    },
+    "EXC-03.a": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-26/EXC-03.a/README.md",
+          "head": "8d8b3f7979aae74af766cd62cfd0a21ad8f5f233",
+          "environment": "Windows local + Neon aislado con dos conexiones concurrentes reales; pg_advisory_xact_lock + guarda status + expectedStatus, segregación verificador≠resolvedor, rollback atómico ante fallo de auditoría AUD-02 y aislamiento entre empresas; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/exc03a-concurrent-lifecycle-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/exception-service.test.ts lib/services/__tests__/exception-lifecycle.test.ts lib/services/__tests__/exception-raise-atomic.test.ts lib/services/__tests__/exception-sla.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/exception-service.ts tests/integration/exc03a-concurrent-lifecycle-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2"]
+        }
+      ]
+    },
+    "EXC-03.b": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-26/EXC-03.b/README.md",
+          "head": "8d8b3f7979aae74af766cd62cfd0a21ad8f5f233",
+          "environment": "Windows local + Neon aislado con reloj controlado, caída/reintento simulados y dos barridos concurrentes reales; reutiliza exception-sla.ts y respeta empresa y estados terminales; sin disparo Inngest Cloud ni despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/exc03b-sla-job.test.ts lib/services/__tests__/exception-sla.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/exc03b-sla-job-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/exception-sla.ts lib/services/exception-sla-job-service.ts lib/inngest/functions/exceptions-sla-sweep.ts lib/inngest/functions/index.ts lib/services/__tests__/exc03b-sla-job.test.ts tests/integration/exc03b-sla-job-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "EXC-05": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-26/EXC-05/README.md",
+          "head": "8d8b3f7979aae74af766cd62cfd0a21ad8f5f233",
+          "environment": "Windows local; handlers HTTP reales de las 6 acciones canónicas (assign/start-action/resolve/verify/close/reopen) con RBAC y expectedStatus/409, capacidades por rol/segregación y feed legacy sin acción inexistente; sin navegador Next operativo ni despliegue",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run tests/unit/exceptions/exc05-canonical-ui-actions-v3.test.ts lib/services/__tests__/group-exceptions-canonical.test.ts lib/services/__tests__/exception-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/exception-ui-capabilities.ts lib/api/exception-route.ts lib/services/group-exceptions-service.ts app/api/exceptions/[id]/assign/route.ts app/api/exceptions/[id]/start-action/route.ts app/api/exceptions/[id]/resolve/route.ts app/api/exceptions/[id]/verify/route.ts app/api/exceptions/[id]/close/route.ts app/api/exceptions/[id]/reopen/route.ts app/api/exceptions/[id]/escalate/route.ts app/api/exceptions/[id]/cancel/route.ts app/dashboard/exceptions/page.tsx components/exceptions/exception-lifecycle-actions.tsx tests/unit/exceptions/exc05-canonical-ui-actions-v3.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V3"]
+        }
+      ]
+    },
+    "EXC-04.presupuesto": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-26/EXC-04.presupuesto/README.md",
+          "head": "8d8b3f7979aae74af766cd62cfd0a21ad8f5f233",
+          "environment": "Windows local + esquema efímero aislado en Neon (con columna candidata 0148 sin mutar public); gasto fuera de presupuesto conserva ruleSnapshot y ownerId, autorización/rechazo cierran excepción con AUD-02 atómico y repetición/adaptador no duplican; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/exc04-presupuesto-rules.test.ts lib/services/budget-service.test.ts tests/unit/finance/expense-transaction-db.test.ts lib/services/__tests__/exception-adapters.test.ts lib/services/__tests__/exception-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/exc04-presupuesto-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/budget-exception-rules.ts lib/services/budget-exception-service.ts lib/services/exception-adapters/budget-overrun.ts lib/services/exception-adapters/index.ts lib/services/budget-service.ts lib/services/expense-service.ts lib/services/unified-approval-inbox-service.ts lib/services/__tests__/exc04-presupuesto-rules.test.ts lib/services/__tests__/exception-adapters.test.ts tests/integration/exc04-presupuesto-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
     }
   }
 }

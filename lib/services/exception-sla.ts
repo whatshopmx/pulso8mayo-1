@@ -10,7 +10,17 @@
  *   warning          → 24 h
  *   info             → 72 h
  */
-import type { ExceptionSeverity } from "./exception-types";
+import type { ExceptionSeverity, ExceptionStatus } from "./exception-types";
+import { allowedEvents, isTerminal } from "./exception-lifecycle";
+
+export const SLA_ESCALATABLE_STATUSES: readonly ExceptionStatus[] = [
+  "OPEN",
+  "ASSIGNED",
+  "IN_ACTION",
+  "RESOLVED",
+  "VERIFIED",
+  "REOPENED",
+] as const;
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -51,4 +61,18 @@ export function msUntilSla(
   const due = slaDueAt instanceof Date ? slaDueAt : new Date(slaDueAt);
   if (Number.isNaN(due.getTime())) return null;
   return due.getTime() - now.getTime();
+}
+
+/**
+ * EXC-03.b: regla pura reutilizable de elegibilidad para escalamiento por SLA.
+ * Respeta estados terminales (`CLOSED`, `CANCELLED`), evita re-escalar `ESCALATED`
+ * y delega el vencimiento a `isSlaBreached` con reloj controlado `now`.
+ */
+export function isEligibleForSlaEscalation(
+  row: { status: ExceptionStatus; slaDueAt: Date | string | null | undefined },
+  now: Date = new Date(),
+): boolean {
+  if (isTerminal(row.status) || row.status === "ESCALATED") return false;
+  if (!allowedEvents(row.status).includes("ESCALATE")) return false;
+  return isSlaBreached(row.slaDueAt, now);
 }

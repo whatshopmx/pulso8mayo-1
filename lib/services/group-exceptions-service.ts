@@ -85,12 +85,14 @@ export interface GroupExceptionCanonical {
   status: ExceptionStatus;
   ownerId: string | null;
   slaDueAt: Date | null;
+  resolvedBy?: string | null;
 }
 
 export interface GroupExceptionLifecycle {
   status: ExceptionStatus;
   ownerId: string | null;
   slaDueAt: Date | null;
+  resolvedBy?: string | null;
 }
 
 export interface ListOpenOptions {
@@ -158,6 +160,7 @@ export interface CanonicalProjection {
   status: ExceptionStatus;
   ownerId: string | null;
   slaDueAt: Date | null;
+  resolvedBy?: string | null;
 }
 
 /**
@@ -188,6 +191,7 @@ export function attachCanonicalState(
             status: projection.status,
             ownerId: projection.ownerId,
             slaDueAt: projection.slaDueAt,
+            ...(projection.resolvedBy ? { resolvedBy: projection.resolvedBy } : {}),
           },
         }
       : row;
@@ -214,6 +218,7 @@ async function loadCanonicalProjections(
       status: exceptions.status,
       ownerId: exceptions.ownerId,
       slaDueAt: exceptions.slaDueAt,
+      resolvedBy: exceptions.resolvedBy,
     })
     .from(exceptions)
     .where(
@@ -269,6 +274,7 @@ export function canonicalExceptionToGroupException(
       status: row.status,
       ownerId: row.ownerId,
       slaDueAt: row.slaDueAt,
+      ...(row.resolvedBy ? { resolvedBy: row.resolvedBy } : {}),
     },
   };
 }

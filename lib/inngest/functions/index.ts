@@ -56,6 +56,7 @@ export { notificationDispatchFn } from "./notification-dispatch";
 export { workflowExtractorsFn } from "./workflow-extractors";
 export { workflowCompletionRecoveryFn } from "./workflow-completion-recovery";
 
-// Phase 0 / Control Core: proyección durable hacia `exceptions`.
+// Phase 0 / Control Core: proyección durable hacia `exceptions` y barrido SLA (EXC-03.b).
 export { exceptionsSync } from "./exceptions-sync";
+export { exceptionsSlaSweep } from "./exceptions-sla-sweep";
 export { accountingPost, accountingRecoverySweep } from "./accounting-post";
