@@ -7079,6 +7079,56 @@
           "checks": ["V1", "V2", "V3"]
         }
       ]
+    },
+    "REC-03A": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/REC-03A/README.md",
+          "head": "35515c62f66a49e0b998f531b507c0ebed4dfd4b",
+          "environment": "Windows local + bases desechables aisladas en Neon (baseline 0158 + copia aislada con RUN_REC03A_SOURCE_COPY=1); dry-run READ ONLY clasifica SUFFICIENT/AMBIGUOUS/ALREADY_CORRECTED sin asumir 4 lotes ni fabricar saldos; corrección H01 conserva ledger intacto (quantity_change=0) y audita AUD-02; sin mutación operativa",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run tests/unit/inventory/receiving-overcount-revalidation.test.ts tests/unit/inventory/receiving-overcount-diagnostic.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "$env:RUN_REC03A_SOURCE_COPY='1'; node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/receiving-overcount-revalidation-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/inventory/receiving-overcount-revalidation.ts lib/services/receiving-overcount-service.ts scripts/diag-receiving-overcount.ts tests/unit/inventory/receiving-overcount-revalidation.test.ts tests/integration/receiving-overcount-revalidation-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2"]
+        }
+      ]
+    },
+    "REC-03B": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/REC-03B/README.md",
+          "head": "35515c62f66a49e0b998f531b507c0ebed4dfd4b",
+          "environment": "Windows local + base desechable aislada en Neon (baseline 0158); protocolo REC-03B exige conteo físico concordante, unidad exacta, actor!=aprobador (>=ADMIN), motivo, respaldo (backupReference) y lote SUFFICIENT; retiene AMBIGUOUS (409), bloquea cruce entre empresas (403) y evita duplicados ante repetición y carrera de 2 conexiones con AUD-02; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run tests/unit/inventory/receiving-overcount-revalidation.test.ts tests/unit/inventory/receiving-overcount-diagnostic.test.ts tests/unit/inventory/rec03b-historical-correction-http-v3.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/rec03b-historical-correction-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/inventory/receiving-overcount-revalidation.ts lib/services/receiving-overcount-service.ts lib/services/historical-correction-protocol-service.ts app/api/inventory/batches/historical-correction/route.ts scripts/diag-receiving-overcount.ts tests/unit/inventory/receiving-overcount-revalidation.test.ts tests/unit/inventory/rec03b-historical-correction-http-v3.test.ts tests/integration/receiving-overcount-revalidation-db.test.ts tests/integration/rec03b-historical-correction-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
     }
   }
 }
