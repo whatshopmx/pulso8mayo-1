@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { branchBudgets, branches, costCenters } from "@/lib/db/schema";
 import { requireTenantAuth } from "@/lib/api/with-auth";
 import { hasPermission, roleIsAtLeast } from "@/lib/permissions";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { isApiError } from "@/lib/api/error";
 import {
     computeBudgetStatus,
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
         // consume — ése es otro trabajo.
         const { user, tenantId, branchId: sessionBranchId } = await requireTenantAuth();
 
-        if (!hasPermission(user.role, "inventory", "read")) {
+        if (!hasPermission(user.role, "financial-summary", "read")) {
             return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
         }
 
@@ -67,9 +68,14 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Formato de mes inválido (YYYY-MM)" }, { status: 400 });
         }
 
-        // Alcance de sucursal del tenant manda; si no hay, filtro opcional o toda la empresa.
+        // Alcance efectivo: COMPANY (SUPER_ADMIN/OWNER/ADMIN) ve todas las sucursales
+        // o la solicitada; BRANCH (GERENTE) queda acotado a su sucursal; NONE devuelve vacío.
         const requestedBranch = searchParams.get("branchId");
-        const branchFilter = sessionBranchId ?? requestedBranch ?? null;
+        const scope = resolveBranchScope(user.role, sessionBranchId, requestedBranch);
+        if (scope.kind === "NONE") {
+            return NextResponse.json({ month, rows: [] });
+        }
+        const branchFilter = scope.kind === "BRANCH" ? scope.branchId : null;
 
         const branchConditions = [eq(branches.companyId, tenantId), eq(branches.active, true)];
         if (branchFilter) branchConditions.push(eq(branches.id, branchFilter));
