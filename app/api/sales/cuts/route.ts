@@ -23,7 +23,7 @@ import { persistSalesCutInScope } from "@/lib/services/accounting/sales-cut-capt
  * dashboard no basta: un `fetch` a la API no pasa por el mismo camino que el
  * navegador.
  */
-const ROLES_VENTAS = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
+const ROLES_VENTAS = ["SUPER_ADMIN", "OWNER", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
 
 /**
  * Cota de la lista de cortes.
@@ -193,6 +193,14 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
   try {
     const body = await req.json();
     const data = createCutSchema.parse(body);
+
+    const branchScope = resolveBranchScope(auth.user.role, auth.user.branchId, data.branchId);
+    if (branchScope.kind === "NONE") {
+      throw ApiError.forbidden("No tienes una sucursal autorizada para registrar cortes.");
+    }
+    if (branchScope.kind === "BRANCH" && data.branchId !== branchScope.branchId) {
+      throw ApiError.forbidden("No puedes registrar cortes en otra sucursal.");
+    }
 
     // Ventas no tiene servicio: el corte se arma y se inserta aquí, así que la
     // frontera de tenant se comprueba aquí. Va antes del chequeo de duplicados

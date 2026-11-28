@@ -3,34 +3,51 @@ import { BranchService } from "@/lib/services/branch-service";
 import { ApiHandler } from "@/lib/api/response";
 import { createBranchSchema } from "@/lib/validations/branch";
 import { requireTenant } from "@/lib/tenant-context";
+import { requireTenantAuth } from "@/lib/api/with-auth";
 import { requireRoleApi } from "@/lib/rbac/require-role";
 import type { UserRole } from "@/lib/rbac/permissions";
+import type { Role } from "@/lib/permissions";
+import { resolveBranchScope } from "@/lib/branch-scope";
 
 /**
- * H4 (`tasks/plan-imss-operacion.md`): crear o editar una sucursal no tenía
- * guard de rol — sólo `requireTenant()`. Cualquier sesión de la empresa
- * (incluido `EMPLEADO` o `READONLY`) podía escribir `branches`, y desde
- * `plan-imss` esa fila también decide el registro patronal IMSS. El guard va
- * aquí, no en la pantalla: `/dashboard/company` oculta el enlace, pero una
- * petición directa no pasa por el sidebar.
- *
- * `GET` se queda abierto a toda la sesión: lo consume el selector de sucursal
- * de casi todas las pantallas, y restringirlo rompería el alcance por sucursal
- * de roles que sí deben leer la lista.
+ * H4 (`tasks/plan-imss-operacion.md`): crear o editar una sucursal exige rol
+ * administrativo. En `GET`, cada rol recibe únicamente las sucursales dentro
+ * de su alcance y nunca se exponen `inviteToken` / `managerInviteToken` a
+ * roles sin permiso de invitación.
  */
-const BRANCH_WRITE_ROLES: UserRole[] = ['SUPER_ADMIN', 'ADMIN'];
+const BRANCH_WRITE_ROLES: UserRole[] = ['SUPER_ADMIN', 'OWNER', 'ADMIN'];
+const COMPANY_ADMIN_ROLES: ReadonlySet<Role> = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN']);
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
     try {
-        const tenant = await requireTenant();
-        
-        // If user doesn't have a company assigned, return empty list
-        if (!tenant.id) {
+        const auth = await requireTenantAuth();
+        const role = auth.user.role as Role;
+
+        const scope = resolveBranchScope(role, auth.branchId, null);
+        if (scope.kind === 'NONE') {
             return ApiHandler.success([]);
         }
-        
-        const branches = await BranchService.listBranches(tenant.id);
-        return ApiHandler.success(branches);
+
+        const branches = await BranchService.listBranches(auth.tenantId);
+        const visibleBranches =
+            scope.kind === 'BRANCH'
+                ? branches.filter((b) => b.id === scope.branchId)
+                : branches;
+
+        const isCompanyAdmin = COMPANY_ADMIN_ROLES.has(role);
+        const sanitized = visibleBranches.map((branch) => {
+            const { inviteToken, managerInviteToken, ...safeBranch } = branch as Record<string, unknown>;
+            const canSeeManagerToken = isCompanyAdmin;
+            const canSeeInviteToken =
+                isCompanyAdmin || (role === 'GERENTE' && branch.id === auth.branchId);
+            return {
+                ...safeBranch,
+                ...(canSeeInviteToken ? { inviteToken } : {}),
+                ...(canSeeManagerToken ? { managerInviteToken } : {}),
+            };
+        });
+
+        return ApiHandler.success(sanitized);
     } catch (error) {
         return ApiHandler.error(error);
     }
