@@ -388,6 +388,10 @@ describe("runExceptionAdapters", () => {
       "daily_sales_cuts",
       "invoices",
       "operating_expenses",
+      "shift_sessions",
+      "bank_transactions",
+      "gateway_transactions",
+      "payment_run_items",
     ]) {
       h.fixtures.set(t, []);
     }
@@ -397,10 +401,10 @@ describe("runExceptionAdapters", () => {
       .mockRejectedValueOnce(new Error("boom"));
 
     const outcomes = await runExceptionAdapters(SCOPE);
-    expect(outcomes).toHaveLength(10);
+    expect(outcomes).toHaveLength(12);
     const failed = outcomes.find((o) => o.adapter === "incident");
     expect(failed?.error).toContain("boom");
-    expect(outcomes.filter((o) => !o.error)).toHaveLength(9);
+    expect(outcomes.filter((o) => !o.error)).toHaveLength(11);
     spy.mockRestore();
   });
 });

@@ -16,6 +16,8 @@ import { shiftChangeAdapter } from "./shift-change";
 import { cashVarianceAdapter } from "./cash-variance";
 import { invoiceDiscrepancyAdapter } from "./invoice-discrepancy";
 import { budgetOverrunAdapter } from "./budget-overrun";
+import { employeeAbsenceAdapter } from "./employee-absence";
+import { bankReconciliationAdapter } from "./bank-reconciliation";
 import type { AdapterOutcome, AdapterScope, ExceptionAdapter } from "./types";
 
 export type { AdapterOutcome, AdapterScope, ExceptionAdapter };
@@ -32,6 +34,8 @@ export const EXCEPTION_ADAPTERS: ExceptionAdapter[] = [
   cashVarianceAdapter,
   invoiceDiscrepancyAdapter,
   budgetOverrunAdapter,
+  employeeAbsenceAdapter,
+  bankReconciliationAdapter,
 ];
 
 export async function runExceptionAdapters(

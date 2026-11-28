@@ -9,6 +9,10 @@ import { parseISO, differenceInMinutes, format, addDays } from "date-fns";
 import { calculateOvertime, validateBreakCompliance, DEFAULT_COMPLIANCE_RULES } from "@/lib/labor-validation";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
 import {
+    detectAbsenceException,
+    regularizeAbsence,
+} from "@/lib/services/absence-exception-service";
+import {
     alcanceDeListado,
     assertSesionOperable,
     assertSucursalDestino,
@@ -206,7 +210,31 @@ export async function PUT(req: NextRequest) {
             branchId: existing.branchId,
         });
 
+        // EXC-04.ausencia: si una sesión NO_SHOW se regulariza a COMPLETED o CANCELLED,
+        // conservar responsable e historial en la excepción canónica y auditar atómicamente.
+        if (
+            existing.status === "NO_SHOW" &&
+            (data.status === "COMPLETED" || data.status === "CANCELLED" || (data.checkInTime && data.checkOutTime))
+        ) {
+            const targetMode =
+                data.status === "CANCELLED" ? "CANCELLED" : "ATTENDANCE_COMPLETED";
+            const regularized = await regularizeAbsence({
+                companyId: actor.companyId,
+                sessionId: existing.id,
+                actorId: actor.userId,
+                mode: targetMode,
+                reason: data.notes || "Regularización de asistencia desde panel de asistencia",
+                checkInTime: data.checkInTime ? new Date(data.checkInTime) : null,
+                checkOutTime: data.checkOutTime ? new Date(data.checkOutTime) : null,
+            });
+            return ApiHandler.success(regularized.session);
+        }
+
         const updateData: any = { ...data };
+        if (data.status === "NO_SHOW" && data.requiresApproval === false) {
+            updateData.approvedBy = actor.userId;
+            updateData.approvedAt = new Date();
+        }
         
         if (data.checkInTime && !data.checkOutTime) {
             updateData.status = "ACTIVE";
@@ -253,8 +281,14 @@ export async function PUT(req: NextRequest) {
             return ApiHandler.error(ApiError.notFound("Sesión no encontrada"));
         }
 
-        // Check if status changed to NO_SHOW to dispatch absence notifications
+        // Check if status changed to NO_SHOW to raise canonical exception & dispatch absence notifications
         if (updated.status === "NO_SHOW" && existing.status !== "NO_SHOW") {
+            await detectAbsenceException({
+                companyId: actor.companyId,
+                sessionId: updated.id,
+                actorId: actor.userId,
+                reason: data.notes || existing.notes || "Ausencia (NO_SHOW) registrada en asistencia",
+            });
             try {
                 // Fetch employee user
                 const employeeUser = await db.query.users.findFirst({

@@ -25,6 +25,7 @@
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, gte, lte, sql, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { tryResolveBankExceptionOnExactMatchInTx } from "@/lib/services/bank-exception-service";
 import {
     accountingEvents,
     accountingJournalLines,
@@ -949,6 +950,19 @@ export async function confirmMatch(
                 "El movimiento cambió de estado durante el cruce. Recarga y vuelve a intentarlo."
             );
         }
+
+        // EXC-04.banco: cerrar con trazabilidad y AUD-02 las excepciones bancarias
+        // abiertas del movimiento y su partida de pago (si existen y hay privilegio).
+        await tryResolveBankExceptionOnExactMatchInTx(tx, {
+            companyId: input.companyId,
+            bankTransactionId: txRow.id,
+            bankAmountCents: txRow.amountCents,
+            targetType: "PAYMENT_RUN_ITEM",
+            targetId: input.paymentRunItemId,
+            targetAmountCents: itemRow.amountCents,
+            actorId: input.userId,
+            notes: input.notes,
+        });
     };
 
     if (dbInstance) {
@@ -1093,6 +1107,18 @@ export async function confirmDepositMatch(
                 "El movimiento cambió de estado durante el cruce. Recarga y vuelve a intentarlo."
             );
         }
+        // EXC-04.banco: cerrar con trazabilidad y AUD-02 las excepciones bancarias
+        // abiertas del depósito y su liquidación de pasarela (sin ocultar diferencias).
+        await tryResolveBankExceptionOnExactMatchInTx(tx, {
+            companyId: input.companyId,
+            bankTransactionId: txRow.id,
+            bankAmountCents: txRow.amountCents,
+            targetType: "GATEWAY_TRANSACTION",
+            targetId: input.gatewayTransactionId,
+            targetAmountCents: gwRow.netAmountCents,
+            actorId: input.userId,
+            notes: input.notes,
+        });
         if (isAccountingPostingEnabled()) {
             await settleConfirmedTransactionIn(tx, input.companyId, input.userId, input.gatewayTransactionId);
         }

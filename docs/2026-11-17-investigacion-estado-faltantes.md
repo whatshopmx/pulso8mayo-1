@@ -1,15 +1,15 @@
 # Investigación del estado de implementación de faltantes
 
-## Actualización de implementación — 2026-11-26
+## Actualización de implementación — 2026-11-27
 
-Revisión sobre HEAD `8d8b3f7` más el árbol local al 2026-11-26. El validador documental (`scripts/validate-faltantes.ts`) reporta **239 filas, 86 tareas base, 127 hijos y 112 registros aceptados**, con cero errores.
+Revisión sobre HEAD `6861923` más el árbol local al 2026-11-27. El validador documental (`scripts/validate-faltantes.ts`) reporta **239 filas, 86 tareas base, 127 hijos y 114 registros aceptados**, con cero errores.
 
 - **Puerta 1 cerrada en entorno aislado (2026-11-22, commiteado):** `INV-01.b` (manual, bulk, UI, smart-link, storage POS con runtime `NOBYPASSRLS` y cobertura COGS/menú/ejecutivo), `INV-01.c` (carreras `SERIALIZABLE` y recuperación histórica con Next/R2/Better Auth reales), `INV-01.d` (13/13 recorridos reales) e `INV-02` (políticas de consumo).
 - **Producción hasta `PROD-02` aceptada en entorno aislado (2026-11-22, commiteado):** `PROD-00`, `PROD-01.a` (`0161`), `PROD-01.b` (`0162`), `Checkpoint 5.1` y `PROD-02`. Trabajo de `REC-03A` en curso en el árbol local.
 - **Puerta 2 (Nómina) cerrada en entorno aislado (2026-11-23/25, commiteado en `45a4cad`):** `NOM-01`..`NOM-06`, `NOM-02.c1.history` (`0163`/`0164`), `NOM-02.c2..e`, `NOM-03` (`0165`/`0166`), `NOM-04.a`, `NOM-04.b` (llamada HTTP remota al sandbox de FiscalAPI pendiente explícita) y `NOM-05` (`0168`, obligaciones netas por empleado/período aprobado, pagos parciales idempotentes, conciliación `BAN-04` e independencia CFDI↔pago).
 - **Puerta 3 (Banca, comisiones y flujo) cerrada en entorno aislado (2026-11-25, commiteado en `45a4cad` y `8d8b3f7`):** `SEC-05.tesoreria` (`0167`), `BAN-01`, `BAN-04` (`Checkpoint 3.1`), `BAN-05` (`0169`), `BAN-06.a`, `BAN-06.b` (`Checkpoint 3.2`), `FIN-06.a`, `FIN-06.b` y `FIN-01` (`Checkpoint 3.3`, `tsc --noEmit` exit 0).
-- **Frente 4 hasta `EXC-04.presupuesto` aceptado en entorno aislado (2026-11-26):** `AUD-02`, `EVI-02.a/b` (`Checkpoint 4.1`), `EXC-01`/`EXC-01.rls`, `EXC-02`, `EXC-03.a` (`Checkpoint 4.2`), `EXC-03.b`, `EXC-05` y `EXC-04.presupuesto` (excepción canónica `budget_overrun` con `ruleSnapshot` + responsable determinista, cierre auditado `AUD-02` al aprobar/rechazar y adaptador idempotente).
-- **Pendientes estructurales:** continuar Frente 4 (`EXC-04.ausencia`, `EXC-04.banco`, `EXC-04.merma` tras `INV-04`, `APR-01` → Puerta 4), Frente 5 restante (`REC-03A/B`, `INV-03/04/05`), Frentes 6–8 y aplicación operativa de migraciones (`OPS-03`).
+- **Frente 4 hasta `Checkpoint 4.4` aceptado en entorno aislado (2026-11-26/27, bloque hasta `EXC-04.presupuesto` commiteado en `6861923`):** `AUD-02`, `EVI-02.a/b` (`Checkpoint 4.1`), `EXC-01`/`EXC-01.rls`, `EXC-02`, `EXC-03.a` (`Checkpoint 4.2`), `EXC-03.b`, `EXC-05`, `EXC-04.presupuesto`, `EXC-04.ausencia` y `EXC-04.banco` (excepción canónica `bank_reconciliation` conservando fuente, antigüedad y diferencias; cierre atómico trazable con `AUD-02` en `confirmMatch`/`confirmDepositMatch` y `/api/finance/bank-transactions/exceptions`).
+- **Pendientes estructurales:** continuar Frente 4 (`APR-01`, y `EXC-04.merma` tras `INV-04` → Puerta 4), Frente 5 restante (`REC-03A/B`, `INV-03/04/05`), Frentes 6–8 y aplicación operativa de migraciones (`OPS-03`).
 
 ## Actualización de implementación — 2026-11-18
 

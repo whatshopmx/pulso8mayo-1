@@ -716,15 +716,18 @@ export async function resolveAttendanceForPeriod(
       pendingAttendanceDetails.push({
         sessionId: s.id || "unspecified",
         date: sessionDate,
-        reason: "Sesión de turno requiere aprobación de manager y aún no ha sido aprobada",
+        reason:
+          status === "NO_SHOW"
+            ? "Ausencia (NO_SHOW) pendiente de aprobación o regularización"
+            : "Sesión de turno requiere aprobación de manager y aún no ha sido aprobada",
         status: s.status,
       });
     }
 
-    // Clasificación de asistencia aprobada y faltas
+    // Clasificación de asistencia aprobada y faltas (EXC-04.ausencia: falta aprobada ≠ asistencia pendiente)
     if (status === "COMPLETED" && (!s.requiresApproval || isExplicitlyApproved)) {
       approvedDates.add(sessionDate);
-    } else if (status === "NO_SHOW") {
+    } else if (status === "NO_SHOW" && (!s.requiresApproval || isExplicitlyApproved)) {
       noShowDates.add(sessionDate);
     }
   }

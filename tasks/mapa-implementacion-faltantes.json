@@ -6879,6 +6879,56 @@
           "checks": ["V1", "V2"]
         }
       ]
+    },
+    "EXC-04.ausencia": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/EXC-04.ausencia/README.md",
+          "head": "6861923ae4a691d2e7d0a4b5dc1b46b7b58110f5",
+          "environment": "Windows local + esquema efímero aislado en Neon (exc04a_<hex>, sin mutar public); falta aprobada distinguida de asistencia pendiente en reglas puras y NOM-02.a, detección/aprobación/regularización conservan ownerId e historial con AUD-02 atómico y sin duplicados; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run lib/services/__tests__/exc04-ausencia-rules.test.ts lib/services/__tests__/payroll-nom02a-attendance.test.ts lib/services/__tests__/exception-adapters.test.ts lib/services/__tests__/exception-service.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/exc04-ausencia-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/absence-exception-rules.ts lib/services/absence-exception-service.ts lib/services/exception-adapters/employee-absence.ts lib/services/exception-adapters/index.ts lib/services/payroll-service.ts app/api/shift-sessions/route.ts lib/services/__tests__/exc04-ausencia-rules.test.ts lib/services/__tests__/exception-adapters.test.ts tests/integration/exc04-ausencia-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V1", "V2"]
+        }
+      ]
+    },
+    "EXC-04.banco": {
+      "state": "aceptado",
+      "evidence": [
+        {
+          "file": "tasks/evidencia/2026-11-27/EXC-04.banco/README.md",
+          "head": "6861923ae4a691d2e7d0a4b5dc1b46b7b58110f5",
+          "environment": "Windows local + esquema efímero aislado en Neon (exc04b_<hex>, sin mutar public); pagos/depósitos pendientes o discrepantes conservan fuente, antigüedad y diferencias; conciliación BAN-04/BAN-06.a y API /api/finance/bank-transactions/exceptions resuelven con trazabilidad AUD-02 y rechazan con 409 ocultar diferencias; sin despliegue operativo",
+          "commands": [
+            {
+              "command": "node node_modules/vitest/vitest.mjs run tests/unit/finance/exc04-banco-http-v3.test.ts tests/unit/finance/ban04-outflow-matching-http.test.ts tests/unit/finance/ban06a-deposit-reconciliation-http.test.ts tests/unit/finance/ban06b-deposit-correction-http.test.ts lib/services/__tests__/exception-adapters.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts tests/integration/exc04-banco-db.test.ts",
+              "exit": 0
+            },
+            {
+              "command": "node node_modules/eslint/bin/eslint.js lib/services/bank-exception-rules.ts lib/services/bank-exception-service.ts lib/services/exception-adapters/bank-reconciliation.ts lib/services/exception-adapters/index.ts lib/services/bank-statement-service.ts app/api/finance/bank-transactions/exceptions/route.ts lib/services/__tests__/exception-adapters.test.ts tests/unit/finance/exc04-banco-http-v3.test.ts tests/integration/exc04-banco-db.test.ts",
+              "exit": 0
+            }
+          ],
+          "checks": ["V2", "V3"]
+        }
+      ]
     }
   }
 }
