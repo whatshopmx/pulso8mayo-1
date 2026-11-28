@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { checkRateLimit, createRateLimitHeaders } from "./lib/rate-limiter";
 import { getSessionCookie } from "better-auth/cookies";
-import { hasAccess, getDefaultDashboard } from './lib/rbac/permissions';
+import { hasAccess, getDefaultDashboard, type UserRole } from './lib/rbac/permissions';
 import { createChildLogger } from './lib/logger';
 
 const logger = createChildLogger('proxy');
@@ -176,7 +176,7 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/dashboard", request.url));
       }
 
-      const userRole = (user.role || 'EMPLEADO') as 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
+      const userRole = (user.role || 'EMPLEADO') as UserRole;
       const requestedPath = request.nextUrl.pathname;
 
       if (!requestedPath.startsWith('/api') && !requestedPath.startsWith('/join')) {

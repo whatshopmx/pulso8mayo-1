@@ -92,6 +92,39 @@ describe('hasAccess — sub-rutas heredan la entrada más específica', () => {
             expect(hasAccess(role, '/dashboard/sales/cortes'), role).toBe(false);
         }
     });
+
+    it('executive y nómina quedan restringidos exclusivamente a SUPER_ADMIN, OWNER y ADMIN', () => {
+        const restrictedPaths = [
+            '/dashboard/executive',
+            '/dashboard/executive/subruta',
+            '/dashboard/labor/payroll',
+            '/dashboard/compliance/payroll',
+        ];
+        for (const path of restrictedPaths) {
+            for (const role of ['SUPER_ADMIN', 'OWNER', 'ADMIN'] as UserRole[]) {
+                expect(hasAccess(role, path), `${role} → ${path}`).toBe(true);
+            }
+            for (const role of ['GERENTE', 'SUPERVISOR', 'EMPLEADO', 'READONLY'] as UserRole[]) {
+                expect(hasAccess(role, path), `${role} → ${path}`).toBe(false);
+            }
+        }
+    });
+
+    it('EMPLEADO NO accede a budgets, exceptions ni civil-protection, pero sí a my-tasks y notifications', () => {
+        expect(hasAccess('EMPLEADO', '/dashboard/budgets')).toBe(false);
+        expect(hasAccess('EMPLEADO', '/dashboard/exceptions')).toBe(false);
+        expect(hasAccess('EMPLEADO', '/dashboard/civil-protection')).toBe(false);
+        expect(hasAccess('EMPLEADO', '/dashboard/my-tasks')).toBe(true);
+        expect(hasAccess('EMPLEADO', '/dashboard/notifications')).toBe(true);
+    });
+
+    it('sub-ruta desconocida bajo /dashboard falla cerrada (sin heredar el comodín)', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        for (const role of ROLES) {
+            expect(hasAccess(role, '/dashboard/ruta-no-registrada'), role).toBe(false);
+        }
+        expect(warn).toHaveBeenCalled();
+    });
 });
 
 describe('hasAccess — rutas desconocidas denegadas (fail-cerrado)', () => {
